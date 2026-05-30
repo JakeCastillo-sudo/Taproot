@@ -2,13 +2,28 @@
   "name": "taproot",
   "version": "1.0.0",
   "private": true,
-  "workspaces": ["client", "server"],
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=server\" \"npm run dev --workspace=client\"",
     "build": "npm run build --workspace=client",
-    "start": "npm run start --workspace=server"
+    "start": "npm run start --workspace=server",
+    "db:migrate": "ts-node apps/api/src/db/migrate.ts up",
+    "db:migrate:down": "ts-node apps/api/src/db/migrate.ts down",
+    "db:seed": "ts-node apps/api/src/db/migrate.ts up"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@types/bcrypt": "^6.0.0",
+    "@types/pg": "^8.20.0",
+    "concurrently": "^8.2.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "node-pg-migrate": "^8.0.4",
+    "pg": "^8.21.0"
   }
 }
