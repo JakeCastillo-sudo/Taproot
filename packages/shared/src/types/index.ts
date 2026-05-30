@@ -71,7 +71,8 @@ export interface Organization {
   id: UUID;
   name: string;
   slug: string;
-  plan: 'free' | 'pro' | 'enterprise';
+  // Must match CHECK constraint in organizations table
+  plan: 'trial' | 'starter' | 'growth' | 'enterprise';
   currency: string;
   timezone: string;
   locale: string;
@@ -98,7 +99,8 @@ export interface Location {
   updated_at: Timestamptz;
 }
 
-export type EmployeeRole = 'owner' | 'manager' | 'cashier' | 'server' | 'kitchen' | 'bartender';
+// Must match CHECK constraint in employees table: ('owner','manager','cashier','kitchen','readonly')
+export type EmployeeRole = 'owner' | 'manager' | 'cashier' | 'kitchen' | 'readonly';
 
 export interface Employee {
   id: UUID;
