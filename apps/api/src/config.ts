@@ -14,6 +14,13 @@ export const config = {
   // 32-byte key as 64 hex chars, used for AES-256-GCM encryption of TOTP secrets
   MFA_ENCRYPTION_KEY: process.env.MFA_ENCRYPTION_KEY ?? '',
 
+  // Redis (optional in dev — real-time events and offline queue)
+  REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
+
+  // Stripe (set in production)
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? '',
+  STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+
   // SMTP for transactional email (optional in dev)
   SMTP_HOST: process.env.SMTP_HOST,
   SMTP_PORT: parseInt(process.env.SMTP_PORT ?? '587', 10),

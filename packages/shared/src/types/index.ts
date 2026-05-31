@@ -230,13 +230,90 @@ export interface AppliedModifier {
   }>;
 }
 
+export type OrderStatus = 'open' | 'in_progress' | 'completed' | 'refunded' | 'partially_refunded' | 'voided' | 'parked';
+export type OrderType = 'in_store' | 'takeout' | 'delivery' | 'table_service' | 'online' | 'phone';
+export type PaymentMethod = 'cash' | 'credit_card' | 'debit_card' | 'apple_pay' | 'google_pay' | 'gift_card' | 'account_credit' | 'bnpl' | 'check' | 'other';
+export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded' | 'partially_refunded' | 'offline_queued';
+export type DiscountType = 'percentage' | 'fixed_amount' | 'bogo' | 'free_item';
+export type LoyaltyTier = 'none' | 'bronze' | 'silver' | 'gold' | 'platinum';
+export type LoyaltyTransactionType = 'earn' | 'redeem' | 'adjust' | 'expire' | 'migrate';
+export type GiftCardTransactionType = 'issue' | 'reload' | 'redemption' | 'refund' | 'adjustment';
+export type OrderEventType =
+  | 'order:created' | 'order:updated' | 'order:completed' | 'order:voided'
+  | 'order:parked' | 'order:resumed' | 'order:item:added' | 'order:item:voided'
+  | 'order:fired' | 'inventory:low_stock' | 'inventory:stockout_imminent';
+
 export interface Customer {
   id: UUID; organization_id: UUID;
   first_name: string | null; last_name: string | null;
   email: string | null; phone: string | null;
-  loyalty_points: number; loyalty_tier: string;
+  loyalty_points: number; loyalty_tier: LoyaltyTier;
+  account_credit: number; total_spend: number;
+  visit_count: number; last_visit_at: Timestamptz | null;
+  tags: string[] | null;
   notes: string | null; merged_into_id: UUID | null;
   deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
+}
+
+export interface Payment {
+  id: UUID; order_id: UUID;
+  payment_method: PaymentMethod; amount: number; tip_amount: number;
+  status: PaymentStatus;
+  processor: string | null; processor_payment_id: string | null;
+  processor_response: Record<string, unknown> | null;
+  card_last4: string | null; card_brand: string | null;
+  offline_queued_at: Timestamptz | null; offline_synced_at: Timestamptz | null;
+  refunded_amount: number;
+  created_at: Timestamptz; updated_at: Timestamptz;
+}
+
+export interface Discount {
+  id: UUID; organization_id: UUID;
+  name: string; code: string | null;
+  discount_type: DiscountType; value: number;
+  applies_to: 'order' | 'category' | 'product'; applies_to_ids: UUID[] | null;
+  minimum_order_amount: number | null; maximum_discount_amount: number | null;
+  usage_limit: number | null; usage_count: number; per_customer_limit: number | null;
+  stackable: boolean; priority: number;
+  active_from: Timestamptz; active_until: Timestamptz | null;
+  customer_tags: string[] | null; is_active: boolean;
+  created_by: UUID | null; deleted_at: Timestamptz | null;
+  created_at: Timestamptz; updated_at: Timestamptz;
+}
+
+export interface AppliedDiscount {
+  id: UUID; order_id: UUID; line_item_id: UUID | null; discount_id: UUID | null;
+  name: string; discount_type: DiscountType; value: number; amount_saved: number;
+  created_at: Timestamptz;
+}
+
+export interface GiftCard {
+  id: UUID; organization_id: UUID; code: string;
+  initial_balance: number; current_balance: number; currency: string;
+  issued_to_customer_id: UUID | null; issued_by_employee_id: UUID | null;
+  issued_at: Timestamptz; expires_at: Timestamptz | null; is_active: boolean;
+  created_at: Timestamptz; updated_at: Timestamptz;
+}
+
+export interface LoyaltyTransaction {
+  id: UUID; organization_id: UUID; customer_id: UUID; order_id: UUID | null;
+  transaction_type: LoyaltyTransactionType;
+  points_delta: number; points_before: number; points_after: number;
+  notes: string | null; created_at: Timestamptz;
+}
+
+export interface OrderEvent {
+  type: OrderEventType;
+  locationId: string;
+  orderId?: string;
+  payload: Record<string, unknown>;
+  timestamp: string;
+}
+
+export interface TipDistributionReport {
+  locationId: string; periodStart: string; periodEnd: string;
+  distributionMethod: string; totalTips: number;
+  allocations: Array<{ employeeId: string; employeeName: string; amount: number; percentage: number }>;
 }
 
 export interface AuditLog {
@@ -266,6 +343,13 @@ export interface DepletionResult {
   ingredientVariantId: string | null;
   depletionQty: number;
   unit: string;
+}
+
+export interface OrderWithRelations extends Order {
+  lineItems: OrderLineItem[];
+  payments: Payment[];
+  discounts: AppliedDiscount[];
+  customer: Customer | null;
 }
 
 export interface StockoutForecast {

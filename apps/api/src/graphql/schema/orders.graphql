@@ -1,0 +1,248 @@
+# ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  open
+  in_progress
+  completed
+  refunded
+  partially_refunded
+  voided
+  parked
+}
+
+enum OrderType {
+  in_store
+  takeout
+  delivery
+  table_service
+  online
+  phone
+}
+
+enum PaymentMethod {
+  cash
+  credit_card
+  debit_card
+  apple_pay
+  google_pay
+  gift_card
+  account_credit
+  bnpl
+  check
+  other
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+  partially_refunded
+  offline_queued
+}
+
+enum DiscountType {
+  percentage
+  fixed_amount
+  bogo
+  free_item
+}
+
+# ─── Core types ───────────────────────────────────────────────────────────────
+
+type Order {
+  id: ID!
+  organizationId: ID!
+  locationId: ID!
+  customerId: ID
+  employeeId: ID!
+  orderNumber: String!
+  status: OrderStatus!
+  orderType: OrderType!
+  tableId: ID
+  subtotal: Int!
+  discountTotal: Int!
+  taxTotal: Int!
+  tipTotal: Int!
+  total: Int!
+  amountPaid: Int!
+  changeDue: Int!
+  notes: String
+  source: String!
+  fulfilledAt: String
+  voidedAt: String
+  voidReason: String
+  metadata: JSON
+  createdAt: String!
+  updatedAt: String!
+
+  # Relations (resolved on demand)
+  lineItems: [OrderLineItem!]!
+  payments: [Payment!]!
+  discounts: [AppliedDiscount!]!
+  customer: Customer
+}
+
+type OrderLineItem {
+  id: ID!
+  orderId: ID!
+  productId: ID!
+  variantId: ID
+  name: String!
+  sku: String
+  quantity: Int!
+  unitPrice: Int!
+  costPrice: Int!
+  discountAmount: Int!
+  taxAmount: Int!
+  total: Int!
+  modifiers: JSON!
+  notes: String
+  voidedAt: String
+  voidReason: String
+  employeeId: ID
+  createdAt: String!
+}
+
+type Payment {
+  id: ID!
+  orderId: ID!
+  paymentMethod: PaymentMethod!
+  amount: Int!
+  tipAmount: Int!
+  status: PaymentStatus!
+  processor: String
+  processorPaymentId: String
+  cardLast4: String
+  cardBrand: String
+  offlineQueuedAt: String
+  offlineSyncedAt: String
+  refundedAmount: Int!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type AppliedDiscount {
+  id: ID!
+  orderId: ID!
+  lineItemId: ID
+  discountId: ID
+  name: String!
+  discountType: DiscountType!
+  value: Float!
+  amountSaved: Int!
+  createdAt: String!
+}
+
+type OrderPage {
+  data: [Order!]!
+  total: Int!
+  page: Int!
+  perPage: Int!
+}
+
+type SendReceiptResult {
+  sent: Boolean!
+  reason: String
+}
+
+# ─── Input types ─────────────────────────────────────────────────────────────
+
+input ModifierInput {
+  modifierId: ID!
+  name: String!
+  priceDelta: Int!
+}
+
+input CreateLineItemInput {
+  productId: ID!
+  variantId: ID
+  quantity: Int!
+  unitPriceOverride: Int
+  notes: String
+  modifiers: [ModifierInput!]
+}
+
+input CreateOrderInput {
+  orderType: OrderType!
+  tableId: ID
+  customerId: ID
+  notes: String
+  source: String
+  metadata: JSON
+  lineItems: [CreateLineItemInput!]!
+  discountCodes: [String!]
+  discountIds: [ID!]
+}
+
+input VoidLineItemInput {
+  lineItemId: ID!
+  voidReason: String
+}
+
+input UpdateOrderInput {
+  tableId: ID
+  notes: String
+  metadata: JSON
+  lineItemsToAdd: [CreateLineItemInput!]
+  lineItemsToVoid: [VoidLineItemInput!]
+  discountCodes: [String!]
+  discountIds: [ID!]
+}
+
+input SplitGroupInput {
+  lineItemIds: [ID!]!
+  employeeId: ID
+}
+
+input SplitOrderInput {
+  splits: [SplitGroupInput!]!
+}
+
+input ProcessPaymentInput {
+  paymentMethod: PaymentMethod!
+  amount: Int!
+  tipAmount: Int
+  stripePaymentMethodId: String
+  giftCardCode: String
+  offlineMode: Boolean
+}
+
+input OrderFilter {
+  status: OrderStatus
+  orderType: OrderType
+  customerId: ID
+  dateFrom: String
+  dateTo: String
+  page: Int
+  limit: Int
+}
+
+# ─── Queries ──────────────────────────────────────────────────────────────────
+
+extend type Query {
+  order(id: ID!): Order
+  orders(locationId: ID!, filter: OrderFilter): OrderPage!
+}
+
+# ─── Mutations ────────────────────────────────────────────────────────────────
+
+extend type Mutation {
+  createOrder(locationId: ID!, input: CreateOrderInput!): Order!
+  updateOrder(id: ID!, locationId: ID!, input: UpdateOrderInput!): Order!
+  voidOrder(id: ID!, locationId: ID!, reason: String!): Order!
+  parkOrder(id: ID!, locationId: ID!): Order!
+  resumeOrder(id: ID!, locationId: ID!): Order!
+  splitOrder(id: ID!, locationId: ID!, input: SplitOrderInput!): [Order!]!
+  mergeOrders(orderIds: [ID!]!, locationId: ID!): Order!
+
+  processPayment(orderId: ID!, input: ProcessPaymentInput!): Payment!
+  refundPayment(paymentId: ID!, amount: Int!, reason: String): Payment!
+
+  sendReceiptEmail(orderId: ID!, email: String!): SendReceiptResult!
+}
+
+# ─── Subscriptions (via WebSocket REST) ─────────────────────────────────────
+# Real-time order events are delivered over WebSocket at
+# /api/v1/ws/locations/:locationId/orders
+# No GraphQL subscriptions are wired — events are raw JSON (OrderEvent).
