@@ -1,0 +1,503 @@
+type Query {
+  # ── Products ──────────────────────────────────────────────────────────────
+
+  product(id: ID!): Product
+  products(
+    categoryId: ID
+    supplierId: ID
+    isActive: Boolean
+    search: String
+    productType: ProductType
+    locationId: ID
+    page: Int
+    limit: Int
+    sortBy: ProductSortField
+    sortOrder: SortOrder
+  ): ProductPage!
+
+  searchByBarcode(barcode: String!): Product
+
+  # ── Variants ──────────────────────────────────────────────────────────────
+
+  variant(id: ID!): ProductVariant
+  activePrice(variantId: ID!, locationId: ID, currency: String!): Float!
+
+  # ── Recipes ───────────────────────────────────────────────────────────────
+
+  recipe(productId: ID!): Recipe
+
+  theoreticalUsage(
+    locationId: ID!
+    productIds: [ID!]!
+    startTs: String!
+    endTs: String!
+  ): [IngredientUsage!]!
+
+  # ── Inventory ─────────────────────────────────────────────────────────────
+
+  inventoryLevel(locationId: ID!, productId: ID!, variantId: ID): InventoryLevel
+  inventoryLevels(
+    locationId: ID!
+    productId: ID
+    belowReorderPoint: Boolean
+    search: String
+    page: Int
+    limit: Int
+  ): InventoryLevelPage!
+
+  movementHistory(
+    locationId: ID!
+    productId: ID!
+    variantId: ID
+    limit: Int
+    offset: Int
+  ): [InventoryMovement!]!
+
+  # ── Forecasts ─────────────────────────────────────────────────────────────
+
+  forecastDashboard(
+    locationId: ID!
+    windowHours: Int
+    urgency: Urgency
+  ): [StockoutForecast!]!
+
+  # ── Variance Reports ──────────────────────────────────────────────────────
+
+  varianceReport(id: ID!): VarianceReport
+  varianceReports(
+    locationId: ID
+    status: VarianceReportStatus
+    limit: Int
+    offset: Int
+  ): VarianceReportPage!
+}
+
+type Mutation {
+  # ── Products ──────────────────────────────────────────────────────────────
+
+  createProduct(input: CreateProductInput!): Product!
+  updateProduct(id: ID!, input: UpdateProductInput!): Product!
+  deleteProduct(id: ID!): Boolean!
+
+  # ── Variants ──────────────────────────────────────────────────────────────
+
+  createVariant(productId: ID!, input: CreateVariantInput!): ProductVariant!
+  updateVariant(id: ID!, input: UpdateVariantInput!): ProductVariant!
+  deleteVariant(id: ID!): Boolean!
+  setPrices(variantId: ID!, prices: [PriceInput!]!): Boolean!
+
+  # ── Recipes ───────────────────────────────────────────────────────────────
+
+  upsertRecipe(productId: ID!, input: UpsertRecipeInput!): Recipe!
+
+  # ── Inventory ─────────────────────────────────────────────────────────────
+
+  adjustInventory(
+    locationId: ID!
+    productId: ID!
+    variantId: ID
+    delta: Float!
+    movementType: AdjustmentMovementType
+    reason: String
+  ): InventoryLevel!
+
+  transferStock(
+    fromLocationId: ID!
+    toLocationId: ID!
+    items: [TransferItemInput!]!
+  ): Boolean!
+
+  receiveStock(
+    locationId: ID!
+    purchaseOrderId: ID!
+    lines: [ReceiveLineInput!]!
+  ): Boolean!
+
+  recordStockCount(
+    locationId: ID!
+    counts: [StockCountInput!]!
+    isOpeningCount: Boolean
+  ): [StockCountDelta!]!
+
+  # ── Variance Reports ──────────────────────────────────────────────────────
+
+  generateVarianceReport(
+    locationId: ID!
+    periodStart: String!
+    periodEnd: String!
+    flagThresholdPct: Float
+  ): VarianceReport!
+
+  finalizeVarianceReport(id: ID!): VarianceReport!
+}
+
+# ── Enums ──────────────────────────────────────────────────────────────────────
+
+enum ProductType {
+  standard
+  recipe
+  bundle
+  service
+  weight
+}
+
+enum UnitOfMeasure {
+  each
+  g
+  kg
+  ml
+  l
+  oz
+  lb
+  m
+  ft
+}
+
+enum ProductSortField {
+  name
+  created_at
+  updated_at
+  cost_price
+}
+
+enum SortOrder {
+  ASC
+  DESC
+}
+
+enum MovementType {
+  sale
+  return
+  waste
+  adjustment
+  transfer_in
+  transfer_out
+  po_receipt
+  opening_count
+  cycle_count
+}
+
+enum AdjustmentMovementType {
+  waste
+  adjustment
+  return
+}
+
+enum Urgency {
+  critical
+  warning
+  ok
+}
+
+enum Confidence {
+  high
+  medium
+  low
+}
+
+enum VarianceReportStatus {
+  draft
+  finalized
+}
+
+# ── Product types ──────────────────────────────────────────────────────────────
+
+type Product {
+  id: ID!
+  organizationId: ID!
+  categoryId: ID
+  supplierId: ID
+  name: String!
+  description: String
+  sku: String
+  barcode: String
+  productType: ProductType!
+  unitOfMeasure: UnitOfMeasure!
+  costPrice: Float!
+  trackInventory: Boolean!
+  isActive: Boolean!
+  tags: [String!]
+  createdAt: String!
+  updatedAt: String!
+
+  # Relations
+  variants: [ProductVariant!]!
+  prices: [ProductPrice!]!
+  recipe: Recipe
+}
+
+type ProductVariant {
+  id: ID!
+  productId: ID!
+  organizationId: ID!
+  name: String!
+  sku: String
+  barcode: String
+  costPrice: Float!
+  isActive: Boolean!
+  sortOrder: Int!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type ProductPrice {
+  id: ID!
+  variantId: ID!
+  locationId: ID
+  price: Float!
+  compareAtPrice: Float
+  currency: String!
+  isActive: Boolean!
+  effectiveFrom: String!
+  effectiveUntil: String
+}
+
+type ProductPage {
+  products: [Product!]!
+  total: Int!
+  page: Int!
+}
+
+# ── Recipe types ───────────────────────────────────────────────────────────────
+
+type Recipe {
+  id: ID!
+  productId: ID!
+  name: String!
+  yieldFactor: Float!
+  notes: String
+  version: Int!
+  isActive: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  lines: [RecipeLine!]!
+}
+
+type RecipeLine {
+  id: ID!
+  recipeId: ID!
+  ingredientProductId: ID!
+  ingredientVariantId: ID
+  quantity: Float!
+  unit: String!
+  wasteFactor: Float!
+  notes: String
+}
+
+type IngredientUsage {
+  ingredientProductId: ID!
+  theoreticalQty: Float!
+  unit: String!
+}
+
+# ── Inventory types ────────────────────────────────────────────────────────────
+
+type InventoryLevel {
+  id: ID!
+  organizationId: ID!
+  locationId: ID!
+  productId: ID!
+  variantId: ID
+  quantityOnHand: Float!
+  quantityOnOrder: Float!
+  reorderPoint: Float
+  reorderQuantity: Float
+  maxStockLevel: Float
+  lastCountedAt: String
+  createdAt: String!
+  updatedAt: String!
+}
+
+type InventoryLevelPage {
+  levels: [InventoryLevelWithProduct!]!
+  total: Int!
+  page: Int!
+}
+
+type InventoryLevelWithProduct {
+  id: ID!
+  locationId: ID!
+  productId: ID!
+  variantId: ID
+  quantityOnHand: Float!
+  quantityOnOrder: Float!
+  reorderPoint: Float
+  lastCountedAt: String
+  productName: String!
+  productSku: String
+}
+
+type InventoryMovement {
+  id: ID!
+  organizationId: ID!
+  locationId: ID!
+  productId: ID!
+  variantId: ID
+  movementType: MovementType!
+  quantityDelta: Float!
+  quantityBefore: Float!
+  quantityAfter: Float!
+  referenceType: String
+  referenceId: ID
+  employeeId: ID
+  notes: String
+  createdAt: String!
+}
+
+type StockCountDelta {
+  productId: ID!
+  variantId: ID
+  delta: Float!
+}
+
+# ── Forecast types ─────────────────────────────────────────────────────────────
+
+type StockoutForecast {
+  productId: ID!
+  productName: String!
+  sku: String
+  currentOnHand: Float!
+  unit: UnitOfMeasure!
+  burnRatePerHour: Float!
+  hoursUntilStockout: Float
+  estimatedStockoutAt: String
+  reorderPointReached: Boolean!
+  hoursUntilReorderPoint: Float
+  urgency: Urgency!
+  confidence: Confidence!
+  dataPoints: Int!
+}
+
+# ── Variance report types ──────────────────────────────────────────────────────
+
+type VarianceReport {
+  id: ID!
+  organizationId: ID!
+  locationId: ID!
+  periodStart: String!
+  periodEnd: String!
+  status: VarianceReportStatus!
+  generatedBy: ID
+  createdAt: String!
+  updatedAt: String!
+  lines: [VarianceReportLine!]!
+}
+
+type VarianceReportLine {
+  id: ID!
+  reportId: ID!
+  productId: ID!
+  variantId: ID
+  openingQuantity: Float!
+  closingQuantity: Float!
+  receivedQuantity: Float!
+  theoreticalUsage: Float!
+  actualUsage: Float!
+  varianceDelta: Float!
+  variancePct: Float!
+  isFlagged: Boolean!
+  flagThreshold: Float
+}
+
+type VarianceReportPage {
+  reports: [VarianceReport!]!
+  total: Int!
+}
+
+# ── Input types ────────────────────────────────────────────────────────────────
+
+input CreateProductInput {
+  name: String!
+  description: String
+  sku: String
+  barcode: String
+  categoryId: ID
+  supplierId: ID
+  productType: ProductType
+  unitOfMeasure: UnitOfMeasure
+  costPrice: Float
+  trackInventory: Boolean
+  isActive: Boolean
+  tags: [String!]
+}
+
+input UpdateProductInput {
+  name: String
+  description: String
+  sku: String
+  barcode: String
+  categoryId: ID
+  supplierId: ID
+  productType: ProductType
+  unitOfMeasure: UnitOfMeasure
+  costPrice: Float
+  trackInventory: Boolean
+  isActive: Boolean
+  tags: [String!]
+}
+
+input CreateVariantInput {
+  name: String!
+  sku: String
+  barcode: String
+  costPrice: Float
+  isActive: Boolean
+  sortOrder: Int
+  defaultPrice: Float!
+  currency: String
+  locationId: ID
+}
+
+input UpdateVariantInput {
+  name: String
+  sku: String
+  barcode: String
+  costPrice: Float
+  isActive: Boolean
+  sortOrder: Int
+}
+
+input PriceInput {
+  locationId: ID
+  price: Float!
+  compareAtPrice: Float
+  currency: String!
+  effectiveFrom: String
+  effectiveUntil: String
+}
+
+input RecipeLineInput {
+  ingredientProductId: ID!
+  ingredientVariantId: ID
+  quantity: Float!
+  unit: String!
+  wasteFactor: Float!
+}
+
+input UpsertRecipeInput {
+  name: String!
+  yieldFactor: Float!
+  notes: String
+  lines: [RecipeLineInput!]!
+}
+
+input TransferItemInput {
+  productId: ID!
+  variantId: ID
+  quantity: Float!
+}
+
+input ReceiveLineInput {
+  purchaseOrderLineId: ID!
+  productId: ID!
+  variantId: ID
+  quantityReceived: Float!
+  unitCost: Float
+}
+
+input StockCountInput {
+  productId: ID!
+  variantId: ID
+  countedQuantity: Float!
+  notes: String
+}

@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { validateConfig, config } from './config';
 import authPlugin from './auth/index';
+import inventoryRoutes from './routes/inventory.routes';
 import { AppError, ValidationError } from './errors';
 
 // Validate required env vars at startup — throws immediately if any are missing
@@ -80,6 +81,7 @@ async function buildApp(): Promise<FastifyInstance> {
   // ─── Auth plugin (registers /api/v1/auth/* routes + request decorators) ────
 
   await fastify.register(authPlugin);
+  await fastify.register(inventoryRoutes);
 
   // ─── Global authentication preHandler ──────────────────────────────────────
 

@@ -1,514 +1,285 @@
-// ─── Shared primitive aliases ────────────────────────────────────────────────
+// ─── Primitives ───────────────────────────────────────────────────────────────
 export type UUID = string;
 export type Timestamptz = string; // ISO-8601
-export type Cents = number;       // integer — amount stored in smallest currency unit
+export type Cents = number;       // integer — smallest currency unit
 
-// ─── JSONB field shapes ──────────────────────────────────────────────────────
-export interface Address {
-  line1: string;
-  line2?: string;
-  city: string;
-  state: string;
-  zip: string;
-  country: string;
-}
+// ─── JSONB shapes ─────────────────────────────────────────────────────────────
+export interface Address { line1: string; line2?: string; city: string; state: string; zip: string; country: string; }
+export interface PrinterConnection { type: 'network' | 'usb' | 'bluetooth'; host?: string; port?: number; device?: string; }
+export interface VariantOptions { size?: string; color?: string; [key: string]: string | undefined; }
+export interface OrderMetadata { source?: 'pos' | 'kiosk' | 'online' | 'phone'; notes?: string; covers?: number; [key: string]: unknown; }
+export interface PaymentMetadata { processor?: string; auth_code?: string; last4?: string; brand?: string; [key: string]: unknown; }
+export interface LoyaltyConfig { points_per_dollar?: number; redemption_rate?: number; minimum_redemption?: number; [key: string]: unknown; }
+export interface OnlineOrderConfig { enabled: boolean; url?: string; lead_time_minutes?: number; }
+export interface ReceiptConfig { header?: string; footer?: string; show_tax_breakdown?: boolean; show_logo?: boolean; }
+export interface DeviceConfig { [key: string]: unknown; }
 
-export interface PrinterConnection {
-  type: 'network' | 'usb' | 'bluetooth';
-  host?: string;
-  port?: number;
-  device?: string;
-}
-
-export interface VariantOptions {
-  size?: string;
-  color?: string;
-  [key: string]: string | undefined;
-}
-
-export interface OrderMetadata {
-  source?: 'pos' | 'kiosk' | 'online' | 'phone';
-  notes?: string;
-  covers?: number;
-  [key: string]: unknown;
-}
-
-export interface PaymentMetadata {
-  processor?: string;
-  auth_code?: string;
-  last4?: string;
-  brand?: string;
-  [key: string]: unknown;
-}
-
-export interface LoyaltyConfig {
-  points_per_dollar?: number;
-  redemption_rate?: number;
-  minimum_redemption?: number;
-  [key: string]: unknown;
-}
-
-export interface OnlineOrderConfig {
-  enabled: boolean;
-  url?: string;
-  lead_time_minutes?: number;
-}
-
-export interface ReceiptConfig {
-  header?: string;
-  footer?: string;
-  show_tax_breakdown?: boolean;
-  show_logo?: boolean;
-}
-
-export interface DeviceConfig {
-  [key: string]: unknown;
-}
-
-// ─── Table row types ──────────────────────────────────────────────────────────
+// ─── Core tables ──────────────────────────────────────────────────────────────
 
 export interface Organization {
-  id: UUID;
-  name: string;
-  slug: string;
-  // Must match CHECK constraint in organizations table
+  id: UUID; name: string; slug: string;
   plan: 'trial' | 'starter' | 'growth' | 'enterprise';
-  currency: string;
-  timezone: string;
-  locale: string;
-  tax_inclusive: boolean;
-  loyalty_config: LoyaltyConfig | null;
-  online_order_config: OnlineOrderConfig | null;
-  receipt_config: ReceiptConfig | null;
-  deleted_at: Timestamptz | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+  currency: string; timezone: string; locale: string; tax_inclusive: boolean;
+  loyalty_config: LoyaltyConfig | null; online_order_config: OnlineOrderConfig | null;
+  receipt_config: ReceiptConfig | null; deleted_at: Timestamptz | null;
+  created_at: Timestamptz; updated_at: Timestamptz;
 }
 
 export interface Location {
-  id: UUID;
-  organization_id: UUID;
-  name: string;
-  slug: string;
-  address: Address | null;
-  phone: string | null;
-  timezone: string;
-  is_active: boolean;
-  deleted_at: Timestamptz | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+  id: UUID; organization_id: UUID; name: string;
+  address: Address | null; phone: string | null; timezone: string;
+  currency: string; is_active: boolean; settings: Record<string, unknown>;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
 }
 
-// Must match CHECK constraint in employees table: ('owner','manager','cashier','kitchen','readonly')
+// Must match CHECK: ('owner','manager','cashier','kitchen','readonly')
 export type EmployeeRole = 'owner' | 'manager' | 'cashier' | 'kitchen' | 'readonly';
 
 export interface Employee {
-  id: UUID;
-  organization_id: UUID;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: EmployeeRole;
-  is_active: boolean;
-  deleted_at: Timestamptz | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
-}
-
-export interface EmployeeSafe extends Omit<Employee, never> {
-  // password_hash, pin_hash, totp_secret are excluded from the employees_safe view
-}
-
-export interface EmployeeLocation {
-  employee_id: UUID;
-  location_id: UUID;
-  created_at: Timestamptz;
+  id: UUID; organization_id: UUID; email: string;
+  first_name: string; last_name: string; role: EmployeeRole;
+  totp_enabled: boolean; last_login_at: Timestamptz | null;
+  failed_login_attempts: number; locked_until: Timestamptz | null;
+  location_ids: UUID[] | null; is_active: boolean;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
 }
 
 export interface Category {
-  id: UUID;
-  organization_id: UUID;
-  parent_id: UUID | null;
-  name: string;
-  slug: string;
-  sort_order: number;
-  color: string | null;
-  is_active: boolean;
-  deleted_at: Timestamptz | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+  id: UUID; organization_id: UUID; parent_id: UUID | null;
+  name: string; color: string | null; icon: string | null;
+  sort_order: number; is_active: boolean;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
 }
 
+export interface Supplier {
+  id: UUID; organization_id: UUID; name: string;
+  contact_name: string | null; email: string | null; phone: string | null;
+  address: Address | null; payment_terms: string | null; lead_time_days: number;
+  notes: string | null; is_active: boolean;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
+}
+
+// product_type CHECK: standard|recipe|bundle|service|weight
+// unit_of_measure CHECK: each|g|kg|ml|l|oz|lb|m|ft
+export type ProductType = 'standard' | 'recipe' | 'bundle' | 'service' | 'weight';
+export type UnitOfMeasure = 'each' | 'g' | 'kg' | 'ml' | 'l' | 'oz' | 'lb' | 'm' | 'ft';
+
 export interface Product {
-  id: UUID;
-  organization_id: UUID;
-  category_id: UUID | null;
-  name: string;
-  slug: string;
-  description: string | null;
-  image_url: string | null;
-  track_inventory: boolean;
-  is_active: boolean;
-  deleted_at: Timestamptz | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+  id: UUID; organization_id: UUID; category_id: UUID | null; supplier_id: UUID | null;
+  name: string; description: string | null; sku: string | null; barcode: string | null;
+  product_type: ProductType; unit_of_measure: UnitOfMeasure;
+  cost_price: number; track_inventory: boolean; is_active: boolean;
+  images: unknown[]; tags: string[] | null; metadata: Record<string, unknown>;
+  created_by: UUID | null; deleted_at: Timestamptz | null;
+  created_at: Timestamptz; updated_at: Timestamptz;
 }
 
 export interface ProductVariant {
-  id: UUID;
-  product_id: UUID;
-  sku: string | null;
-  name: string;
-  options: VariantOptions;
-  barcode: string | null;
-  weight_grams: number | null;
-  sort_order: number;
-  is_active: boolean;
-  deleted_at: Timestamptz | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+  id: UUID; product_id: UUID; organization_id: UUID;
+  name: string; sku: string | null; barcode: string | null;
+  options: VariantOptions; cost_price: number;
+  is_active: boolean; sort_order: number;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
 }
 
-export interface Price {
-  id: UUID;
-  organization_id: UUID;
-  variant_id: UUID;
-  location_id: UUID | null;
-  amount: Cents;
-  currency: string;
-  valid_from: Timestamptz | null;
-  valid_until: Timestamptz | null;
-  is_active: boolean;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+// DB table: product_prices (not prices)
+export interface ProductPrice {
+  id: UUID; variant_id: UUID; location_id: UUID | null;
+  price: number; compare_at_price: number | null; currency: string;
+  is_active: boolean; effective_from: Timestamptz; effective_until: Timestamptz | null;
+  created_at: Timestamptz; updated_at: Timestamptz;
 }
 
 export interface TaxRate {
-  id: UUID;
-  organization_id: UUID;
-  name: string;
-  rate: number;
-  applies_to: string;
-  is_active: boolean;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
-}
-
-export interface ProductTaxRate {
-  product_id: UUID;
-  tax_rate_id: UUID;
+  id: UUID; organization_id: UUID; name: string; rate: number;
+  applies_to: string; is_active: boolean;
+  created_at: Timestamptz; updated_at: Timestamptz;
 }
 
 export interface ModifierGroup {
-  id: UUID;
-  organization_id: UUID;
-  name: string;
-  selection_type: 'single' | 'multiple';
-  min_selections: number;
-  max_selections: number | null;
-  is_required: boolean;
-  sort_order: number;
-  is_active: boolean;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+  id: UUID; organization_id: UUID; name: string;
+  selection_type: 'single' | 'multiple' | 'required_single' | 'required_multiple';
+  min_selections: number; max_selections: number | null;
+  sort_order: number; is_active: boolean;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
 }
 
 export interface Modifier {
-  id: UUID;
-  group_id: UUID;
-  name: string;
-  price_delta: Cents;
-  is_active: boolean;
-  sort_order: number;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+  id: UUID; group_id: UUID; name: string;
+  price_delta: number; cost_delta: number;
+  is_default: boolean; sort_order: number; is_active: boolean;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
 }
 
-export interface ProductModifierGroup {
-  product_id: UUID;
-  group_id: UUID;
-  sort_order: number;
-}
-
-export interface Ingredient {
-  id: UUID;
-  organization_id: UUID;
-  name: string;
-  unit: string;
-  cost_per_unit: Cents;
-  is_active: boolean;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
-}
-
+// DB table: recipes — keyed by product_id (not variant_id)
 export interface Recipe {
-  id: UUID;
-  organization_id: UUID;
-  variant_id: UUID;
-  name: string;
-  yield_quantity: number;
-  yield_unit: string;
-  notes: string | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+  id: UUID; product_id: UUID; organization_id: UUID;
+  name: string; yield_factor: number; notes: string | null;
+  version: number; is_active: boolean;
+  created_by: UUID | null; deleted_at: Timestamptz | null;
+  created_at: Timestamptz; updated_at: Timestamptz;
 }
 
+// DB table: recipe_lines — uses ingredient_product_id + ingredient_variant_id
 export interface RecipeLine {
-  id: UUID;
-  recipe_id: UUID;
-  ingredient_id: UUID;
-  quantity: number;
-  unit: string;
-  notes: string | null;
-  created_at: Timestamptz;
+  id: UUID; recipe_id: UUID;
+  ingredient_product_id: UUID; ingredient_variant_id: UUID | null;
+  quantity: number; unit: string; waste_factor: number;
+  notes: string | null; created_at: Timestamptz; updated_at: Timestamptz;
 }
 
 export interface InventoryLevel {
-  id: UUID;
-  location_id: UUID;
-  product_id: UUID;
-  variant_id: UUID | null;
-  quantity_on_hand: number;
-  quantity_reserved: number;
-  reorder_point: number | null;
-  reorder_quantity: number | null;
-  updated_at: Timestamptz;
+  id: UUID; organization_id: UUID; location_id: UUID;
+  product_id: UUID; variant_id: UUID | null;
+  quantity_on_hand: number; quantity_on_order: number;
+  reorder_point: number | null; reorder_quantity: number | null;
+  max_stock_level: number | null; last_counted_at: Timestamptz | null;
+  created_at: Timestamptz; updated_at: Timestamptz;
 }
 
+// movement_type CHECK: sale|return|waste|adjustment|transfer_in|transfer_out|po_receipt|opening_count|cycle_count
 export type InventoryMovementType =
-  | 'sale' | 'return' | 'purchase' | 'waste' | 'transfer_in'
-  | 'transfer_out' | 'adjustment' | 'initial';
+  | 'sale' | 'return' | 'waste' | 'adjustment'
+  | 'transfer_in' | 'transfer_out' | 'po_receipt'
+  | 'opening_count' | 'cycle_count';
 
 export interface InventoryMovement {
-  id: UUID;
-  location_id: UUID;
-  product_id: UUID;
-  variant_id: UUID | null;
-  employee_id: UUID | null;
+  id: UUID; organization_id: UUID; location_id: UUID;
+  product_id: UUID; variant_id: UUID | null;
   movement_type: InventoryMovementType;
-  quantity_delta: number;
-  reason: string | null;
-  reference_id: UUID | null;
-  created_at: Timestamptz;
+  quantity_delta: number; quantity_before: number; quantity_after: number;
+  reference_type: string | null; reference_id: UUID | null;
+  employee_id: UUID | null; notes: string | null;
+  metadata: Record<string, unknown>; created_at: Timestamptz;
+}
+
+export interface PurchaseOrder {
+  id: UUID; organization_id: UUID; location_id: UUID; supplier_id: UUID | null;
+  po_number: string;
+  status: 'draft' | 'sent' | 'confirmed' | 'partially_received' | 'received' | 'cancelled';
+  expected_delivery_date: string | null; notes: string | null;
+  subtotal: number; tax_total: number; total: number;
+  sent_at: Timestamptz | null; received_at: Timestamptz | null;
+  created_by: UUID | null; deleted_at: Timestamptz | null;
+  created_at: Timestamptz; updated_at: Timestamptz;
+}
+
+export interface PurchaseOrderLine {
+  id: UUID; purchase_order_id: UUID; product_id: UUID; variant_id: UUID | null;
+  quantity_ordered: number; quantity_received: number;
+  unit_cost: number; total_cost: number;
+  received_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
+}
+
+export interface VarianceReport {
+  id: UUID; organization_id: UUID; location_id: UUID;
+  period_start: Timestamptz; period_end: Timestamptz;
+  status: 'draft' | 'finalized';
+  generated_by: UUID | null; created_at: Timestamptz; updated_at: Timestamptz;
+}
+
+export interface VarianceReportLine {
+  id: UUID; report_id: UUID; product_id: UUID; variant_id: UUID | null;
+  opening_quantity: number; closing_quantity: number; received_quantity: number;
+  theoretical_usage: number; actual_usage: number;
+  variance_delta: number; variance_pct: number;
+  is_flagged: boolean; flag_threshold: number | null;
+  ai_suggested_causes: unknown[]; created_at: Timestamptz;
 }
 
 export type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning';
 
-export interface Table {
-  id: UUID;
-  location_id: UUID;
-  name: string;
-  capacity: number | null;
-  section: string | null;
-  status: TableStatus;
-  is_active: boolean;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+export interface TableRecord {
+  id: UUID; location_id: UUID; organization_id: UUID;
+  name: string; section: string | null; seats: number;
+  position_x: number; position_y: number; shape: string;
+  width: number; height: number; is_active: boolean;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
 }
-
-export type OrderType = 'dine_in' | 'takeout' | 'delivery' | 'online';
-export type OrderStatus =
-  | 'open' | 'submitted' | 'in_progress' | 'ready' | 'completed' | 'cancelled' | 'refunded';
 
 export interface Order {
-  id: UUID;
-  organization_id: UUID;
-  location_id: UUID;
-  employee_id: UUID;
-  customer_id: UUID | null;
-  table_id: UUID | null;
-  order_number: string | null;
-  order_type: OrderType;
-  status: OrderStatus;
-  subtotal: Cents;
-  tax_total: Cents;
-  discount_total: Cents;
-  tip_amount: Cents;
-  total: Cents;
-  notes: string | null;
-  metadata: OrderMetadata | null;
-  completed_at: Timestamptz | null;
-  deleted_at: Timestamptz | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+  id: UUID; organization_id: UUID; location_id: UUID;
+  customer_id: UUID | null; employee_id: UUID;
+  order_number: string; status: string; order_type: string;
+  table_id: UUID | null; subtotal: number; discount_total: number;
+  tax_total: number; tip_total: number; total: number;
+  amount_paid: number; change_due: number; notes: string | null;
+  source: string; fulfilled_at: Timestamptz | null;
+  voided_at: Timestamptz | null; void_reason: string | null;
+  metadata: Record<string, unknown>; created_at: Timestamptz; updated_at: Timestamptz;
 }
 
-export type OrderItemStatus = 'pending' | 'sent' | 'in_progress' | 'ready' | 'served' | 'voided';
-
-export interface OrderItem {
-  id: UUID;
-  order_id: UUID;
-  variant_id: UUID;
-  name_snapshot: string;
-  unit_price: Cents;
-  quantity: number;
-  discount_amount: Cents;
-  tax_amount: Cents;
-  line_total: Cents;
-  status: OrderItemStatus;
-  notes: string | null;
-  void_reason: string | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
+// DB table: order_line_items (not order_items)
+export interface OrderLineItem {
+  id: UUID; order_id: UUID; product_id: UUID; variant_id: UUID | null;
+  name: string; sku: string | null; quantity: number;
+  unit_price: number; cost_price: number;
+  discount_amount: number; tax_amount: number; total: number;
+  modifiers: AppliedModifier[];
+  notes: string | null; voided_at: Timestamptz | null; void_reason: string | null;
+  employee_id: UUID | null; created_at: Timestamptz; updated_at: Timestamptz;
 }
 
-export interface OrderItemModifier {
-  id: UUID;
-  order_item_id: UUID;
-  modifier_id: UUID | null;
-  name_snapshot: string;
-  price_delta: Cents;
-  created_at: Timestamptz;
-}
-
-export type PaymentMethod = 'cash' | 'credit' | 'debit' | 'gift_card' | 'loyalty' | 'external';
-export type PaymentStatus = 'pending' | 'authorized' | 'captured' | 'voided' | 'refunded' | 'failed';
-
-export interface Payment {
-  id: UUID;
-  order_id: UUID;
-  employee_id: UUID | null;
-  method: PaymentMethod;
-  status: PaymentStatus;
-  amount: Cents;
-  tip_amount: Cents;
-  reference: string | null;
-  metadata: PaymentMetadata | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
-}
-
-export interface Discount {
-  id: UUID;
-  organization_id: UUID;
+export interface AppliedModifier {
+  modifierId: string;
   name: string;
-  code: string | null;
-  discount_type: 'percent' | 'fixed';
-  value: number;
-  applies_to: 'order' | 'item' | 'category';
-  minimum_order_amount: Cents | null;
-  max_uses: number | null;
-  used_count: number;
-  valid_from: Timestamptz | null;
-  valid_until: Timestamptz | null;
-  is_active: boolean;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
-}
-
-export interface OrderDiscount {
-  id: UUID;
-  order_id: UUID;
-  discount_id: UUID | null;
-  name_snapshot: string;
-  discount_type: 'percent' | 'fixed';
-  value: number;
-  amount_applied: Cents;
-  created_at: Timestamptz;
+  priceDelta: number;
+  ingredientOverrides?: Array<{
+    ingredientProductId: string;
+    quantityDelta: number;
+  }>;
 }
 
 export interface Customer {
-  id: UUID;
-  organization_id: UUID;
-  email: string | null;
-  phone: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  loyalty_points: number;
-  notes: string | null;
-  merged_into_id: UUID | null;
-  deleted_at: Timestamptz | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
-}
-
-export interface LoyaltyTransaction {
-  id: UUID;
-  customer_id: UUID;
-  order_id: UUID | null;
-  employee_id: UUID | null;
-  points_delta: number;
-  reason: string;
-  created_at: Timestamptz;
-}
-
-export interface GiftCard {
-  id: UUID;
-  organization_id: UUID;
-  code: string;
-  balance: Cents;
-  initial_balance: Cents;
-  is_active: boolean;
-  expires_at: Timestamptz | null;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
-}
-
-export interface GiftCardTransaction {
-  id: UUID;
-  gift_card_id: UUID;
-  order_id: UUID | null;
-  employee_id: UUID | null;
-  amount_delta: Cents;
-  reason: string;
-  created_at: Timestamptz;
-}
-
-export interface Printer {
-  id: UUID;
-  location_id: UUID;
-  name: string;
-  type: 'receipt' | 'kitchen' | 'label';
-  connection: PrinterConnection;
-  is_active: boolean;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
-}
-
-export interface Device {
-  id: UUID;
-  location_id: UUID;
-  name: string;
-  device_type: 'pos' | 'kiosk' | 'kitchen_display' | 'mobile';
-  config: DeviceConfig | null;
-  last_seen_at: Timestamptz | null;
-  is_active: boolean;
-  created_at: Timestamptz;
-  updated_at: Timestamptz;
-}
-
-export interface OrganizationOrderSequence {
-  organization_id: UUID;
-  year: number;
-  counter: number;
+  id: UUID; organization_id: UUID;
+  first_name: string | null; last_name: string | null;
+  email: string | null; phone: string | null;
+  loyalty_points: number; loyalty_tier: string;
+  notes: string | null; merged_into_id: UUID | null;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
 }
 
 export interface AuditLog {
-  id: UUID;
-  organization_id: UUID | null;
-  actor_id: UUID | null;
-  actor_type: 'employee' | 'system' | 'api';
-  action: string;
-  resource_type: string;
-  resource_id: UUID | null;
-  old_values: Record<string, unknown> | null;
-  new_values: Record<string, unknown> | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  created_at: Timestamptz;
+  id: UUID; organization_id: UUID | null; actor_id: UUID | null;
+  actor_type: 'employee' | 'system' | 'api'; action: string;
+  resource_type: string | null; resource_id: UUID | null;
+  before_state: Record<string, unknown> | null; after_state: Record<string, unknown> | null;
+  ip_address: string | null; user_agent: string | null;
+  metadata: Record<string, unknown>; created_at: Timestamptz;
 }
 
-// ─── API response helpers ─────────────────────────────────────────────────────
+// ─── API helpers ──────────────────────────────────────────────────────────────
 
-export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  per_page: number;
+export interface PaginatedResponse<T> { data: T[]; total: number; page: number; per_page: number; }
+export interface ApiError { code: string; message: string; details?: unknown; }
+
+// ─── Service DTOs ─────────────────────────────────────────────────────────────
+
+export interface ProductWithRelations extends Product {
+  variants: ProductVariant[];
+  prices: ProductPrice[];
+  recipe: (Recipe & { lines: RecipeLine[] }) | null;
 }
 
-export interface ApiError {
-  code: string;
-  message: string;
-  details?: unknown;
+export interface DepletionResult {
+  ingredientProductId: string;
+  ingredientVariantId: string | null;
+  depletionQty: number;
+  unit: string;
+}
+
+export interface StockoutForecast {
+  productId: string;
+  productName: string;
+  sku: string | null;
+  currentOnHand: number;
+  unit: UnitOfMeasure;
+  burnRatePerHour: number;
+  hoursUntilStockout: number | null;
+  estimatedStockoutAt: Date | null;
+  reorderPointReached: boolean;
+  hoursUntilReorderPoint: number | null;
+  urgency: 'critical' | 'warning' | 'ok';
+  confidence: 'high' | 'medium' | 'low';
+  dataPoints: number;
 }
