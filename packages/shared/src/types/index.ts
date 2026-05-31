@@ -367,3 +367,63 @@ export interface StockoutForecast {
   confidence: 'high' | 'medium' | 'low';
   dataPoints: number;
 }
+
+// ─── Stripe Connect ───────────────────────────────────────────────────────────
+
+export type ConnectAccountStatus =
+  | 'not_connected'
+  | 'onboarding'
+  | 'active'
+  | 'restricted'
+  | 'deauthorized';
+
+/** Live status of a merchant's Stripe Connect account. */
+export interface ConnectAccount {
+  accountId: string;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  requiresInformation: boolean;
+  requirementsDue: string[];
+  accountStatus: ConnectAccountStatus;
+}
+
+// ─── Stripe Terminal ──────────────────────────────────────────────────────────
+
+export type TerminalReaderModel =
+  | 'bbpos_wisepos_e'
+  | 'stripe_m2'
+  | 'stripe_s700'
+  | 'other';
+
+export type TerminalReaderStatus = 'online' | 'offline' | 'updating';
+
+/** Represents a registered Stripe Terminal card-present reader. */
+export interface TerminalReader {
+  id: UUID;
+  organization_id: UUID;
+  location_id: UUID;
+  stripe_reader_id: string;
+  stripe_account_id: string;
+  stripe_location_id: string;
+  label: string;
+  reader_model: TerminalReaderModel;
+  serial_number: string | null;
+  device_sw_version: string | null;
+  ip_address: string | null;
+  status: TerminalReaderStatus;
+  last_seen_at: Timestamptz | null;
+  is_active: boolean;
+  created_by: UUID | null;
+  created_at: Timestamptz;
+  updated_at: Timestamptz;
+}
+
+/** Returned when a PaymentIntent is created for Terminal collection. */
+export interface TerminalPaymentIntent {
+  paymentIntentId: string;
+  clientSecret: string;
+  amount: Cents;
+  currency: string;
+  status: string;
+  applicationFeeAmount: Cents;
+}

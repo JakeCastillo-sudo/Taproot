@@ -93,10 +93,27 @@
 - Org plan CHECK: `trial|starter|growth|enterprise`
 - `inventory_levels` uses two partial unique indexes (variant_id NULL vs NOT NULL)
 
+### Prompt 06 — Stripe Terminal + Connect ISV integration ✅
+- Migration 005: organizations.stripe_connect_account_id/status/enabled_at, payment_processing_enabled; terminal_readers table (id, org, location, stripe_reader_id, label, model, status, last_seen_at, metadata jsonb)
+- Payments layer:
+  - apps/api/src/payments/stripe.config.ts — platform + merchant-scoped Stripe client factory (cached singletons)
+  - apps/api/src/payments/connect.service.ts — createConnectAccount, getConnectAccountStatus, refreshOnboardingLink, handleConnectWebhook (account.updated, deauthorized, capability.updated)
+  - apps/api/src/payments/terminal.service.ts — registerReader, listReaders, createPaymentIntent, collectPayment, capturePaymentIntent, cancelPaymentIntent, createConnectionToken, handleTerminalWebhook, simulatePayment
+  - apps/api/src/payments/offline.service.ts — AES-256-GCM encrypted offline queue (Redis key offline:payments:{orgId}:{paymentId}, TTL 24h, dead-letter after 3 retries, idempotency keys taproot-{orgId}-{orderId}-{ts})
+- Queue infrastructure:
+  - apps/api/src/queues/index.ts — 5 typed Bull queues (offlinePayment, receipt, lowStockAlert, email, aiAnalysis), graceful shutdown, health check
+  - apps/api/src/queues/processors.ts — concurrency 5, registered processors for all 5 queues
+- Routes (replaced connect.routes.ts + terminal.routes.ts):
+  - apps/api/src/routes/payment.routes.ts — 14 endpoints (Connect onboard, Terminal readers/flow, offline queue)
+  - apps/api/src/routes/webhook.routes.ts — unified Stripe webhook handler; addContentTypeParser for raw body; Redis idempotency (webhook:processed:{eventId} TTL 72h)
+- email.ts: added sendEmail() export for queue processors
+- Tests: 155 passing — 42 new (stripe.test, offline.test, connect.test); typecheck: 0 errors
+- Security: AES-256-GCM offline encryption, webhook signature verification, card numbers never stored (only last4+brand), application fee 0.3% of GPV
+
 ## Pending Issues
 - Fix 002 seed data columns (slug on locations table doesn't exist, plan 'pro' fails CHECK)
 - Configure PAT with Contents:write to unblock git push
 - Set DATABASE_URL, JWT_SECRET, MFA_TOKEN_SECRET, MFA_ENCRYPTION_KEY env vars before running server
 
 ## Next Prompt
-Prompt 06 — Customer management, reporting, and admin UI
+Prompt 07 — Customer management, reporting, and admin UI

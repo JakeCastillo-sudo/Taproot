@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 export const config = {
   NODE_ENV: (process.env.NODE_ENV ?? 'development') as 'development' | 'production' | 'test',
   PORT: parseInt(process.env.PORT ?? '3001', 10),
@@ -14,12 +16,22 @@ export const config = {
   // 32-byte key as 64 hex chars, used for AES-256-GCM encryption of TOTP secrets
   MFA_ENCRYPTION_KEY: process.env.MFA_ENCRYPTION_KEY ?? '',
 
+  // 32-byte key as 64 hex chars, used for AES-256-GCM encryption of offline card data
+  OFFLINE_ENCRYPTION_KEY: process.env.OFFLINE_ENCRYPTION_KEY ?? '',
+
   // Redis (optional in dev — real-time events and offline queue)
   REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
 
-  // Stripe (set in production)
+  // Stripe — platform keys
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? '',
+  /** Webhook secret for direct Stripe events (charges, refunds, etc.) */
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+  /** Webhook secret for Stripe Connect account events */
+  STRIPE_CONNECT_WEBHOOK_SECRET: process.env.STRIPE_CONNECT_WEBHOOK_SECRET ?? '',
+  /** Webhook secret for Stripe Terminal reader events */
+  STRIPE_TERMINAL_WEBHOOK_SECRET: process.env.STRIPE_TERMINAL_WEBHOOK_SECRET ?? '',
+  /** ISV revenue share — Taproot application fee as fraction of GPV (default 0.3%) */
+  TAPROOT_APPLICATION_FEE_RATE: parseFloat(process.env.TAPROOT_APPLICATION_FEE_RATE ?? '0.003'),
 
   // SMTP for transactional email (optional in dev)
   SMTP_HOST: process.env.SMTP_HOST,
@@ -62,6 +74,10 @@ export function validateConfig(): void {
 
   if (config.MFA_ENCRYPTION_KEY.length !== 64) {
     throw new Error('MFA_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)');
+  }
+
+  if (config.OFFLINE_ENCRYPTION_KEY && config.OFFLINE_ENCRYPTION_KEY.length !== 64) {
+    throw new Error('OFFLINE_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)');
   }
 
   if (config.JWT_RS256_PRIVATE_KEY && !config.JWT_RS256_PUBLIC_KEY) {

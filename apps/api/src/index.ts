@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyReply } from 'fastify';
 import helmet from '@fastify/helmet';
 import cors from '@fastify/cors';
@@ -7,6 +8,8 @@ import authPlugin from './auth/index';
 import inventoryRoutes from './routes/inventory.routes';
 import orderRoutes from './routes/order.routes';
 import websocketRoutes from './routes/websocket.routes';
+import paymentRoutes from './routes/payment.routes';
+import webhookRoutes from './routes/webhook.routes';
 import { AppError, ValidationError } from './errors';
 
 // Validate required env vars at startup — throws immediately if any are missing
@@ -86,6 +89,8 @@ async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(inventoryRoutes);
   await fastify.register(orderRoutes);
   await fastify.register(websocketRoutes);
+  await fastify.register(webhookRoutes);
+  await fastify.register(paymentRoutes);
 
   // ─── Global authentication preHandler ──────────────────────────────────────
 
@@ -97,6 +102,9 @@ async function buildApp(): Promise<FastifyInstance> {
     'POST /api/v1/auth/refresh',
     'POST /api/v1/auth/password/reset/request',
     'POST /api/v1/auth/password/reset/confirm',
+    // Stripe webhooks — authenticated via signature, not JWT
+    'POST /api/v1/webhooks/stripe/connect',
+    'POST /api/v1/webhooks/stripe/terminal',
   ]);
 
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {

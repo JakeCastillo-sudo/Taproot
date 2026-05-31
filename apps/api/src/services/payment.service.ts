@@ -1,21 +1,9 @@
-import Stripe from 'stripe';
 import { query, withTransaction } from '../db/client';
 import { ValidationError, NotFoundError } from '../errors';
 import { config } from '../config';
 import type { Payment, Order, GiftCard, PaymentMethod, PaymentStatus } from '@taproot/shared';
 import { createAuditLog } from '../auth/audit';
-
-// ─── Stripe singleton ─────────────────────────────────────────────────────────
-
-type StripeClient = InstanceType<typeof Stripe>;
-
-let _stripe: StripeClient | null = null;
-function getStripe(): StripeClient {
-  if (!_stripe) {
-    _stripe = new Stripe(config.STRIPE_SECRET_KEY, { apiVersion: '2026-05-27.dahlia' });
-  }
-  return _stripe;
-}
+import { getStripeClient } from '../payments/stripe.config';
 
 // ─── Input types ──────────────────────────────────────────────────────────────
 
@@ -147,7 +135,7 @@ export async function processPayment(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let stripeCharge: any;
     try {
-      stripeCharge = await getStripe().paymentIntents.create({
+      stripeCharge = await getStripeClient().paymentIntents.create({
         amount: input.amount + tipAmount,
         currency: 'usd',
         payment_method: input.stripePaymentMethodId,
@@ -173,7 +161,7 @@ export async function processPayment(
     // Extract card details
     if (stripeCharge.payment_method) {
       try {
-        const pm = await getStripe().paymentMethods.retrieve(
+        const pm = await getStripeClient().paymentMethods.retrieve(
           stripeCharge.payment_method as string,
         );
         card_last4 = pm.card?.last4 ?? null;
@@ -330,7 +318,7 @@ export async function refundPayment(
   // Stripe refund
   if (payment.processor === 'stripe' && payment.processor_payment_id) {
     try {
-      await getStripe().refunds.create({
+      await getStripeClient().refunds.create({
         payment_intent: payment.processor_payment_id,
         amount: input.amount,
         reason: 'requested_by_customer',
@@ -431,7 +419,7 @@ export async function syncOfflinePayment(
   // Charge via Stripe
   let piId: string;
   try {
-    const pi = await getStripe().paymentIntents.create({
+    const pi = await getStripeClient().paymentIntents.create({
       amount: Number(payment.amount) + Number(payment.tip_amount),
       currency: 'usd',
       payment_method: stripePaymentMethodId,

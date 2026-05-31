@@ -49,6 +49,16 @@ async function sendMail(to: string, subject: string, text: string, html: string)
   }
 }
 
+/** General-purpose email sender — used by queue processors and other services. */
+export async function sendEmail(opts: {
+  to:     string;
+  subject: string;
+  html:    string;
+  text:    string;
+}): Promise<void> {
+  await sendMail(opts.to, opts.subject, opts.text, opts.html);
+}
+
 export async function sendPasswordResetEmail(
   email: string,
   resetToken: string,
