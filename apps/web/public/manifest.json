@@ -1,0 +1,31 @@
+{
+  "name": "Taproot POS",
+  "short_name": "Taproot",
+  "description": "Point of Sale for independent operators",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#16a34a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌿</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Register",
+      "url": "/",
+      "description": "Open the POS register"
+    },
+    {
+      "name": "Orders",
+      "url": "/orders",
+      "description": "View recent orders"
+    }
+  ]
+}

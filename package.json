@@ -3,15 +3,16 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "client",
-    "server",
     "apps/api",
+    "apps/web",
     "packages/shared"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=server\" \"npm run dev --workspace=client\"",
-    "build": "npm run build --workspace=client",
-    "start": "npm run start --workspace=server",
+    "dev": "concurrently \"npm run dev --workspace=@taproot/api\" \"npm run dev --workspace=@taproot/web\"",
+    "build": "npm run build --workspace=@taproot/web",
+    "start": "npm run start --workspace=@taproot/api",
+    "typecheck": "npm run typecheck --workspace=@taproot/api",
+    "test": "npm run test --workspace=@taproot/api",
     "db:migrate": "ts-node apps/api/src/db/migrate.ts up",
     "db:migrate:down": "ts-node apps/api/src/db/migrate.ts down",
     "db:seed": "ts-node apps/api/src/db/migrate.ts up"
