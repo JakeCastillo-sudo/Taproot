@@ -675,30 +675,32 @@ export const reports = {
       `/reports/sales?${buildReportQS(params, { granularity })}`,
     ),
 
+  // All routes below return { rows: T[] } — unwrap here so callers receive plain arrays.
+
   getTopProducts: (params: ReportDateParams, limit = 20) =>
-    apiFetch<TopProductRow[]>(
+    apiFetch<{ rows: TopProductRow[] }>(
       `/reports/top-products?${buildReportQS(params, { limit: String(limit) })}`,
-    ),
+    ).then((r) => r.rows),
 
   getTopCustomers: (params: ReportDateParams, limit = 20) =>
-    apiFetch<TopCustomerRow[]>(
+    apiFetch<{ rows: TopCustomerRow[] }>(
       `/reports/top-customers?${buildReportQS(params, { limit: String(limit) })}`,
-    ),
+    ).then((r) => r.rows),
 
   getPaymentBreakdown: (params: ReportDateParams) =>
-    apiFetch<PaymentMethodRow[]>(
+    apiFetch<{ rows: PaymentMethodRow[] }>(
       `/reports/payment-methods?${buildReportQS(params)}`,
-    ),
+    ).then((r) => r.rows),
 
   getEmployeePerformance: (params: ReportDateParams) =>
-    apiFetch<EmployeePerformanceRow[]>(
+    apiFetch<{ rows: EmployeePerformanceRow[] }>(
       `/reports/employee-performance?${buildReportQS(params)}`,
-    ),
+    ).then((r) => r.rows),
 
   getHourlyHeatmap: (params: ReportDateParams) =>
-    apiFetch<HourlyHeatmapRow[]>(
+    apiFetch<{ rows: HourlyHeatmapRow[] }>(
       `/reports/hourly-heatmap?${buildReportQS(params)}`,
-    ),
+    ).then((r) => r.rows),
 };
 
 // ─── AI / NL Query ────────────────────────────────────────────────────────────
