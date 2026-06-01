@@ -470,7 +470,7 @@ exports.up = (pgm) => {
       updated_at        timestamptz   NOT NULL DEFAULT now()
     );
   `);
-  -- Two partial unique indexes to handle nullable variant_id correctly
+  // Two partial unique indexes to handle nullable variant_id correctly
   pgm.sql(`
     CREATE UNIQUE INDEX inventory_levels_with_variant
       ON inventory_levels(location_id, product_id, variant_id)

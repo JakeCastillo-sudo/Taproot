@@ -1,3 +1,8 @@
+// Load .env from apps/api/.env — must happen before any config reads.
+// __dirname resolves to apps/api/src/db, so ../../.env = apps/api/.env
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
+
 import path from 'path';
 
 const dbUrl = process.env.DATABASE_URL;
@@ -5,21 +10,19 @@ if (!dbUrl) throw new Error('DATABASE_URL is not set');
 
 const migrationsDir = path.resolve(__dirname, '../../../../migrations');
 
-// node-pg-migrate uses package.json `exports` which requires node16/bundler moduleResolution.
-// Using require() here keeps the rest of the project on classic node resolution.
+// node-pg-migrate v8 exports 'runner' as a named export (not default).
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const runnerModule = require('node-pg-migrate');
-const runner = (runnerModule.default ?? runnerModule) as (
-  opts: Record<string, unknown>
-) => Promise<void>;
+const { runner } = require('node-pg-migrate') as {
+  runner: (opts: Record<string, unknown>) => Promise<void>;
+};
 
 async function runMigrations(direction: 'up' | 'down' = 'up', count?: number): Promise<void> {
   await runner({
     databaseUrl: dbUrl,
-    dir: migrationsDir,
+    dir:              migrationsDir,
     direction,
     count,
-    migrationsTable: 'pgmigrations',
+    migrationsTable:  'pgmigrations',
     log: (msg: string) => console.log('[migrate]', msg),
   });
 }

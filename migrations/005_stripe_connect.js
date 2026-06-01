@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
 'use strict';
 
 /**
@@ -7,9 +6,10 @@
  * Adds Connect columns to organizations and creates terminal_readers table.
  */
 
-exports.up = async (db) => {
+/** @type {import('node-pg-migrate').MigrationBuilder} */
+exports.up = (pgm) => {
   // ── 1. organizations: Stripe Connect fields ───────────────────────────────
-  await db.query(`
+  pgm.sql(`
     ALTER TABLE organizations
       ADD COLUMN IF NOT EXISTS stripe_connect_account_id   varchar(255),
       ADD COLUMN IF NOT EXISTS stripe_connect_status       varchar(50)  NOT NULL DEFAULT 'not_connected',
@@ -17,14 +17,14 @@ exports.up = async (db) => {
       ADD COLUMN IF NOT EXISTS payment_processing_enabled  boolean      NOT NULL DEFAULT false
   `);
 
-  await db.query(`
+  pgm.sql(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_organizations_stripe_connect
       ON organizations(stripe_connect_account_id)
       WHERE stripe_connect_account_id IS NOT NULL
   `);
 
   // ── 2. terminal_readers ───────────────────────────────────────────────────
-  await db.query(`
+  pgm.sql(`
     CREATE TABLE terminal_readers (
       id               uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id  uuid          NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -41,20 +41,15 @@ exports.up = async (db) => {
     )
   `);
 
-  await db.query(`
-    CREATE INDEX idx_terminal_readers_org ON terminal_readers(organization_id);
-    CREATE INDEX idx_terminal_readers_loc ON terminal_readers(location_id)
-  `);
+  pgm.sql(`CREATE INDEX idx_terminal_readers_org ON terminal_readers(organization_id)`);
+  pgm.sql(`CREATE INDEX idx_terminal_readers_loc ON terminal_readers(location_id)`);
 };
 
-exports.down = async (db) => {
-  await db.query(`DROP TABLE IF EXISTS terminal_readers CASCADE`);
-
-  await db.query(`
-    DROP INDEX IF EXISTS idx_organizations_stripe_connect
-  `);
-
-  await db.query(`
+/** @type {import('node-pg-migrate').MigrationBuilder} */
+exports.down = (pgm) => {
+  pgm.sql(`DROP TABLE IF EXISTS terminal_readers CASCADE`);
+  pgm.sql(`DROP INDEX IF EXISTS idx_organizations_stripe_connect`);
+  pgm.sql(`
     ALTER TABLE organizations
       DROP COLUMN IF EXISTS payment_processing_enabled,
       DROP COLUMN IF EXISTS stripe_connect_enabled_at,

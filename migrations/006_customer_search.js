@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
 'use strict';
 
 /**
@@ -12,12 +11,13 @@
  * 5. Composite index on payments(payment_method, status) for method breakdown report
  */
 
-exports.up = async (db) => {
+/** @type {import('node-pg-migrate').MigrationBuilder} */
+exports.up = (pgm) => {
   // pg_trgm enables fast LIKE / ILIKE queries via GIN indexes
-  await db.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+  pgm.sql(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
 
   // Customer search — GIN trigram indexes
-  await db.query(`
+  pgm.sql(`
     CREATE INDEX IF NOT EXISTS idx_customers_trgm_name
       ON customers USING GIN (
         (COALESCE(first_name,'') || ' ' || COALESCE(last_name,''))
@@ -26,44 +26,45 @@ exports.up = async (db) => {
       WHERE deleted_at IS NULL
   `);
 
-  await db.query(`
+  pgm.sql(`
     CREATE INDEX IF NOT EXISTS idx_customers_trgm_email
       ON customers USING GIN (email gin_trgm_ops)
       WHERE email IS NOT NULL AND deleted_at IS NULL
   `);
 
-  await db.query(`
+  pgm.sql(`
     CREATE INDEX IF NOT EXISTS idx_customers_trgm_phone
       ON customers USING GIN (phone gin_trgm_ops)
       WHERE phone IS NOT NULL AND deleted_at IS NULL
   `);
 
   // Reporting — date-range index on completed orders
-  await db.query(`
+  pgm.sql(`
     CREATE INDEX IF NOT EXISTS idx_orders_reporting
       ON orders(organization_id, location_id, created_at DESC)
       WHERE status NOT IN ('voided','parked')
   `);
 
   // Top products report
-  await db.query(`
+  pgm.sql(`
     CREATE INDEX IF NOT EXISTS idx_oli_reporting
       ON order_line_items(product_id, variant_id)
       WHERE voided_at IS NULL
   `);
 
   // Payment method breakdown
-  await db.query(`
+  pgm.sql(`
     CREATE INDEX IF NOT EXISTS idx_payments_method_status
       ON payments(order_id, payment_method, status)
   `);
 };
 
-exports.down = async (db) => {
-  await db.query(`DROP INDEX IF EXISTS idx_payments_method_status`);
-  await db.query(`DROP INDEX IF EXISTS idx_oli_reporting`);
-  await db.query(`DROP INDEX IF EXISTS idx_orders_reporting`);
-  await db.query(`DROP INDEX IF EXISTS idx_customers_trgm_phone`);
-  await db.query(`DROP INDEX IF EXISTS idx_customers_trgm_email`);
-  await db.query(`DROP INDEX IF EXISTS idx_customers_trgm_name`);
+/** @type {import('node-pg-migrate').MigrationBuilder} */
+exports.down = (pgm) => {
+  pgm.sql(`DROP INDEX IF EXISTS idx_payments_method_status`);
+  pgm.sql(`DROP INDEX IF EXISTS idx_oli_reporting`);
+  pgm.sql(`DROP INDEX IF EXISTS idx_orders_reporting`);
+  pgm.sql(`DROP INDEX IF EXISTS idx_customers_trgm_phone`);
+  pgm.sql(`DROP INDEX IF EXISTS idx_customers_trgm_email`);
+  pgm.sql(`DROP INDEX IF EXISTS idx_customers_trgm_name`);
 };
