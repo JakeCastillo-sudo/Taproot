@@ -194,9 +194,10 @@ export interface ActiveDiscount {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const auth = {
-  login: (email: string, password: string) =>
+  login: (email: string, password: string, orgSlug = 'demo-restaurant') =>
     apiFetch<LoginResponse>('/auth/login', {
       method: 'POST',
+      headers: { 'x-organization-slug': orgSlug },
       body: JSON.stringify({ email, password }),
     }),
 

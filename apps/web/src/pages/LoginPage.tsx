@@ -54,9 +54,9 @@ export function LoginPage() {
         {/* Card */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           {error && (
-            <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 rounded-md px-3 py-2.5 mb-5">
-              <AlertCircle size={15} className="text-danger shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{error}</p>
+            <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-3.5 py-3 mb-5 animate-fade-in">
+              <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+              <p className="text-sm font-medium text-red-700 leading-snug">{error}</p>
             </div>
           )}
 
