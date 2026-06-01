@@ -22,7 +22,7 @@ import { queues } from '../queues';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
 
-// Allowed MIME types and their extensions
+// Allowed MIME types (after extension-based resolution)
 const ALLOWED_TYPES = new Set([
   'application/pdf',
   'image/png',
@@ -30,16 +30,36 @@ const ALLOWED_TYPES = new Set([
   'image/jpg',
   'text/csv',
   'text/plain',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+  'application/octet-stream',                                           // curl / some browsers
+  'application/vnd.ms-excel',                                           // .xls
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
 ]);
 
+/**
+ * Extension-based MIME override.
+ * Used when the browser/client sends 'application/octet-stream' instead of
+ * the real type (common with curl, Windows file pickers, older browsers).
+ */
+const EXT_TO_MIME: Record<string, string> = {
+  '.csv':  'text/csv',
+  '.pdf':  'application/pdf',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xls':  'application/vnd.ms-excel',
+  '.jpg':  'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png':  'image/png',
+  '.txt':  'text/plain',
+};
+
 const MIME_TO_IMPORT_TYPE: Record<string, ImportType> = {
-  'application/pdf': 'document_menu', // will be reclassified by AI
-  'image/png':       'document_menu',
-  'image/jpeg':      'document_menu',
-  'image/jpg':       'document_menu',
-  'text/csv':        'generic_csv',
-  'text/plain':      'document_menu',
+  'application/pdf':  'document_menu', // will be reclassified by AI
+  'image/png':        'document_menu',
+  'image/jpeg':       'document_menu',
+  'image/jpg':        'document_menu',
+  'text/csv':         'generic_csv',
+  'text/plain':       'document_menu',
+  'application/vnd.ms-excel':                                           'generic_csv',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'generic_csv',
 };
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -76,16 +96,23 @@ export default async function importRoutes(fastify: FastifyInstance): Promise<vo
       }
 
       const originalName = data.filename ?? 'upload';
-      const mimeType = data.mimetype ?? 'application/octet-stream';
+      const rawMime      = (data.mimetype ?? 'application/octet-stream').toLowerCase();
+      const ext          = path.extname(originalName).toLowerCase();
 
-      if (!ALLOWED_TYPES.has(mimeType)) {
+      // Resolve effective MIME: use the file extension as the source of truth
+      // when the client sends the unhelpful 'application/octet-stream'.
+      const effectiveMime = (rawMime === 'application/octet-stream' && EXT_TO_MIME[ext])
+        ? EXT_TO_MIME[ext]
+        : rawMime;
+
+      if (!ALLOWED_TYPES.has(effectiveMime)) {
         throw new ValidationError(
-          `File type "${mimeType}" is not supported. Allowed: PDF, images, CSV, XLSX`,
+          `File type "${effectiveMime}" is not supported. ` +
+          `Allowed: PDF, PNG, JPG, CSV, XLSX, TXT`,
         );
       }
 
       // Save to disk
-      const ext  = path.extname(originalName) || '';
       const safe = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
       const dest = path.join(uploadsDir, safe);
 
@@ -95,8 +122,8 @@ export default async function importRoutes(fastify: FastifyInstance): Promise<vo
       }
       fs.writeFileSync(dest, fileBuffer);
 
-      // Determine import type
-      const importType: ImportType = MIME_TO_IMPORT_TYPE[mimeType] ?? 'document_menu';
+      // Determine import type from the resolved MIME (octet-stream → generic_csv fallback)
+      const importType: ImportType = MIME_TO_IMPORT_TYPE[effectiveMime] ?? 'document_menu';
       const relPath = path.join(config.UPLOADS_DIR, safe);
 
       // Create job record
@@ -104,7 +131,7 @@ export default async function importRoutes(fastify: FastifyInstance): Promise<vo
         importType,
         sourceFilename: originalName,
         sourceFileUrl:  relPath,
-        mimeType,
+        mimeType:       effectiveMime,
       });
 
       // Enqueue processing
