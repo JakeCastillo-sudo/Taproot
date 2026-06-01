@@ -85,6 +85,7 @@ export default async function importRoutes(fastify: FastifyInstance): Promise<vo
   fastify.post(
     '/api/v1/imports/upload',
     {
+      config:     { rateLimit: { max: 20, timeWindow: 60 * 60 * 1000 } }, // 20/hour
       preHandler: requirePermissions(Permission.IMPORT_RUN),
     },
     async (req: FastifyRequest, reply: FastifyReply) => {

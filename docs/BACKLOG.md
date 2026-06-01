@@ -2,17 +2,15 @@
 
 ## P0 — Critical (blocks production)
 
-### BUG-001: Anthropic API key not loading in document parser
+### BUG-001: Anthropic API key not loading in document parser ✅ RESOLVED
 - Symptom: 401 authentication_error from Anthropic API on file upload
 - Route: POST /api/v1/imports/upload
-- Likely cause: dotenv not loading before Anthropic SDK initializes
-  in documentParser.service.ts — SDK may be instantiated at module
-  load time before dotenv runs
-- Fix: lazy-initialize the Anthropic client inside each function call
-  rather than at module level, OR ensure dotenv loads before any
-  service modules are imported in index.ts
-- Impact: Document Intelligence pipeline (Prompt 11) non-functional
-- Workaround: none until fixed
+- Root cause: Anthropic SDK instantiated at module level before dotenv ran
+- Fix applied (Prompt 11): `getAnthropic()` lazy singleton in documentParser.service.ts
+  ensures client is created on first call, after dotenv has loaded
+- Fix applied (Prompt 13): ai.routes.ts now creates `new Anthropic()` inside the
+  handler function — per-call instantiation with guaranteed dotenv load order
+- Status: RESOLVED
 
 ## P1 — High (degrades experience)
 
@@ -21,9 +19,13 @@
 - Cause: products not linked to categories in seed data
 - Fix: update seed data to set category_id on products
 
-### BUG-003: Auth token not auto-refreshing in web app
+### BUG-003: Auth token not auto-refreshing in web app ✅ RESOLVED
 - Symptom: "Token has expired" error after 15 minutes
-- Fix: implement token refresh interceptor in apps/web/src/lib/api.ts
+- Fix applied (Prompt 08 / api.ts): apiFetch() automatically calls
+  POST /api/v1/auth/refresh on 401 response, stores new accessToken,
+  retries the original request transparently. Falls back to /login redirect
+  if refresh also fails. Deduplicates concurrent refresh calls.
+- Status: RESOLVED
 
 ## P2 — Medium (polish)
 

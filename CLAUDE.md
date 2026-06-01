@@ -271,5 +271,31 @@
   - MigrationPayload stored in import_jobs.mapping_config JSONB (status: awaiting_confirmation)
   - Provider external IDs stored in products.metadata JSONB + customers.external_ids JSONB
 
+### Prompt 13 — Production Hardening ✅
+- **BUG-001 fixed**: ai.routes.ts creates `new Anthropic()` per-call (no module-level singleton); documentParser already had lazy singleton (Prompt 11)
+- **BUG-003 verified**: apiFetch() 401 → refreshTokens() → retry → redirect was already present since Prompt 08
+- **Rate limiting hardened**: import.routes.ts 20/hr, ai.routes.ts 30/hr, webhook.routes.ts 1000/min; auth routes already strict (5/15min login, 3/5min MFA)
+- **Input validation middleware**: apps/api/src/middleware/validation.ts
+  - onRequest: X-Request-ID generate/propagate + attach to response
+  - preValidation: reject body >1MB (skip multipart)
+  - preHandler: stripHtml() recursively removes HTML tags, JS-URI, inline event handlers, truncates at 50k chars
+  - preHandler: UUID validation on route params ending in `id` (excludes readerId — Stripe uses tmr_… format)
+- **Error handler**: apps/api/src/middleware/errorHandler.ts — production-safe (no stack traces in prod), Postgres codes (23505→409, 23503→422, 23502→400), Stripe codes →402, Zod→400 flatten, requestId on all error responses
+- **config.ts**: JSDoc on every field; production-only validations (JWT ≥64 chars, sk_live_ Stripe key, sslmode=require DB URL, ANTHROPIC_API_KEY present)
+- **db/client.ts**: query timing (warn >1s, error >5s), pool capacity monitoring (warn >80%, error at 100%)
+- **index.ts**: full hardening rewrite — strict CSP (Stripe/Google Fonts/Anthropic in connect-src), Permissions-Policy via onSend hook, HSTS in production, global 200/min rate limit with retryAfter, HTTPS enforcement, enhanced health check (db SELECT 1, redis PING, stripe key, uptime field), pino serializers never log auth headers or bodies
+- **migrations/007_db_security.js**: taproot_app role with least privilege; REVOKE UPDATE/DELETE on audit_logs, inventory_movements, sync_events (append-only tables)
+- **apps/web/src/lib/api.ts**: X-Taproot-Client: web CSRF indicator header on all apiFetch() calls
+- **vite.config.js**: esbuild minification, hidden source maps in production, manualChunks (vendor-react/state/recharts/icons), chunkSizeWarningLimit 600, drop console/debugger in prod
+- **docs/API.md**: complete API reference (all endpoints, rate limits table, error codes table, curl examples)
+- **docs/BACKLOG.md**: BUG-001 + BUG-003 marked ✅ RESOLVED
+- Audit log completeness verified: order.created, order.voided, payment.process, payment.refund, inventory.adjust, product.create, product.edit, import.completed, migration.complete all present
+- Typecheck: 0 errors (both apps/api and apps/web)
+- Key patterns:
+  - buildApp() returns Promise<any> to avoid FastifyInstance<Http2SecureServer> type drift after helmet registration
+  - pino serializer params typed as `any` to avoid ResSerializerReply mismatch
+  - readerId excluded from UUID validation (Stripe terminal reader IDs use tmr_… format)
+  - Migration numbered 007 (not 008) — sequential after existing 001-006
+
 ## Next Prompt
-Prompt 13 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding
+Prompt 14 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding

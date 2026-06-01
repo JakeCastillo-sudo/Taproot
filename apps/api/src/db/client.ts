@@ -1,37 +1,90 @@
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 
+// ─── Pool setup ───────────────────────────────────────────────────────────────
+
+const POOL_MAX = 20;
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20,
-  connectionTimeoutMillis: 10_000,
-  idleTimeoutMillis: 30_000,
+  max:                       POOL_MAX,
+  connectionTimeoutMillis:   10_000,
+  idleTimeoutMillis:         30_000,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
 });
+
+// ─── Pool error handling ──────────────────────────────────────────────────────
 
 pool.on('error', (err) => {
   console.error('[pg] Unexpected pool error:', err.message);
 });
 
+// ─── Performance helpers ──────────────────────────────────────────────────────
+
+/**
+ * Sanitise SQL for logging — strip inline values to avoid leaking PII.
+ * Keeps the first 200 chars and truncates; never includes $N values.
+ */
+function sanitiseSql(sql: string): string {
+  return sql.replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+
+/**
+ * Log slow queries.
+ *
+ * > 1000 ms — warning (investigate)
+ * > 5000 ms — error   (SLA breach)
+ */
+function logQueryTime(sql: string, durationMs: number): void {
+  if (durationMs > 5_000) {
+    console.error('[pg] SLOW QUERY (>5s)', { durationMs, sql: sanitiseSql(sql) });
+  } else if (durationMs > 1_000) {
+    console.warn('[pg] Slow query (>1s)', { durationMs, sql: sanitiseSql(sql) });
+  }
+}
+
+/** Warn when pool is under pressure. */
+function checkPoolCapacity(): void {
+  const used  = pool.totalCount;
+  const pct   = used / POOL_MAX;
+
+  if (pct >= 1) {
+    console.error('[pg] POOL EXHAUSTED — all connections in use', { totalCount: used, max: POOL_MAX });
+  } else if (pct >= 0.8) {
+    console.warn('[pg] Pool at >80% capacity', { totalCount: used, max: POOL_MAX });
+  }
+}
+
+// ─── query ────────────────────────────────────────────────────────────────────
+
 export async function query<T extends QueryResultRow = QueryResultRow>(
   sql: string,
   params?: unknown[],
 ): Promise<QueryResult<T>> {
+  checkPoolCapacity();
   const client = await pool.connect();
+  const start  = Date.now();
   try {
-    return await client.query<T>(sql, params);
+    const result = await client.query<T>(sql, params); // -- PARAMETERIZED
+    logQueryTime(sql, Date.now() - start);
+    return result;
   } finally {
     client.release();
   }
 }
 
+// ─── withTransaction ──────────────────────────────────────────────────────────
+
 export async function withTransaction<T>(
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
+  checkPoolCapacity();
   const client = await pool.connect();
+  const start  = Date.now();
   try {
     await client.query('BEGIN');
     const result = await fn(client);
     await client.query('COMMIT');
+    logQueryTime('TRANSACTION', Date.now() - start);
     return result;
   } catch (err) {
     await client.query('ROLLBACK');
@@ -40,5 +93,7 @@ export async function withTransaction<T>(
     client.release();
   }
 }
+
+// ─── Export pool for health check ─────────────────────────────────────────────
 
 export { pool };

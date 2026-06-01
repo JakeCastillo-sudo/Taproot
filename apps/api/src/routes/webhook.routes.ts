@@ -61,8 +61,10 @@ export default async function webhookRoutes(fastify: FastifyInstance): Promise<v
   );
 
   // ── POST /api/v1/webhooks/stripe/connect ────────────────────────────────────
+  // Higher rate limit — events come from Stripe servers, not end-users.
   fastify.post(
     '/api/v1/webhooks/stripe/connect',
+    { config: { rateLimit: { max: 1000, timeWindow: 60_000 } } },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const signature = req.headers['stripe-signature'] as string | undefined;
       if (!signature) {
@@ -105,6 +107,7 @@ export default async function webhookRoutes(fastify: FastifyInstance): Promise<v
   // ── POST /api/v1/webhooks/stripe/terminal ───────────────────────────────────
   fastify.post(
     '/api/v1/webhooks/stripe/terminal',
+    { config: { rateLimit: { max: 1000, timeWindow: 60_000 } } },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const signature = req.headers['stripe-signature'] as string | undefined;
       if (!signature) {

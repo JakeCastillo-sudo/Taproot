@@ -1,9 +1,18 @@
 import 'dotenv/config';
-import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyReply, type FastifyError } from 'fastify';
+import crypto from 'crypto';
+import Fastify, {
+  type FastifyInstance,
+  type FastifyRequest,
+  type FastifyReply,
+} from 'fastify';
 import helmet from '@fastify/helmet';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { validateConfig, config } from './config';
+import { pool } from './db/client';
+import { getPublisher } from './db/redis';
+import { registerValidationHooks } from './middleware/validation';
+import { registerErrorHandler } from './middleware/errorHandler';
 import authPlugin from './auth/index';
 import inventoryRoutes from './routes/inventory.routes';
 import orderRoutes from './routes/order.routes';
@@ -15,69 +24,144 @@ import reportRoutes from './routes/report.routes';
 import importRoutes from './routes/import.routes';
 import aiRoutes from './routes/ai.routes';
 import migrationRoutes from './routes/migration.routes';
-import { AppError, ValidationError } from './errors';
 
 // Validate required env vars at startup — throws immediately if any are missing
 validateConfig();
 
-async function buildApp(): Promise<FastifyInstance> {
+// buildApp returns the Fastify instance typed broadly so helmet's HTTP/2 type
+// augmentation doesn't conflict with route helper signatures.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buildApp(): Promise<any> {
+  // Cast to FastifyInstance so all usages below keep the familiar API surface.
   const fastify = Fastify({
     logger: {
       level: config.NODE_ENV === 'production' ? 'info' : 'debug',
       ...(config.NODE_ENV !== 'production' && {
         transport: { target: 'pino-pretty', options: { translateTime: 'HH:MM:ss Z' } },
       }),
+      // Production-safe serializers — never log auth headers or request bodies.
+      // Typed loosely to avoid pino/Fastify serializer generic conflicts.
+      serializers: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        req(request: any) {
+          return {
+            method:    request.method as string,
+            url:       request.url as string,
+            requestId: request.headers?.['x-request-id'] as string | undefined,
+            // Intentionally omit: headers (may contain Authorization), body (may contain card data)
+          };
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        res(reply: any) {
+          return {
+            statusCode: reply.statusCode as number,
+          };
+        },
+      },
     },
+    genReqId: () => crypto.randomUUID(),
     trustProxy: true,
   });
 
-  // ─── Security headers ───────────────────────────────────────────────────────
+  // ─── Security headers ─────────────────────────────────────────────────────────
 
   await fastify.register(helmet, {
     contentSecurityPolicy: {
       directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc:  ["'self'"],
-        styleSrc:   ["'self'", "'unsafe-inline'"],
-        imgSrc:     ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'"],
-        fontSrc:    ["'self'"],
-        objectSrc:  ["'none'"],
-        frameSrc:   ["'none'"],
+        defaultSrc:  ["'self'"],
+        // 'unsafe-inline' required for Stripe.js embedded UI
+        scriptSrc:   ["'self'", "'unsafe-inline'"],
+        styleSrc:    ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc:     ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc:      ["'self'", 'data:', 'https:'],
+        connectSrc:  ["'self'", 'https://api.stripe.com', 'https://api.anthropic.com'],
+        frameSrc:    ["'none'"],
+        objectSrc:   ["'none'"],
+        frameAncestors: ["'none'"],
       },
     },
     crossOriginEmbedderPolicy: false,
+    // Additional headers set explicitly below
+    frameguard:               { action: 'deny' },
+    referrerPolicy:           { policy: 'strict-origin-when-cross-origin' },
+    xContentTypeOptions:      true,
+    hsts: config.NODE_ENV === 'production'
+      ? { maxAge: 31_536_000, includeSubDomains: true, preload: true }
+      : false,
   });
 
-  // ─── CORS ───────────────────────────────────────────────────────────────────
+  // Permissions-Policy (helmet does not yet set this — add manually)
+  fastify.addHook('onSend', async (_req, reply) => {
+    reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  });
+
+  // ─── CORS ─────────────────────────────────────────────────────────────────────
 
   await fastify.register(cors, {
     origin: config.NODE_ENV === 'production'
       ? [config.APP_URL]
       : ['http://localhost:5173', 'http://localhost:3000'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Authorization',
       'Content-Type',
       'X-Organization-Slug',
       'X-Location-Token',
+      'X-Request-ID',
+      'X-Taproot-Client',  // CSRF indicator header from the web client
     ],
+    exposedHeaders: ['X-Request-ID'],
     credentials: true,
   });
 
-  // ─── Global rate limit ──────────────────────────────────────────────────────
+  // ─── Rate limiting ────────────────────────────────────────────────────────────
+  //
+  // Global:   200 requests / minute / IP  (default for all routes)
+  // Auth:     5–20 / window  (set per-route in auth/routes.ts — already stricter)
+  // Imports:  20 / hour      (set per-route in import.routes.ts)
+  // AI:       30 / hour      (set per-route in ai.routes.ts)
+  // Webhooks: 1000 / minute  (set per-route in webhook.routes.ts)
 
   await fastify.register(rateLimit, {
-    max: 200,
-    timeWindow: '1 minute',
-    keyGenerator: (req) => req.ip,
-    errorResponseBuilder: (_req, context) => ({
-      code: 'RATE_LIMITED',
-      message: `Too many requests. Retry after ${Math.ceil((context as { ttl: number }).ttl / 1000)} seconds.`,
-    }),
+    global:       true,
+    max:          200,
+    timeWindow:   60_000, // 1 minute
+    keyGenerator: (req) => {
+      // Prefer X-Forwarded-For when behind proxy; fall back to remote IP
+      const forwarded = req.headers['x-forwarded-for'];
+      if (forwarded) {
+        const first = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
+        return first.trim();
+      }
+      return req.ip;
+    },
+    errorResponseBuilder: (_req, context) => {
+      const ttl = (context as { ttl: number }).ttl;
+      const retryAfter = Math.ceil(ttl / 1000);
+      return {
+        code:       'RATE_LIMITED',
+        message:    `Too many requests. Retry after ${retryAfter} seconds.`,
+        retryAfter,
+      };
+    },
+    addHeadersOnExceeding: {
+      'x-ratelimit-limit':     true,
+      'x-ratelimit-remaining': true,
+      'x-ratelimit-reset':     true,
+    },
+    addHeaders: {
+      'x-ratelimit-limit':     true,
+      'x-ratelimit-remaining': true,
+      'x-ratelimit-reset':     true,
+      'retry-after':           true,
+    },
   });
 
-  // ─── HTTPS enforcement in production ───────────────────────────────────────
+  // ─── Global input validation hooks ───────────────────────────────────────────
+
+  await registerValidationHooks(fastify);
+
+  // ─── HTTPS enforcement in production ─────────────────────────────────────────
 
   fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     if (
@@ -88,7 +172,7 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   });
 
-  // ─── Auth plugin (registers /api/v1/auth/* routes + request decorators) ────
+  // ─── Auth plugin (registers /api/v1/auth/* routes + request decorators) ──────
 
   await fastify.register(authPlugin);
   await fastify.register(inventoryRoutes);
@@ -102,15 +186,63 @@ async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(aiRoutes);
   await fastify.register(migrationRoutes);
 
-  // ─── Health check (registered before preHandler so it is never gated) ────────
+  // ─── Health check ─────────────────────────────────────────────────────────────
+  //
+  // GET /api/health — returns { status, version, timestamp, checks, uptime }
+  // Checks: database (SELECT 1), redis (PING), stripe (key presence)
+  // Response time target: < 500 ms
 
-  fastify.get('/api/health', async () => ({
-    status:    'ok',
-    timestamp: new Date().toISOString(),
-    version:   process.env.npm_package_version ?? '1.0.0',
-  }));
+  const START_TIME = Date.now();
 
-  // ─── Global authentication preHandler ──────────────────────────────────────
+  fastify.get('/api/health', {
+    config: { rateLimit: { max: 60, timeWindow: 60_000 } },
+  }, async (_req, reply) => {
+    const checks: Record<string, 'ok' | 'error'> = {};
+
+    // Database check — SELECT 1 with 3s timeout
+    try {
+      await Promise.race([
+        pool.query('SELECT 1'),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 3_000),
+        ),
+      ]);
+      checks['database'] = 'ok';
+    } catch {
+      checks['database'] = 'error';
+    }
+
+    // Redis check — PING with 2s timeout
+    try {
+      const redis = getPublisher();
+      await Promise.race([
+        redis.ping(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 2_000),
+        ),
+      ]);
+      checks['redis'] = 'ok';
+    } catch {
+      checks['redis'] = 'error';
+    }
+
+    // Stripe check — key presence only (no live API call)
+    checks['stripe'] = config.STRIPE_SECRET_KEY ? 'ok' : 'error';
+
+    const anyError  = Object.values(checks).some((v) => v === 'error');
+    const status    = anyError ? 'degraded' : 'ok';
+    const httpCode  = anyError ? 503 : 200;
+
+    return reply.code(httpCode).send({
+      status,
+      version:   process.env.npm_package_version ?? '1.0.0',
+      timestamp: new Date().toISOString(),
+      checks,
+      uptime:    Math.floor((Date.now() - START_TIME) / 1_000),
+    });
+  });
+
+  // ─── Global authentication preHandler ────────────────────────────────────────
 
   const PUBLIC_ROUTES = new Set([
     'GET /api/health',
@@ -131,39 +263,9 @@ async function buildApp(): Promise<FastifyInstance> {
     await fastify.authenticate(request, reply);
   });
 
-  // ─── Global error handler ───────────────────────────────────────────────────
+  // ─── Global error handler (production-safe) ───────────────────────────────────
 
-  fastify.setErrorHandler((err: FastifyError, _request, reply) => {
-    if (err instanceof ValidationError) {
-      return reply.code(err.statusCode).send({
-        code: err.code,
-        message: err.message,
-        details: err.details,
-      });
-    }
-
-    if (err instanceof AppError) {
-      return reply.code(err.statusCode).send({
-        code: err.code,
-        message: err.message,
-      });
-    }
-
-    if (err.validation) {
-      return reply.code(422).send({
-        code: 'VALIDATION_ERROR',
-        message: 'Request validation failed',
-        details: err.validation,
-      });
-    }
-
-    if (err.statusCode === 429) {
-      return reply.code(429).send(err);
-    }
-
-    fastify.log.error({ err }, 'Unhandled error');
-    return reply.code(500).send({ code: 'INTERNAL_ERROR', message: 'An internal error occurred' });
-  });
+  registerErrorHandler(fastify);
 
   return fastify;
 }

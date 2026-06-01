@@ -87,9 +87,11 @@ async function apiFetch<T>(
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    'Content-Type':      'application/json',
+    'X-Taproot-Client':  'web',  // CSRF indicator — signals request originated from the SPA
     ...(init.headers as Record<string, string> | undefined),
   };
+  // Never log tokens to console — attach silently
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   let res: Response;

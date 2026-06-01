@@ -14,12 +14,6 @@ import { query } from '../db/client';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
 
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  if (!_anthropic) _anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
-  return _anthropic;
-}
-
 const MODEL = 'claude-sonnet-4-20250514';
 
 export default async function aiRoutes(fastify: FastifyInstance): Promise<void> {
@@ -29,6 +23,7 @@ export default async function aiRoutes(fastify: FastifyInstance): Promise<void> 
   fastify.post(
     '/api/v1/ai/nl-query',
     {
+      config:     { rateLimit: { max: 30, timeWindow: 60 * 60 * 1000 } }, // 30/hour
       preHandler: requirePermissions(Permission.AI_REPORTS),
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
@@ -104,7 +99,8 @@ Respond ONLY with JSON in this exact format:
       let chartType: string | null = null;
 
       try {
-        const client = getAnthropic();
+        // Lazy-initialize per call so dotenv is guaranteed loaded (BUG-001 prevention)
+        const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
         const msg = await client.messages.create({
           model: MODEL,
           max_tokens: 1024,
