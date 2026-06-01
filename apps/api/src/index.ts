@@ -96,10 +96,18 @@ async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(customerRoutes);
   await fastify.register(reportRoutes);
 
+  // ─── Health check (registered before preHandler so it is never gated) ────────
+
+  fastify.get('/api/health', async () => ({
+    status:    'ok',
+    timestamp: new Date().toISOString(),
+    version:   process.env.npm_package_version ?? '1.0.0',
+  }));
+
   // ─── Global authentication preHandler ──────────────────────────────────────
 
   const PUBLIC_ROUTES = new Set([
-    'GET /health',
+    'GET /api/health',
     'POST /api/v1/auth/login',
     'POST /api/v1/auth/login/mfa',
     'POST /api/v1/auth/login/pin',
@@ -116,14 +124,6 @@ async function buildApp(): Promise<FastifyInstance> {
     if (PUBLIC_ROUTES.has(routeKey)) return;
     await fastify.authenticate(request, reply);
   });
-
-  // ─── Health check ───────────────────────────────────────────────────────────
-
-  fastify.get('/health', async () => ({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version ?? '1.0.0',
-  }));
 
   // ─── Global error handler ───────────────────────────────────────────────────
 
