@@ -397,23 +397,18 @@ export type TerminalReaderModel =
 
 export type TerminalReaderStatus = 'online' | 'offline' | 'updating';
 
-/** Represents a registered Stripe Terminal card-present reader. */
+/** Represents a registered Stripe Terminal card-present reader (migration 005 schema). */
 export interface TerminalReader {
   id: UUID;
   organization_id: UUID;
   location_id: UUID;
   stripe_reader_id: string;
-  stripe_account_id: string;
-  stripe_location_id: string;
   label: string;
-  reader_model: TerminalReaderModel;
-  serial_number: string | null;
-  device_sw_version: string | null;
-  ip_address: string | null;
+  model: TerminalReaderModel;
   status: TerminalReaderStatus;
   last_seen_at: Timestamptz | null;
-  is_active: boolean;
-  created_by: UUID | null;
+  /** Extended details stored as jsonb: stripeAccountId, stripeLocationId, serialNumber, etc. */
+  metadata: Record<string, unknown>;
   created_at: Timestamptz;
   updated_at: Timestamptz;
 }
@@ -426,4 +421,108 @@ export interface TerminalPaymentIntent {
   currency: string;
   status: string;
   applicationFeeAmount: Cents;
+}
+
+// ─── Gift cards ───────────────────────────────────────────────────────────────
+
+export interface GiftCardTransaction {
+  id: UUID; gift_card_id: UUID; order_id: UUID | null;
+  transaction_type: GiftCardTransactionType;
+  amount: number; balance_before: number; balance_after: number;
+  employee_id: UUID | null; notes: string | null;
+  created_at: Timestamptz;
+}
+
+// ─── Customer enriched ────────────────────────────────────────────────────────
+
+export interface CustomerWithStats extends Customer {
+  date_of_birth: string | null;
+  address: Address | null;
+  marketing_opt_in: boolean;
+  external_ids: Record<string, string>;
+  /** Derived from orders — not always populated */
+  order_count?: number;
+  last_order_at?: Timestamptz | null;
+}
+
+// ─── Reporting types ──────────────────────────────────────────────────────────
+
+export type ReportGranularity = 'hour' | 'day' | 'week' | 'month';
+
+export interface SalesSummaryRow {
+  period:          string;   // truncated timestamp ISO string
+  order_count:     number;
+  gross_sales:     number;   // sum of order totals
+  discounts:       number;   // sum of discount_total
+  net_sales:       number;   // gross - discounts
+  tax:             number;
+  tips:            number;
+  refunds:         number;
+}
+
+export interface TopProductRow {
+  product_id:   UUID;
+  product_name: string;
+  variant_name: string | null;
+  qty_sold:     number;
+  gross_sales:  number;
+  order_count:  number;
+}
+
+export interface TopCustomerRow {
+  customer_id:    UUID;
+  customer_name:  string;
+  email:          string | null;
+  order_count:    number;
+  total_spend:    number;
+  loyalty_points: number;
+  loyalty_tier:   LoyaltyTier;
+}
+
+export interface PaymentMethodRow {
+  payment_method: PaymentMethod;
+  transaction_count: number;
+  total_amount:      number;
+  percentage:        number;
+}
+
+export interface EmployeePerformanceRow {
+  employee_id:   UUID;
+  employee_name: string;
+  order_count:   number;
+  gross_sales:   number;
+  avg_order_value: number;
+  refund_count:  number;
+  tips_collected: number;
+}
+
+export interface HourlyHeatmapRow {
+  hour:        number;   // 0–23
+  day_of_week: number;   // 0=Sun … 6=Sat
+  order_count: number;
+  gross_sales: number;
+}
+
+export interface DashboardMetrics {
+  today: {
+    gross_sales:   number;
+    order_count:   number;
+    avg_order:     number;
+    new_customers: number;
+  };
+  yesterday: {
+    gross_sales:   number;
+    order_count:   number;
+    avg_order:     number;
+    new_customers: number;
+  };
+  this_week: {
+    gross_sales:   number;
+    order_count:   number;
+  };
+  this_month: {
+    gross_sales:   number;
+    order_count:   number;
+  };
+  top_product_today: { name: string; qty: number } | null;
 }

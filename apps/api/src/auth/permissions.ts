@@ -34,6 +34,7 @@ export enum Permission {
   CUSTOMER_VIEW   = 'customer:view',
   CUSTOMER_CREATE = 'customer:create',
   CUSTOMER_EDIT   = 'customer:edit',
+  CUSTOMER_DELETE = 'customer:delete',
   CUSTOMER_MERGE  = 'customer:merge',
   LOYALTY_ADJUST  = 'loyalty:adjust',
 
@@ -45,6 +46,7 @@ export enum Permission {
   EMPLOYEE_VIEW_SALES  = 'employee:sales:view:all',
 
   // Reporting
+  REPORTS_VIEW          = 'report:view',
   REPORT_VIEW_BASIC     = 'report:view:basic',
   REPORT_VIEW_ADVANCED  = 'report:view:advanced',
   REPORT_EXPORT         = 'report:export',
@@ -76,7 +78,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<EmployeeRole, Permission[]> = {
     (p) =>
       p !== Permission.EMPLOYEE_DELETE &&
       p !== Permission.SETTINGS_EDIT &&
-      p !== Permission.TAX_MANAGE,
+      p !== Permission.TAX_MANAGE &&
+      p !== Permission.CUSTOMER_DELETE,
   ),
 
   cashier: [
@@ -85,8 +88,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<EmployeeRole, Permission[]> = {
     Permission.ORDER_DISCOUNT_APPLY,
     Permission.CUSTOMER_VIEW,
     Permission.CUSTOMER_CREATE,
+    Permission.CUSTOMER_EDIT,
     Permission.PRODUCT_VIEW,
     Permission.INVENTORY_VIEW,
+    Permission.REPORTS_VIEW,
     Permission.REPORT_VIEW_BASIC,
   ],
 
@@ -99,6 +104,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<EmployeeRole, Permission[]> = {
   readonly: [
     Permission.PRODUCT_VIEW,
     Permission.INVENTORY_VIEW,
+    Permission.REPORTS_VIEW,
     Permission.REPORT_VIEW_BASIC,
     Permission.CUSTOMER_VIEW,
   ],

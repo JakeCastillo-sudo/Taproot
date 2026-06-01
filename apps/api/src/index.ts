@@ -10,6 +10,8 @@ import orderRoutes from './routes/order.routes';
 import websocketRoutes from './routes/websocket.routes';
 import paymentRoutes from './routes/payment.routes';
 import webhookRoutes from './routes/webhook.routes';
+import customerRoutes from './routes/customer.routes';
+import reportRoutes from './routes/report.routes';
 import { AppError, ValidationError } from './errors';
 
 // Validate required env vars at startup — throws immediately if any are missing
@@ -91,6 +93,8 @@ async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(websocketRoutes);
   await fastify.register(webhookRoutes);
   await fastify.register(paymentRoutes);
+  await fastify.register(customerRoutes);
+  await fastify.register(reportRoutes);
 
   // ─── Global authentication preHandler ──────────────────────────────────────
 

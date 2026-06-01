@@ -110,10 +110,24 @@
 - Tests: 155 passing — 42 new (stripe.test, offline.test, connect.test); typecheck: 0 errors
 - Security: AES-256-GCM offline encryption, webhook signature verification, card numbers never stored (only last4+brand), application fee 0.3% of GPV
 
+### Prompt 07 — Customer management, gift cards, and reporting ✅
+- Migration 006: pg_trgm extension + GIN indexes on customers (name/email/phone trgm), composite reporting indexes on orders/order_line_items/payments
+- New services:
+  - apps/api/src/services/customer.service.ts — createCustomer, updateCustomer, deleteCustomer (soft), getCustomer, listCustomers (paginated + search), searchCustomers (ILIKE, min 2 chars), mergeCustomers (transfers orders + loyalty_transactions, absorbs points/credit/spend), getCustomerOrderHistory, addAccountCredit, deductAccountCredit
+  - apps/api/src/services/giftcard.service.ts — issueGiftCard (unique code gen with retry), getGiftCard (by code, case-insensitive), getGiftCardById, reloadGiftCard, deactivateGiftCard, getGiftCardTransactions, listGiftCards (paginated)
+  - apps/api/src/services/reporting.service.ts — getSalesSummary (day/week/month/year granularity + timezone), getTopProducts, getTopCustomers, getPaymentMethodBreakdown (with % calc), getEmployeePerformance, getHourlyHeatmap (7×24), getDashboardMetrics (single aggregate query + top product)
+- New routes:
+  - apps/api/src/routes/customer.routes.ts — 16 endpoints (9 customer CRUD/merge/credit + 7 gift card)
+  - apps/api/src/routes/report.routes.ts — 7 GET endpoints, all require REPORTS_VIEW
+- Permissions updated: CUSTOMER_DELETE, REPORTS_VIEW added; manager excludes CUSTOMER_DELETE; cashier/readonly gain REPORTS_VIEW
+- Shared types: GiftCardTransaction, CustomerWithStats, ReportGranularity, SalesSummaryRow, TopProductRow, TopCustomerRow, PaymentMethodRow, EmployeePerformanceRow, HourlyHeatmapRow, DashboardMetrics; TerminalReader fixed to migration 005 schema
+- Tests: 206 passing — 51 new (customer.service.test, giftcard.service.test, reporting.service.test); typecheck: 0 errors
+- index.ts: registered customerRoutes + reportRoutes
+
 ## Pending Issues
 - Fix 002 seed data columns (slug on locations table doesn't exist, plan 'pro' fails CHECK)
 - Configure PAT with Contents:write to unblock git push
 - Set DATABASE_URL, JWT_SECRET, MFA_TOKEN_SECRET, MFA_ENCRYPTION_KEY env vars before running server
 
 ## Next Prompt
-Prompt 07 — Customer management, reporting, and admin UI
+Prompt 08 — Admin UI (React dashboard, customer management views, reporting charts)
