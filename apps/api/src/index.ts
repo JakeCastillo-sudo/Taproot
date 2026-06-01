@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyReply } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyReply, type FastifyError } from 'fastify';
 import helmet from '@fastify/helmet';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
@@ -112,7 +112,7 @@ async function buildApp(): Promise<FastifyInstance> {
   ]);
 
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
-    const routeKey = `${request.method} ${request.routerPath}`;
+    const routeKey = `${request.method} ${request.routeOptions.url}`;
     if (PUBLIC_ROUTES.has(routeKey)) return;
     await fastify.authenticate(request, reply);
   });
@@ -127,7 +127,7 @@ async function buildApp(): Promise<FastifyInstance> {
 
   // ─── Global error handler ───────────────────────────────────────────────────
 
-  fastify.setErrorHandler((err, _request, reply) => {
+  fastify.setErrorHandler((err: FastifyError, _request, reply) => {
     if (err instanceof ValidationError) {
       return reply.code(err.statusCode).send({
         code: err.code,

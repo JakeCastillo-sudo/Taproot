@@ -48,7 +48,7 @@ const authPlugin = fp(async (fastify: FastifyInstance) => {
   );
 }, {
   name: 'taproot-auth',
-  fastify: '4.x',
+  fastify: '5.x',
 });
 
 export default authPlugin;
