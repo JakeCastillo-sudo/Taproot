@@ -79,7 +79,7 @@ export function StockLevels({ locationId }: StockLevelsProps) {
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [selectedRow,  setSelectedRow]  = useState<InventoryLevelRow | null>(null);
   const [page,         setPage]         = useState(1);
-  const [sortKey,      setSortKey]      = useState<SortKey>('product_name');
+  const [sortKey,      setSortKey]      = useState<SortKey>('total_on_hand');
   const [sortDir,      setSortDir]      = useState<SortDir>('asc');
   const limit = 25;
 
@@ -235,14 +235,14 @@ export function StockLevels({ locationId }: StockLevelsProps) {
                       </td>
                       <td className="px-4 py-3 text-gray-500">{row.primary.category_name ?? '—'}</td>
                       <td className="px-4 py-3 text-right font-mono font-medium text-gray-800">
-                        {row.total_on_hand}{' '}
+                        {Math.round(Number(row.total_on_hand))}{' '}
                         <span className="text-gray-400 text-xs">{row.primary.unit_of_measure}</span>
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-gray-500">
-                        {row.min_reorder_pt ?? '—'}
+                        {row.min_reorder_pt != null ? Math.round(Number(row.min_reorder_pt)) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-gray-500">
-                        {row.total_on_order > 0 ? row.total_on_order : '—'}
+                        {Number(row.total_on_order) > 0 ? Math.round(Number(row.total_on_order)) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <span className={clsx('px-2 py-0.5 rounded-full text-xs font-medium', badge.cls)}>

@@ -14,10 +14,13 @@
 
 ## P1 — High (degrades experience)
 
-### BUG-002: Inventory table shows — for category names
+### BUG-002: Inventory table shows — for category names ✅ RESOLVED
 - Symptom: Category column blank in inventory stock levels table
-- Cause: products not linked to categories in seed data
-- Fix: update seed data to set category_id on products
+- Root cause: products not linked to categories in seed data
+- Fix applied (Prompt 14): 002_seed_data.js already had category_id on all products.
+  Migration 008_demo_enrich added 12 more products all with correct category_id.
+  Verified with psql: all 22 products show correct category names.
+- Status: RESOLVED
 
 ### BUG-003: Auth token not auto-refreshing in web app ✅ RESOLVED
 - Symptom: "Token has expired" error after 15 minutes
@@ -29,7 +32,9 @@
 
 ## P2 — Medium (polish)
 
-### BUG-004: Multiple Vite ports in use
+### BUG-004: Multiple Vite ports in use ✅ RESOLVED
 - Symptom: Web app increments port on each restart (5173→5178+)
-- Fix: kill all node processes before starting dev server
-- Workaround: lsof -ti:5173,5174,5175,5176 | xargs kill -9
+- Fix applied (Prompt 14): Added `scripts/kill-ports.js` that kills any
+  processes on ports 3001, 5173-5178 before starting. Use `npm run dev:clean`
+  instead of `npm run dev` to start cleanly.
+- Status: RESOLVED

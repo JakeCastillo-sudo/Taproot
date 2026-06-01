@@ -18,11 +18,14 @@ const { runner } = require('node-pg-migrate') as {
 
 async function runMigrations(direction: 'up' | 'down' = 'up', count?: number): Promise<void> {
   await runner({
-    databaseUrl: dbUrl,
-    dir:              migrationsDir,
+    databaseUrl:     dbUrl,
+    dir:             migrationsDir,
     direction,
     count,
-    migrationsTable:  'pgmigrations',
+    migrationsTable: 'pgmigrations',
+    // Allow migrations applied out of strict numerical order (002 was applied
+    // after 003-006 due to an earlier manual seed run — this is fine for dev).
+    checkOrder:      false,
     log: (msg: string) => console.log('[migrate]', msg),
   });
 }

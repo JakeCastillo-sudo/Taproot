@@ -297,5 +297,31 @@
   - readerId excluded from UUID validation (Stripe terminal reader IDs use tmr_… format)
   - Migration numbered 007 (not 008) — sequential after existing 001-006
 
+### Prompt 14 — Beta polish: bug fixes + demo enrichment ✅
+- **BUG-002 resolved**: Category names already correct in seed; 22 total products verified in DB
+- **BUG-004 resolved**: `scripts/kill-ports.js` clears ports 3001+5173-5178; `npm run dev:clean` runs it first
+- **migrations/008_demo_enrich.js**: 12 new products (22 total), 5 demo customers (with loyalty tiers),
+  3 modifier groups + 10 modifiers, 3 completed orders with payments → reports show real revenue
+- **migrate.ts**: added `checkOrder: false` to allow migrations applied out of strict order
+- **migrations/007_db_security.js**: fixed `GRANT CONNECT ON DATABASE CURRENT_DATABASE()` SQL error
+  (used DO $$ EXECUTE block with quote_ident instead)
+- **PaymentSheet.tsx**: card payments in dev show "Demo Mode" badge + 2-second simulated success;
+  `FlaskConical` icon imported for dev badge
+- **LoadingSpinner.tsx**: new component with `LoadingSpinner`, `InlineSpinner`, `SkeletonCard`,
+  `ProductGridSkeleton`, `TableRowSkeleton`
+- **StockLevels.tsx**: quantities now display as integers (Math.round); default sort changed to
+  `total_on_hand` ascending (low-stock items float to top)
+- **App.tsx**: `PWAInstallBanner` component — detects `beforeinstallprompt`, shows sticky bottom banner
+  with Install + Dismiss (remembered 30 days via localStorage)
+- **main.tsx**: iOS Safari `--vh` CSS property set + updated on resize; double-tap zoom prevented
+  on non-input elements
+- **package.json**: added `dev:clean` (kill-ports + dev) and `db:reseed` scripts
+- **scripts/reseed.js**: truncates org CASCADE then re-runs all migrations
+- Typecheck: 0 errors (both apps/api and apps/web)
+- Key patterns:
+  - `import.meta.env.DEV` guards all dev-only simulation code
+  - All demo UUID prefixes documented in 008 migration header
+  - `checkOrder: false` in migrate.ts is permanent (002 was seeded after 003-006 in earlier session)
+
 ## Next Prompt
-Prompt 14 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding
+Prompt 15 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding

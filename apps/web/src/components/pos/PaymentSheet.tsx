@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   X, CreditCard, Banknote, Gift, SplitSquareHorizontal,
   Wallet, CheckCircle, AlertCircle, RotateCcw, Printer,
-  Mail, MessageSquare, ChevronRight,
+  Mail, MessageSquare, ChevronRight, FlaskConical,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { usePOSStore } from '../../store/pos.store';
@@ -241,6 +241,17 @@ export function PaymentSheet({ onClose }: Props) {
     setStep('processing');
     setErrorMsg('');
 
+    // ── Dev / demo mode for card payments ────────────────────────────────────
+    // In development there is no Stripe Terminal reader, so we simulate a
+    // 2-second card tap and jump straight to the success screen.
+    // Production flows through the real Stripe Terminal integration.
+    if (selectedMethod === 'card' && import.meta.env.DEV) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+      setOrderNum(`DEMO-${Date.now().toString().slice(-6)}`);
+      setStep('success');
+      return;
+    }
+
     try {
       // 1. Create order
       const order = await ordersApi.create(locationId, {
@@ -344,7 +355,7 @@ export function PaymentSheet({ onClose }: Props) {
               </div>
 
               {[
-                { id: 'card'           as Method, icon: CreditCard,           label: 'Card',          desc: 'Tap, insert, or swipe' },
+                { id: 'card'           as Method, icon: CreditCard,           label: 'Card',          desc: import.meta.env.DEV ? 'Demo mode — simulates card tap' : 'Tap, insert, or swipe' },
                 { id: 'cash'           as Method, icon: Banknote,             label: 'Cash',          desc: 'Enter amount tendered' },
                 { id: 'gift_card'      as Method, icon: Gift,                 label: 'Gift Card',     desc: 'Scan or enter code' },
                 { id: 'account_credit' as Method, icon: Wallet,               label: 'Account Credit',desc: 'Customer balance' },
@@ -390,18 +401,27 @@ export function PaymentSheet({ onClose }: Props) {
               <div className="w-16 h-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
               <div className="text-center space-y-1">
                 <p className="text-base font-semibold text-gray-800">
-                  {method === 'card' ? 'Waiting for card…' : 'Processing payment…'}
+                  {method === 'card' ? (import.meta.env.DEV ? 'Simulating card tap…' : 'Waiting for card…') : 'Processing payment…'}
                 </p>
                 {method === 'card' && (
-                  <p className="text-sm text-gray-400">Tap, insert, or swipe card on terminal</p>
+                  <p className="text-sm text-gray-400">
+                    {import.meta.env.DEV ? 'Demo mode — success in 2 seconds' : 'Tap, insert, or swipe card on terminal'}
+                  </p>
                 )}
               </div>
-              <button
-                onClick={close}
-                className="text-sm text-gray-400 hover:text-gray-600 underline transition-colors"
-              >
-                Cancel
-              </button>
+              {import.meta.env.DEV && method === 'card' && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
+                  <FlaskConical size={12} /> Demo Mode
+                </div>
+              )}
+              {!(import.meta.env.DEV && method === 'card') && (
+                <button
+                  onClick={close}
+                  className="text-sm text-gray-400 hover:text-gray-600 underline transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           )}
 

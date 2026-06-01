@@ -35,10 +35,15 @@ exports.up = (pgm) => {
   `);
 
   // ── Connect + schema usage ────────────────────────────────────────────────
+  // DATABASE requires a literal name — use dynamic SQL to avoid hard-coding it.
   pgm.sql(`
-    GRANT CONNECT ON DATABASE CURRENT_DATABASE() TO taproot_app;
-    GRANT USAGE ON SCHEMA public TO taproot_app;
+    DO $$
+    BEGIN
+      EXECUTE 'GRANT CONNECT ON DATABASE ' || quote_ident(current_database()) || ' TO taproot_app';
+    END
+    $$;
   `);
+  pgm.sql(`GRANT USAGE ON SCHEMA public TO taproot_app;`);
 
   // ── DML on all existing tables ────────────────────────────────────────────
   pgm.sql(`
@@ -130,7 +135,13 @@ exports.down = (pgm) => {
     REVOKE ALL ON ALL TABLES IN SCHEMA public FROM taproot_app;
     REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM taproot_app;
     REVOKE USAGE ON SCHEMA public FROM taproot_app;
-    REVOKE CONNECT ON DATABASE CURRENT_DATABASE() FROM taproot_app;
+  `);
+  pgm.sql(`
+    DO $$
+    BEGIN
+      EXECUTE 'REVOKE CONNECT ON DATABASE ' || quote_ident(current_database()) || ' FROM taproot_app';
+    END
+    $$;
   `);
 
   pgm.sql(`DROP ROLE IF EXISTS taproot_app;`);
