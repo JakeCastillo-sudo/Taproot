@@ -166,6 +166,37 @@
 - POSLayout.tsx updated: Inventory nav link in sidebar using useNavigate
 - Typecheck: 0 errors. Vite build: 1589 modules, 353kb bundle, clean.
 
+### Prompt 10 — Reporting & Analytics Dashboard ✅
+- Inventory bug fixes:
+  - inventory.service.ts: listInventoryLevels now JOINs product_variants + categories → returns variant_name, category_name, unit_of_measure, cost_price
+  - StockLevels.tsx: groups variant rows by product_id client-side (sums qty), shows one row per product with variant count badge
+- Packages installed: recharts@3.8.1 (date-fns was already present at 2.30.0)
+- Shared utilities:
+  - apps/web/src/lib/dateRanges.ts — preset date ranges (Today/Yesterday/Last7/Last30/ThisMonth/LastMonth/Custom), toApiParams, fmtCurrency, fmtShortCurrency, fmtPct, fmtDate
+- API extensions in apps/web/src/lib/api.ts:
+  - reports.getDashboardMetrics / getSalesSummary / getTopProducts / getTopCustomers / getPaymentBreakdown / getEmployeePerformance / getHourlyHeatmap
+  - ai.nlQuery (graceful stub — route not yet implemented on backend)
+  - Re-exported shared types: DashboardMetrics, SalesSummaryRow, TopProductRow, TopCustomerRow, etc.
+- QK constants extended: reportDashboard, reportSales, reportTopProducts, reportTopCustomers, reportPayments, reportEmployees, reportHeatmap
+- Chart components (apps/web/src/components/charts/):
+  - RevenueLineChart.tsx — Recharts LineChart with responsive container, empty state
+  - SalesBarChart.tsx — Recharts BarChart, stacked or grouped
+  - DonutChart.tsx — Recharts PieChart with inner donut
+  - HeatmapChart.tsx — custom SVG 7×24 heatmap with lerp color scale, hover tooltip
+  - SparklineChart.tsx — tiny inline SVG sparkline with area fill
+- Report tab components (apps/web/src/components/reports/):
+  - NLQueryBar.tsx — animated placeholder rotation, AI query, history chips, data table + chart
+  - DashboardTab.tsx — 4 KPI cards with sparklines + change %, revenue line chart, product donut, heatmap, top-5 table
+  - SalesTab.tsx — bar chart (revenue/orders/AOV toggle), granularity selector, stats row, payment method donut + table
+  - ProductsTab.tsx — ABC analysis, top/bottom/all toggle, sortable table, CSV export
+  - CustomersTab.tsx — metric cards, loyalty tier donut, top customers sortable table
+  - StaffTab.tsx — role-gated (owner/manager see all; cashier sees own row), comparison bar chart, performance table
+- ReportsPage.tsx — 5-tab layout, date range picker with presets + custom range, NL query bar
+- App.tsx updated: /reports → ReportsPage
+- POSLayout.tsx updated: Reports nav link added to sidebar
+- Recharts 3.x notes: Tooltip formatter receives ValueType|undefined (not number) — use Number(value ?? 0)
+- Typecheck: 0 errors. Vite build: 2309 modules, 786kb bundle (recharts adds ~430kb), clean.
+
 ## Key Web Patterns
 - `TOKEN_KEY`/`REFRESH_TOKEN_KEY`/`USER_KEY` in localStorage; token decoded for locationId
 - `VITE_API_URL=""` → relative URL → Vite proxy → `http://localhost:3001`
@@ -179,4 +210,4 @@
 - Set DATABASE_URL, JWT_SECRET, MFA_TOKEN_SECRET, MFA_ENCRYPTION_KEY env vars before running server
 
 ## Next Prompt
-Prompt 10 — Admin dashboard: customer management views, reporting charts, employee management
+Prompt 11 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding

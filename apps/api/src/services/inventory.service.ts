@@ -684,10 +684,22 @@ export async function listInventoryLevels(
        ${whereClause}`,
       params,
     ),
-    query<InventoryLevel & { product_name: string; product_sku: string | null }>(
-      `SELECT il.*, p.name AS product_name, p.sku AS product_sku
+    query<InventoryLevel & {
+      product_name: string; product_sku: string | null;
+      variant_name: string | null; category_name: string | null;
+      unit_of_measure: string; cost_price: number;
+    }>(
+      `SELECT il.*,
+              p.name       AS product_name,
+              p.sku        AS product_sku,
+              p.unit_of_measure,
+              p.cost_price,
+              pv.name      AS variant_name,
+              c.name       AS category_name
        FROM inventory_levels il
        JOIN products p ON p.id = il.product_id
+       LEFT JOIN product_variants pv ON pv.id = il.variant_id AND pv.deleted_at IS NULL
+       LEFT JOIN categories c ON c.id = p.category_id AND c.deleted_at IS NULL
        ${whereClause}
        ORDER BY p.name ASC, il.variant_id ASC NULLS FIRST
        LIMIT $${p} OFFSET $${p + 1}`,

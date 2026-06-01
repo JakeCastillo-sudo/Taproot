@@ -394,7 +394,7 @@ export interface InventoryLevelRow {
   reorder_quantity: number | null;
   max_stock_level: number | null;
   last_counted_at: string | null;
-  // joined fields
+  // joined fields from API (now populated by query)
   product_name: string;
   product_sku: string | null;
   variant_name: string | null;
@@ -635,4 +635,90 @@ export const purchaseOrdersApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+};
+
+// ─── Reports ──────────────────────────────────────────────────────────────────
+
+export interface ReportDateParams {
+  from:       string;   // ISO-8601
+  to:         string;   // ISO-8601
+  locationId?: string;
+  timezone?:  string;
+}
+
+import type {
+  DashboardMetrics, SalesSummaryRow, TopProductRow,
+  TopCustomerRow, PaymentMethodRow, EmployeePerformanceRow,
+  HourlyHeatmapRow, ReportGranularity,
+} from '@taproot/shared';
+
+export type { DashboardMetrics, SalesSummaryRow, TopProductRow, TopCustomerRow,
+              PaymentMethodRow, EmployeePerformanceRow, HourlyHeatmapRow, ReportGranularity };
+
+function buildReportQS(params: ReportDateParams, extra?: Record<string, string>): string {
+  const q = new URLSearchParams({ from: params.from, to: params.to });
+  if (params.locationId) q.set('location_id', params.locationId);
+  if (params.timezone)   q.set('timezone', params.timezone);
+  if (extra) Object.entries(extra).forEach(([k, v]) => q.set(k, v));
+  return q.toString();
+}
+
+export const reports = {
+  getDashboardMetrics: (locationId?: string, timezone = 'UTC') => {
+    const q = new URLSearchParams({ timezone });
+    if (locationId) q.set('location_id', locationId);
+    return apiFetch<DashboardMetrics>(`/reports/dashboard?${q.toString()}`);
+  },
+
+  getSalesSummary: (params: ReportDateParams, granularity: ReportGranularity = 'day') =>
+    apiFetch<{ rows: SalesSummaryRow[] }>(
+      `/reports/sales?${buildReportQS(params, { granularity })}`,
+    ),
+
+  getTopProducts: (params: ReportDateParams, limit = 20) =>
+    apiFetch<TopProductRow[]>(
+      `/reports/top-products?${buildReportQS(params, { limit: String(limit) })}`,
+    ),
+
+  getTopCustomers: (params: ReportDateParams, limit = 20) =>
+    apiFetch<TopCustomerRow[]>(
+      `/reports/top-customers?${buildReportQS(params, { limit: String(limit) })}`,
+    ),
+
+  getPaymentBreakdown: (params: ReportDateParams) =>
+    apiFetch<PaymentMethodRow[]>(
+      `/reports/payment-methods?${buildReportQS(params)}`,
+    ),
+
+  getEmployeePerformance: (params: ReportDateParams) =>
+    apiFetch<EmployeePerformanceRow[]>(
+      `/reports/employee-performance?${buildReportQS(params)}`,
+    ),
+
+  getHourlyHeatmap: (params: ReportDateParams) =>
+    apiFetch<HourlyHeatmapRow[]>(
+      `/reports/hourly-heatmap?${buildReportQS(params)}`,
+    ),
+};
+
+// ─── AI / NL Query ────────────────────────────────────────────────────────────
+
+export interface NLQueryResponse {
+  answer:    string;
+  data?:     Array<Record<string, unknown>>;
+  chartType?: 'bar' | 'line' | 'pie' | null;
+}
+
+export const ai = {
+  nlQuery: (query: string, locationId?: string): Promise<NLQueryResponse> => {
+    // Route not yet implemented — return a graceful stub
+    return apiFetch<NLQueryResponse>('/ai/nl-query', {
+      method: 'POST',
+      body:   JSON.stringify({ query, locationId }),
+    }).catch(() => ({
+      answer:    "I couldn't process that query. The AI analytics feature isn't connected yet.",
+      data:      undefined,
+      chartType: null,
+    }));
+  },
 };

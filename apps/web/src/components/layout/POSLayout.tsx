@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, X, LogOut, ShoppingCart, Package,
   ChevronRight, Plus, Minus, Trash2, Tag,
-  FileText, AlertTriangle, User, Layers,
+  FileText, AlertTriangle, User, Layers, BarChart3,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
@@ -352,13 +352,20 @@ export function POSLayout({ user }: POSLayoutProps) {
         </div>
 
         {/* Bottom nav links */}
-        <div className="px-3 py-2 border-t border-gray-50">
+        <div className="px-3 py-2 border-t border-gray-50 space-y-0.5">
           <button
             onClick={() => navigate('/inventory')}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
           >
             <Layers size={15} className="shrink-0 text-gray-400" />
             Inventory
+          </button>
+          <button
+            onClick={() => navigate('/reports')}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+          >
+            <BarChart3 size={15} className="shrink-0 text-gray-400" />
+            Reports
           </button>
         </div>
 

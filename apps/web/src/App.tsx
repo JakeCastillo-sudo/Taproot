@@ -2,12 +2,13 @@ import React, { type ReactNode } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { BarChart3, ClipboardList, Settings2 } from 'lucide-react';
+import { ClipboardList, Settings2 } from 'lucide-react';
 import { queryClient } from './lib/queryClient';
 import { LoginPage } from './pages/LoginPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { POSLayout } from './components/layout/POSLayout';
 import { InventoryPage } from './pages/InventoryPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TOKEN_KEY, USER_KEY } from './lib/api';
 
@@ -112,7 +113,7 @@ export default function App() {
             path="/reports"
             element={
               <RequireAuth>
-                <PlaceholderPage title="Reports" icon={<BarChart3 size={28} />} />
+                <ReportsPage />
               </RequireAuth>
             }
           />

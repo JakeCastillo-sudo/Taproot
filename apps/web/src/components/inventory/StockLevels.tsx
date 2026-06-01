@@ -1,9 +1,12 @@
 /**
  * StockLevels — paginated table of inventory levels with search, low-stock filter,
  * and row-click to open ProductDetailSheet.
+ *
+ * Groups variant-level rows from the API into one row per product (summing quantities).
+ * The "primary" row (variant_id IS NULL, or lowest variant) is passed to ProductDetailSheet.
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, AlertTriangle, Package, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -17,55 +20,99 @@ interface StockLevelsProps {
   locationId: string;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Grouped product row ──────────────────────────────────────────────────────
 
-function stockBadge(row: InventoryLevelRow) {
-  const qty = row.quantity_on_hand;
-  const rp  = row.reorder_point;
-  if (qty <= 0)               return { label: 'Out of stock', cls: 'bg-red-100 text-red-700' };
-  if (rp !== null && qty <= rp) return { label: 'Low stock',    cls: 'bg-amber-100 text-amber-700' };
+interface ProductRow {
+  /** Representative row for detail-sheet (NULL-variant preferred, else first variant) */
+  primary:         InventoryLevelRow;
+  variantRows:     InventoryLevelRow[];
+  /** Summed across all variants */
+  total_on_hand:   number;
+  total_on_order:  number;
+  /** Lowest reorder point across variants (most conservative) */
+  min_reorder_pt:  number | null;
+  /** Most recent count */
+  latest_counted:  string | null;
+}
+
+function groupByProduct(levels: InventoryLevelRow[]): ProductRow[] {
+  const map = new Map<string, InventoryLevelRow[]>();
+  for (const l of levels) {
+    if (!map.has(l.product_id)) map.set(l.product_id, []);
+    map.get(l.product_id)!.push(l);
+  }
+  const rows: ProductRow[] = [];
+  for (const [, variants] of map) {
+    // Prefer NULL-variant as primary (product-level row); fall back to first
+    const primary = variants.find((v) => v.variant_id === null) ?? variants[0];
+    const total_on_hand  = variants.reduce((s, v) => s + v.quantity_on_hand,  0);
+    const total_on_order = variants.reduce((s, v) => s + v.quantity_on_order, 0);
+    const reorderPts = variants.map((v) => v.reorder_point).filter((v): v is number => v !== null);
+    const countedDates = variants.map((v) => v.last_counted_at).filter((v): v is string => v !== null);
+    rows.push({
+      primary,
+      variantRows:    variants,
+      total_on_hand,
+      total_on_order,
+      min_reorder_pt: reorderPts.length > 0 ? Math.min(...reorderPts) : null,
+      latest_counted: countedDates.length > 0 ? countedDates.sort()[countedDates.length - 1] ?? null : null,
+    });
+  }
+  return rows;
+}
+
+// ─── Stock badge ──────────────────────────────────────────────────────────────
+
+function stockBadge(total: number, reorderPt: number | null) {
+  if (total <= 0)                             return { label: 'Out of stock', cls: 'bg-red-100 text-red-700' };
+  if (reorderPt !== null && total <= reorderPt) return { label: 'Low stock',    cls: 'bg-amber-100 text-amber-700' };
   return { label: 'In stock', cls: 'bg-green-100 text-green-700' };
 }
 
-type SortKey = 'product_name' | 'quantity_on_hand' | 'reorder_point';
+type SortKey = 'product_name' | 'total_on_hand' | 'min_reorder_pt';
 type SortDir = 'asc' | 'desc';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function StockLevels({ locationId }: StockLevelsProps) {
-  const [search,          setSearch]          = useState('');
-  const [lowStockOnly,    setLowStockOnly]    = useState(false);
-  const [selectedRow,     setSelectedRow]     = useState<InventoryLevelRow | null>(null);
-  const [page,            setPage]            = useState(1);
-  const [sortKey,         setSortKey]         = useState<SortKey>('product_name');
-  const [sortDir,         setSortDir]         = useState<SortDir>('asc');
+  const [search,       setSearch]       = useState('');
+  const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [selectedRow,  setSelectedRow]  = useState<InventoryLevelRow | null>(null);
+  const [page,         setPage]         = useState(1);
+  const [sortKey,      setSortKey]      = useState<SortKey>('product_name');
+  const [sortDir,      setSortDir]      = useState<SortDir>('asc');
   const limit = 25;
 
+  // Fetch more rows than displayed so grouping doesn't lose data across page boundaries.
+  // We fetch up to 200 rows and group client-side, then slice for pagination display.
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: QK.inventory(locationId, { search, lowStockOnly, page }),
+    queryKey: QK.inventory(locationId, { search, lowStockOnly }),
     queryFn:  () => inventoryApi.levels(locationId, {
       search:            search || undefined,
       belowReorderPoint: lowStockOnly || undefined,
-      page,
-      limit,
+      limit:             200,
     }),
     staleTime: 30_000,
   });
 
-  const levels = data?.levels ?? [];
-  const total  = data?.total  ?? 0;
-  const pages  = Math.max(1, Math.ceil(total / limit));
+  const grouped = useMemo(() => groupByProduct(data?.levels ?? []), [data]);
 
-  // Client-side sort (already paginated from server — sort within page)
-  const sorted = [...levels].sort((a, b) => {
-    let av: string | number = a[sortKey] ?? '';
-    let bv: string | number = b[sortKey] ?? '';
-    if (typeof av === 'string') av = av.toLowerCase();
-    if (typeof bv === 'string') bv = bv.toLowerCase();
+  // Client-side sort
+  const sorted = useMemo(() => [...grouped].sort((a, b) => {
+    let av: string | number;
+    let bv: string | number;
+    if (sortKey === 'product_name')   { av = a.primary.product_name.toLowerCase(); bv = b.primary.product_name.toLowerCase(); }
+    else if (sortKey === 'total_on_hand')  { av = a.total_on_hand;  bv = b.total_on_hand; }
+    else                              { av = a.min_reorder_pt ?? -Infinity; bv = b.min_reorder_pt ?? -Infinity; }
     if (av < bv) return sortDir === 'asc' ? -1 : 1;
     if (av > bv) return sortDir === 'asc' ?  1 : -1;
     return 0;
-  });
+  }), [grouped, sortKey, sortDir]);
+
+  // Client-side pagination over grouped rows
+  const total  = sorted.length;
+  const pages  = Math.max(1, Math.ceil(total / limit));
+  const paged  = sorted.slice((page - 1) * limit, page * limit);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -83,7 +130,6 @@ export function StockLevels({ locationId }: StockLevelsProps) {
     <div className="flex flex-col gap-4">
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
@@ -95,7 +141,6 @@ export function StockLevels({ locationId }: StockLevelsProps) {
           />
         </div>
 
-        {/* Low-stock toggle */}
         <button
           onClick={() => { setLowStockOnly((v) => !v); setPage(1); }}
           className={clsx(
@@ -109,7 +154,6 @@ export function StockLevels({ locationId }: StockLevelsProps) {
           Low stock only
         </button>
 
-        {/* Refresh */}
         <button
           onClick={() => void refetch()}
           disabled={isFetching}
@@ -135,15 +179,15 @@ export function StockLevels({ locationId }: StockLevelsProps) {
                 <th className="text-left px-4 py-2.5 font-medium text-gray-500">Category</th>
                 <th
                   className="text-right px-4 py-2.5 font-medium text-gray-500 cursor-pointer hover:text-gray-700 select-none"
-                  onClick={() => handleSort('quantity_on_hand')}
+                  onClick={() => handleSort('total_on_hand')}
                 >
-                  <span className="flex items-center justify-end gap-1">On hand <SortIcon col="quantity_on_hand" /></span>
+                  <span className="flex items-center justify-end gap-1">On hand <SortIcon col="total_on_hand" /></span>
                 </th>
                 <th
                   className="text-right px-4 py-2.5 font-medium text-gray-500 cursor-pointer hover:text-gray-700 select-none"
-                  onClick={() => handleSort('reorder_point')}
+                  onClick={() => handleSort('min_reorder_pt')}
                 >
-                  <span className="flex items-center justify-end gap-1">Reorder pt <SortIcon col="reorder_point" /></span>
+                  <span className="flex items-center justify-end gap-1">Reorder pt <SortIcon col="min_reorder_pt" /></span>
                 </th>
                 <th className="text-right px-4 py-2.5 font-medium text-gray-500">On order</th>
                 <th className="text-left px-4 py-2.5 font-medium text-gray-500">Status</th>
@@ -161,7 +205,7 @@ export function StockLevels({ locationId }: StockLevelsProps) {
                     ))}
                   </tr>
                 ))
-              ) : sorted.length === 0 ? (
+              ) : paged.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
                     <Package size={28} className="mx-auto mb-2 text-gray-200" />
@@ -170,28 +214,35 @@ export function StockLevels({ locationId }: StockLevelsProps) {
                   </td>
                 </tr>
               ) : (
-                sorted.map((row) => {
-                  const badge = stockBadge(row);
+                paged.map((row) => {
+                  const badge = stockBadge(row.total_on_hand, row.min_reorder_pt);
+                  const hasVariants = row.variantRows.length > 1 ||
+                    (row.variantRows.length === 1 && row.variantRows[0].variant_id !== null);
                   return (
                     <tr
-                      key={`${row.product_id}-${row.variant_id ?? 'null'}`}
-                      onClick={() => setSelectedRow(row)}
+                      key={row.primary.product_id}
+                      onClick={() => setSelectedRow(row.primary)}
                       className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-800">{row.product_name}</div>
-                        {row.variant_name && <div className="text-xs text-gray-400">{row.variant_name}</div>}
-                        {row.product_sku  && <div className="text-xs text-gray-400 font-mono">{row.product_sku}</div>}
+                        <div className="font-medium text-gray-800">{row.primary.product_name}</div>
+                        {hasVariants && (
+                          <div className="text-xs text-gray-400">{row.variantRows.length} variant{row.variantRows.length !== 1 ? 's' : ''}</div>
+                        )}
+                        {row.primary.product_sku && (
+                          <div className="text-xs text-gray-400 font-mono">{row.primary.product_sku}</div>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{row.category_name ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-500">{row.primary.category_name ?? '—'}</td>
                       <td className="px-4 py-3 text-right font-mono font-medium text-gray-800">
-                        {row.quantity_on_hand} <span className="text-gray-400 text-xs">{row.unit_of_measure}</span>
+                        {row.total_on_hand}{' '}
+                        <span className="text-gray-400 text-xs">{row.primary.unit_of_measure}</span>
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-gray-500">
-                        {row.reorder_point ?? '—'}
+                        {row.min_reorder_pt ?? '—'}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-gray-500">
-                        {row.quantity_on_order > 0 ? row.quantity_on_order : '—'}
+                        {row.total_on_order > 0 ? row.total_on_order : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <span className={clsx('px-2 py-0.5 rounded-full text-xs font-medium', badge.cls)}>
@@ -199,8 +250,8 @@ export function StockLevels({ locationId }: StockLevelsProps) {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-xs text-gray-400">
-                        {row.last_counted_at
-                          ? new Date(row.last_counted_at).toLocaleDateString()
+                        {row.latest_counted
+                          ? new Date(row.latest_counted).toLocaleDateString()
                           : 'Never'}
                       </td>
                     </tr>
@@ -215,7 +266,7 @@ export function StockLevels({ locationId }: StockLevelsProps) {
         {pages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
             <p className="text-xs text-gray-500">
-              {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}
+              {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total} products
             </p>
             <div className="flex items-center gap-1">
               <button
