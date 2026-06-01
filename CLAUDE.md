@@ -141,9 +141,30 @@
 - PaymentSheet: apps/web/src/components/pos/PaymentSheet.tsx — 4-step flow: tip selection (presets + custom) → method (cash/card/gift_card/account_credit/split) → processing → success/error; cash keypad with change calc
 - POSLayout: apps/web/src/components/layout/POSLayout.tsx — 3-column desktop layout (240px nav | flex product grid | 380px order panel); mobile single-column + floating cart button + bottom sheet; product tiles with long-press modifier support; cart with quantity steppers; CHARGE button
 - LoginPage: apps/web/src/pages/LoginPage.tsx — clean login form, show/hide password, demo credentials prefill
-- App.tsx: routes /login → LoginPage, / → POSLayout (auth guarded), /orders /inventory /reports /settings → PlaceholderPage; QueryClientProvider + ErrorBoundary + ToastContainer
+- App.tsx: routes /login → LoginPage, / → POSLayout (auth guarded), /inventory → InventoryPage, /orders /reports /settings → PlaceholderPage; QueryClientProvider + ErrorBoundary + ToastContainer
 - main.tsx: replaced main.jsx, imports design-system.css
 - Typecheck: 0 errors. Vite build: 1580 modules, 295kb bundle, clean.
+
+### Prompt 09 — Inventory Management UI ✅
+- API extensions in apps/web/src/lib/api.ts:
+  - inventoryApi — levels (paginated, search, low-stock filter), movements, adjust, stockCount, forecast
+  - recipesApi — get, save
+  - varianceApi — list, get, generate, finalize
+  - purchaseOrdersApi — list, get, create (stub, PO routes not yet wired)
+- QK constants extended: inventoryMovements, forecast, recipe, varianceReports, varianceReport
+- New components (apps/web/src/components/inventory/):
+  - StockLevels.tsx — sortable paginated table, search, low-stock filter, row-click → ProductDetailSheet
+  - ProductDetailSheet.tsx — slide-in panel with stock cards, quick-adjust form, movement history
+  - StockCountSheet.tsx — full-screen cycle count with diff preview, opening count toggle
+  - ForecastDashboard.tsx — urgency summary cards + sortable stockout table, window selector (24h–7d)
+  - RecipesManager.tsx — product grid with recipe status badges, opens RecipeEditor
+  - RecipeEditor.tsx — ingredient line editor (product select + qty + unit + waste factor), save/update
+  - VarianceReports.tsx — list with generate form (date range + flag threshold), opens detail
+  - VarianceReportDetail.tsx — flagged/normal line split, finalize button
+- InventoryPage.tsx — 4-tab layout (Stock | Forecast | Recipes | Variance), Stock Count shortcut button, back-to-POS nav
+- App.tsx updated: /inventory → InventoryPage
+- POSLayout.tsx updated: Inventory nav link in sidebar using useNavigate
+- Typecheck: 0 errors. Vite build: 1589 modules, 353kb bundle, clean.
 
 ## Key Web Patterns
 - `TOKEN_KEY`/`REFRESH_TOKEN_KEY`/`USER_KEY` in localStorage; token decoded for locationId
@@ -158,4 +179,4 @@
 - Set DATABASE_URL, JWT_SECRET, MFA_TOKEN_SECRET, MFA_ENCRYPTION_KEY env vars before running server
 
 ## Next Prompt
-Prompt 09 — Admin dashboard: customer management views, reporting charts, employee management
+Prompt 10 — Admin dashboard: customer management views, reporting charts, employee management

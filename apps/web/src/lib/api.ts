@@ -381,3 +381,258 @@ export const discounts = {
   /** Placeholder — discount routes will be added in a future prompt */
   listActive: (): Promise<ActiveDiscount[]> => Promise.resolve([]),
 };
+
+// ─── Inventory (extended) ─────────────────────────────────────────────────────
+
+export interface InventoryLevelRow {
+  id: string;
+  product_id: string;
+  variant_id: string | null;
+  quantity_on_hand: number;
+  quantity_on_order: number;
+  reorder_point: number | null;
+  reorder_quantity: number | null;
+  max_stock_level: number | null;
+  last_counted_at: string | null;
+  // joined fields
+  product_name: string;
+  product_sku: string | null;
+  variant_name: string | null;
+  unit_of_measure: string;
+  cost_price: number;
+  category_name: string | null;
+}
+
+export interface InventoryMovementRow {
+  id: string;
+  movement_type: string;
+  quantity_delta: number;
+  quantity_before: number;
+  quantity_after: number;
+  reference_type: string | null;
+  reference_id: string | null;
+  notes: string | null;
+  employee_name: string | null;
+  created_at: string;
+}
+
+export interface ForecastItem {
+  productId: string;
+  productName: string;
+  sku: string | null;
+  currentOnHand: number;
+  unit: string;
+  burnRatePerHour: number;
+  hoursUntilStockout: number | null;
+  estimatedStockoutAt: string | null;
+  reorderPointReached: boolean;
+  urgency: 'critical' | 'warning' | 'ok';
+  confidence: 'high' | 'medium' | 'low';
+  dataPoints: number;
+}
+
+export interface InventoryAdjustBody {
+  productId: string;
+  variantId?: string | null;
+  quantityDelta: number;
+  reason: string;
+  notes?: string;
+}
+
+export interface StockCountLine {
+  productId: string;
+  variantId?: string | null;
+  countedQuantity: number;
+}
+
+export const inventoryApi = {
+  levels: (locationId: string, params?: { search?: string; belowReorderPoint?: boolean; page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.belowReorderPoint) q.set('belowReorderPoint', 'true');
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return apiFetch<{ levels: InventoryLevelRow[]; total: number }>(
+      `/locations/${locationId}/inventory?${q.toString()}`,
+    );
+  },
+
+  movements: (locationId: string, productId: string, variantId?: string | null, limit = 50) => {
+    const q = new URLSearchParams();
+    if (variantId) q.set('variantId', variantId);
+    q.set('limit', String(limit));
+    return apiFetch<{ movements: InventoryMovementRow[] }>(
+      `/locations/${locationId}/inventory/${productId}/movements?${q.toString()}`,
+    );
+  },
+
+  adjust: (locationId: string, body: InventoryAdjustBody) =>
+    apiFetch<{ level: InventoryLevelRow }>(`/locations/${locationId}/inventory/adjust`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  stockCount: (locationId: string, counts: StockCountLine[], isOpeningCount = false) =>
+    apiFetch<{ deltas: unknown[] }>(`/locations/${locationId}/inventory/count`, {
+      method: 'POST',
+      body: JSON.stringify({ counts, isOpeningCount }),
+    }),
+
+  forecast: (locationId: string, windowHours?: number) => {
+    const q = new URLSearchParams();
+    if (windowHours) q.set('windowHours', String(windowHours));
+    return apiFetch<{ items: ForecastItem[] }>(`/locations/${locationId}/forecast?${q.toString()}`);
+  },
+};
+
+// ─── Recipes ──────────────────────────────────────────────────────────────────
+
+export interface RecipeLineInput {
+  ingredientProductId: string;
+  ingredientVariantId?: string | null;
+  quantity: number;
+  unit: string;
+  wasteFactor?: number;
+  notes?: string;
+}
+
+export interface RecipeInput {
+  name: string;
+  yieldFactor?: number;
+  notes?: string;
+  lines: RecipeLineInput[];
+}
+
+export interface RecipeDetail {
+  id: string;
+  product_id: string;
+  name: string;
+  yield_factor: number;
+  notes: string | null;
+  version: number;
+  is_active: boolean;
+  lines: Array<{
+    id: string;
+    ingredient_product_id: string;
+    ingredient_variant_id: string | null;
+    quantity: number;
+    unit: string;
+    waste_factor: number;
+    notes: string | null;
+    // joined
+    ingredient_name: string;
+    ingredient_sku: string | null;
+  }>;
+}
+
+export const recipesApi = {
+  get: (productId: string) =>
+    apiFetch<RecipeDetail | null>(`/products/${productId}/recipe`),
+
+  save: (productId: string, body: RecipeInput) =>
+    apiFetch<RecipeDetail>(`/products/${productId}/recipe`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+};
+
+// ─── Variance Reports ─────────────────────────────────────────────────────────
+
+export interface VarianceReportSummary {
+  id: string;
+  location_id: string;
+  period_start: string;
+  period_end: string;
+  status: 'draft' | 'finalized';
+  flagged_count: number;
+  created_at: string;
+}
+
+export interface VarianceReportDetail extends VarianceReportSummary {
+  lines: Array<{
+    id: string;
+    product_id: string;
+    product_name: string;
+    variant_name: string | null;
+    opening_quantity: number;
+    closing_quantity: number;
+    received_quantity: number;
+    theoretical_usage: number;
+    actual_usage: number;
+    variance_delta: number;
+    variance_pct: number;
+    is_flagged: boolean;
+  }>;
+}
+
+export const varianceApi = {
+  list: (locationId?: string, status?: 'draft' | 'finalized', limit = 20) => {
+    const q = new URLSearchParams();
+    if (locationId) q.set('locationId', locationId);
+    if (status) q.set('status', status);
+    q.set('limit', String(limit));
+    return apiFetch<{ reports: VarianceReportSummary[]; total: number }>(
+      `/variance-reports?${q.toString()}`,
+    );
+  },
+
+  get: (id: string) =>
+    apiFetch<VarianceReportDetail>(`/variance-reports/${id}`),
+
+  generate: (locationId: string, periodStart: string, periodEnd: string, flagThresholdPct?: number) =>
+    apiFetch<VarianceReportDetail>('/variance-reports', {
+      method: 'POST',
+      body: JSON.stringify({ locationId, periodStart, periodEnd, flagThresholdPct }),
+    }),
+
+  finalize: (id: string) =>
+    apiFetch<VarianceReportDetail>(`/variance-reports/${id}/finalize`, { method: 'POST' }),
+};
+
+// ─── Purchase Orders ──────────────────────────────────────────────────────────
+
+export interface POLine {
+  productId: string;
+  variantId?: string | null;
+  quantityOrdered: number;
+  unitCost: number;
+}
+
+export interface POCreateBody {
+  locationId: string;
+  supplierId?: string | null;
+  expectedDeliveryDate?: string | null;
+  notes?: string;
+  lines: POLine[];
+}
+
+export interface PurchaseOrderRow {
+  id: string;
+  po_number: string;
+  supplier_name: string | null;
+  status: string;
+  total: number;
+  expected_delivery_date: string | null;
+  created_at: string;
+  line_count: number;
+}
+
+export const purchaseOrdersApi = {
+  list: (locationId: string, status?: string) => {
+    const q = new URLSearchParams();
+    q.set('locationId', locationId);
+    if (status) q.set('status', status);
+    return apiFetch<{ purchaseOrders: PurchaseOrderRow[]; total: number }>(
+      `/locations/${locationId}/purchase-orders?${q.toString()}`,
+    );
+  },
+
+  get: (locationId: string, id: string) =>
+    apiFetch<PurchaseOrderRow>(`/locations/${locationId}/purchase-orders/${id}`),
+
+  create: (body: POCreateBody) =>
+    apiFetch<PurchaseOrderRow>(`/locations/${body.locationId}/purchase-orders`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+};
