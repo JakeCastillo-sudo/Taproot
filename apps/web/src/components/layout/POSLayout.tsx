@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, X, LogOut, ShoppingCart, Package,
   ChevronRight, Plus, Minus, Trash2, Tag,
-  FileText, AlertTriangle, User, Layers, BarChart3,
+  FileText, AlertTriangle, User, Layers, BarChart3, Upload,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
@@ -366,6 +366,13 @@ export function POSLayout({ user }: POSLayoutProps) {
           >
             <BarChart3 size={15} className="shrink-0 text-gray-400" />
             Reports
+          </button>
+          <button
+            onClick={() => navigate('/import')}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+          >
+            <Upload size={15} className="shrink-0 text-gray-400" />
+            Import
           </button>
         </div>
 

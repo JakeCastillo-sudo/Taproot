@@ -19,6 +19,7 @@ import type {
 import { processOfflineQueue } from '../payments/offline.service';
 import { sendReceiptEmail } from '../services/receipt.service';
 import { query } from '../db/client';
+import { handleAiAnalysisJob } from './processors/aiAnalysis.processor';
 
 const CONCURRENCY = 5;
 
@@ -130,12 +131,10 @@ export function registerProcessors(queues: QueuesMap): void {
     return { to, subject };
   });
 
-  // ── aiAnalysis — stub for future AI-driven reports ──────────────────────────
+  // ── aiAnalysis — document imports + AI-driven reports ───────────────────────
   queues.aiAnalysis.process(CONCURRENCY, async (job) => {
     const { orgId, reportType, params } = job.data;
-    // Placeholder — wire up Anthropic SDK when Prompt 09 is implemented
-    job.log(`AI analysis job received: ${reportType} for org ${orgId} — params: ${JSON.stringify(params)}`);
-    return { status: 'queued_for_future_implementation' };
+    return handleAiAnalysisJob(reportType, params, orgId, (msg) => job.log(msg));
   });
 
   // ── Global error logging ────────────────────────────────────────────────────

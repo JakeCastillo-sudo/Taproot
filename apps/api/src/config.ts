@@ -42,6 +42,16 @@ export const config = {
   SMTP_FROM: process.env.SMTP_FROM ?? 'noreply@taproot.pos',
   APP_URL: process.env.APP_URL ?? 'http://localhost:5173',
 
+  // AI — Anthropic Claude API
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+
+  // File storage
+  UPLOADS_DIR: process.env.UPLOADS_DIR ?? 'uploads',
+  S3_BUCKET: process.env.S3_BUCKET,
+  S3_REGION: process.env.S3_REGION,
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+
   // Token lifetimes
   ACCESS_TOKEN_EXPIRY: '15m' as const,
   REFRESH_TOKEN_EXPIRY: '30d' as const,

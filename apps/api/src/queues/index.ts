@@ -70,9 +70,14 @@ export interface EmailJobData {
 }
 
 export interface AiAnalysisJobData {
-  orgId:     string;
-  reportType: 'sales_forecast' | 'inventory_optimisation' | 'customer_churn';
-  params:    Record<string, unknown>;
+  orgId:      string;
+  reportType: 'sales_forecast' | 'inventory_optimisation' | 'customer_churn' | 'import_document';
+  params:     Record<string, unknown>;
+}
+
+export interface ImportJobQueueData {
+  jobId: string;
+  orgId: string;
 }
 
 // Queue registry with typed generics

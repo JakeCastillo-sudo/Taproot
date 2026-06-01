@@ -37,4 +37,6 @@ export const QK = {
   reportPayments:       (params: object)   => ['report', 'payments', params]  as const,
   reportEmployees:      (params: object)   => ['report', 'employees', params] as const,
   reportHeatmap:        (params: object)   => ['report', 'heatmap', params]   as const,
+  importJob:            (id: string)       => ['import', 'job', id]            as const,
+  importJobs:           (params?: object)  => ['import', 'jobs', params]       as const,
 } as const;

@@ -209,5 +209,44 @@
 - Configure PAT with Contents:write to unblock git push
 - Set DATABASE_URL, JWT_SECRET, MFA_TOKEN_SECRET, MFA_ENCRYPTION_KEY env vars before running server
 
+### Prompt 11 — AI Document Intelligence Pipeline ✅
+- Packages installed in apps/api: @fastify/multipart@10, pdf-parse@2, csv-parse@6, @anthropic-ai/sdk@0.100
+- Config extended: ANTHROPIC_API_KEY, UPLOADS_DIR, S3_BUCKET/REGION, AWS keys (all optional in dev)
+- New services:
+  - apps/api/src/services/documentParser.service.ts — classifyDocument, parseMenu, parseInvoice, parseGoodsReceipt, parseInventoryList, parseRecipeSheet, mapCsvColumns, parseImageDocument (Claude vision)
+    - Model: claude-sonnet-4-20250514; confidence threshold 0.7 for classification
+    - All JSON responses strip markdown fences before parsing
+  - apps/api/src/services/importJob.service.ts — createImportJob, processImportJob, confirmImportJob, applyMenuImport, applyInvoiceImport, applyGoodsReceiptImport, applyInventoryListImport, applyRecipeSheetImport, getImportJob, listImportJobs
+    - Fuzzy product match via ILIKE on name or exact SKU
+    - PDF text extraction: pdf-parse v2 PDFParse class (not default export)
+    - Image extraction: Claude vision via parseImageDocument
+    - Parsed data stored in mapping_config JSONB alongside column mappings
+- Queue updates:
+  - AiAnalysisJobData extended: reportType now includes 'import_document'
+  - ImportJobQueueData type added
+  - apps/api/src/queues/processors/aiAnalysis.processor.ts — handleAiAnalysisJob; routes 'import_document' → processImportJob, others are legacy stubs
+  - processors.ts updated to use handleAiAnalysisJob
+- New routes:
+  - apps/api/src/routes/import.routes.ts — POST /api/v1/imports/upload (multipart, 10MB, saves to uploads/), GET /api/v1/imports/:jobId, POST /api/v1/imports/:jobId/confirm, GET /api/v1/imports — all require IMPORT_RUN
+  - apps/api/src/routes/ai.routes.ts — POST /api/v1/ai/nl-query (requires AI_REPORTS), builds org context from DB, calls Claude claude-sonnet-4-20250514, returns { answer, data?, chartType? }
+- index.ts: registered importRoutes + aiRoutes
+- uploads/ directory created at apps/api/uploads/
+- Web — new components:
+  - apps/web/src/pages/ImportPage.tsx — drag-and-drop zone, upload queue with status, polling for job completion, tabs (Upload | History)
+  - apps/web/src/components/imports/ImportReview.tsx — step indicator, detected type selector, confidence badge, preview table (flags low-confidence rows amber), column mapping editor (CSV only), location selector, apply/cancel
+  - apps/web/src/components/imports/ImportHistory.tsx — sortable table of past imports, status badges with auto-refresh when jobs pending, Review button for awaiting_confirmation
+- Web — existing files updated:
+  - api.ts: ImportType, ImportStatus, ImportJob, ColumnMapping interfaces + importsApi (upload, get, confirm, list)
+  - queryClient.ts: importJob, importJobs QK constants
+  - App.tsx: /import → ImportPage
+  - POSLayout.tsx: Import nav link (Upload icon)
+- NL query backend now wired (was stub in Prompt 10): POST /api/v1/ai/nl-query returns real Claude answers
+- Typecheck: 0 errors in both apps/api and apps/web. Vite build: 2312 modules, 809kb bundle, clean.
+- Key patterns:
+  - pdf-parse v2: new PDFParse({ data: buffer }).getText() → TextResult.text
+  - Anthropic SDK: lazy singleton, strips markdown fences from JSON responses
+  - upload uses raw fetch (not apiFetch) to avoid setting Content-Type on multipart
+  - Job polling: 3s interval, max 60 attempts (3 min timeout)
+
 ## Next Prompt
-Prompt 11 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding
+Prompt 12 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding

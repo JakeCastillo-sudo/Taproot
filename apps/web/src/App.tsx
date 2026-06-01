@@ -9,6 +9,7 @@ import { PlaceholderPage } from './pages/PlaceholderPage';
 import { POSLayout } from './components/layout/POSLayout';
 import { InventoryPage } from './pages/InventoryPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { ImportPage } from './pages/ImportPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TOKEN_KEY, USER_KEY } from './lib/api';
 
@@ -114,6 +115,15 @@ export default function App() {
             element={
               <RequireAuth>
                 <ReportsPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/import"
+            element={
+              <RequireAuth>
+                <ImportPage />
               </RequireAuth>
             }
           />

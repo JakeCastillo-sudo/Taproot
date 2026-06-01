@@ -713,7 +713,6 @@ export interface NLQueryResponse {
 
 export const ai = {
   nlQuery: (query: string, locationId?: string): Promise<NLQueryResponse> => {
-    // Route not yet implemented — return a graceful stub
     return apiFetch<NLQueryResponse>('/ai/nl-query', {
       method: 'POST',
       body:   JSON.stringify({ query, locationId }),
@@ -722,5 +721,98 @@ export const ai = {
       data:      undefined,
       chartType: null,
     }));
+  },
+};
+
+// ─── Import Jobs ──────────────────────────────────────────────────────────────
+
+export type ImportType =
+  | 'document_menu'
+  | 'document_invoice'
+  | 'document_goods_receipt'
+  | 'document_inventory'
+  | 'document_recipe'
+  | 'generic_csv';
+
+export type ImportStatus =
+  | 'pending'
+  | 'processing'
+  | 'awaiting_confirmation'
+  | 'completed'
+  | 'failed'
+  | 'partial';
+
+export interface ImportJob {
+  id:              string;
+  organization_id: string;
+  import_type:     ImportType;
+  status:          ImportStatus;
+  source_filename: string | null;
+  source_file_url: string | null;
+  mapping_config:  unknown;
+  total_rows:      number | null;
+  processed_rows:  number;
+  succeeded_rows:  number;
+  failed_rows:     number;
+  error_log:       Array<{ row?: number; message: string }>;
+  preview_data:    unknown;
+  started_at:      string | null;
+  completed_at:    string | null;
+  initiated_by:    string | null;
+  created_at:      string;
+  updated_at:      string;
+}
+
+export interface ColumnMappingEntry {
+  sourceColumn: string;
+  targetField:  string;
+  confidence:   number;
+  transform?:   string;
+}
+
+export interface ColumnMapping {
+  mappings:        ColumnMappingEntry[];
+  unmappedColumns: string[];
+  confidence:      number;
+}
+
+export const importsApi = {
+  /** Upload a file and create an import job. Returns { jobId, status }. */
+  upload: (file: File): Promise<{ jobId: string; status: ImportStatus }> => {
+    const form = new FormData();
+    form.append('file', file);
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    // Note: do NOT set Content-Type — browser will set multipart boundary automatically
+    return fetch(`${BASE}/imports/upload`, {
+      method: 'POST',
+      headers,
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { message?: string };
+        throw new ApiError(res.status, 'UPLOAD_ERROR', body.message ?? `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<{ jobId: string; status: ImportStatus }>;
+    });
+  },
+
+  get: (jobId: string) =>
+    apiFetch<{ job: ImportJob }>(`/imports/${jobId}`).then((r) => r.job),
+
+  confirm: (jobId: string, locationId: string, confirmedMapping?: ColumnMapping) =>
+    apiFetch<{ job: ImportJob }>(`/imports/${jobId}/confirm`, {
+      method: 'POST',
+      body:   JSON.stringify({ locationId, confirmedMapping }),
+    }).then((r) => r.job),
+
+  list: (params?: { status?: string; importType?: string; limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status)     qs.set('status',     params.status);
+    if (params?.importType) qs.set('importType', params.importType);
+    if (params?.limit)      qs.set('limit',      String(params.limit));
+    if (params?.offset)     qs.set('offset',     String(params.offset));
+    return apiFetch<{ jobs: ImportJob[]; total: number }>(`/imports?${qs.toString()}`);
   },
 };
