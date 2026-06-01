@@ -39,4 +39,6 @@ export const QK = {
   reportHeatmap:        (params: object)   => ['report', 'heatmap', params]   as const,
   importJob:            (id: string)       => ['import', 'job', id]            as const,
   importJobs:           (params?: object)  => ['import', 'jobs', params]       as const,
+  migrationJob:         (id: string)       => ['migration', 'job', id]         as const,
+  migrationJobs:        ()                 => ['migration', 'jobs']            as const,
 } as const;

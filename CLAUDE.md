@@ -248,5 +248,28 @@
   - upload uses raw fetch (not apiFetch) to avoid setting Content-Type on multipart
   - Job polling: 3s interval, max 60 attempts (3 min timeout)
 
+### Prompt 12 — Migration Wizard ✅
+- migration.service.ts — 6 provider functions (Square, Shopify, Toast, Lightspeed, Clover, CSV) + applyMigration + listMigrationJobs + 3 test helpers
+- migration.routes.ts — 11 routes (6 start, 1 apply, 1 list, 3 test)
+- index.ts updated — migrationRoutes registered
+- api.ts updated — MigrationImportType, ImportType widened, migrationsApi (startSquare/Shopify/Toast/Lightspeed/Clover/Csv, apply, list, testSquare/Shopify/Clover)
+- queryClient.ts updated — migrationJob, migrationJobs QK constants
+- MigrationPage.tsx — 5-step wizard: provider grid → credential form + test connection → preview counts + options → animated progress → complete with error download
+- App.tsx updated — /migrate → MigrationPage (auth-guarded)
+- POSLayout.tsx updated — Migrate nav link (ArrowRightLeft icon, auto-hidden when ≥10 products)
+- ImportHistory.tsx + ImportReview.tsx updated — TYPE_LABELS extended for all 5 migration types
+- Typecheck: 0 errors (both apps/api and apps/web)
+- Key patterns:
+  - Credentials never stored — only held in React local state during the wizard session
+  - Native fetch used for all external provider API calls (no node-fetch)
+  - Square: cursor pagination via POST /v2/catalog/list + /v2/customers/search
+  - Shopify: link-header pagination via GET /admin/api/2024-01/products.json etc.
+  - Toast: client-credentials OAuth → Bearer token → menus + employees
+  - Lightspeed: offset pagination via /API/V3/Account/{id}/Item.json
+  - Clover: offset pagination via /v3/merchants/{id}/items?expand=categories
+  - applyMigration: categories upsert by name ILIKE, products via ProductSvc, customers via CustomerSvc (duplicate email soft-skipped), loyalty points optional
+  - MigrationPayload stored in import_jobs.mapping_config JSONB (status: awaiting_confirmation)
+  - Provider external IDs stored in products.metadata JSONB + customers.external_ids JSONB
+
 ## Next Prompt
-Prompt 12 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding
+Prompt 13 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding

@@ -40,7 +40,15 @@ import * as POSvc from './purchaseOrder.service';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type MigrationImportType =
+  | 'migration_square'
+  | 'migration_shopify'
+  | 'migration_toast'
+  | 'migration_lightspeed'
+  | 'migration_clover';
+
 export type ImportType =
+  | MigrationImportType
   | 'document_menu'
   | 'document_invoice'
   | 'document_goods_receipt'
@@ -55,7 +63,7 @@ export interface ImportJob {
   status:          'pending' | 'processing' | 'awaiting_confirmation' | 'completed' | 'failed' | 'partial';
   source_filename: string | null;
   source_file_url: string | null;
-  mapping_config:  ColumnMapping | null;
+  mapping_config:  unknown;
   total_rows:      number | null;
   processed_rows:  number;
   succeeded_rows:  number;

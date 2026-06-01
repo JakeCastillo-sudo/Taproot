@@ -10,6 +10,7 @@ import { POSLayout } from './components/layout/POSLayout';
 import { InventoryPage } from './pages/InventoryPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { ImportPage } from './pages/ImportPage';
+import { MigrationPage } from './pages/MigrationPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TOKEN_KEY, USER_KEY } from './lib/api';
 
@@ -124,6 +125,15 @@ export default function App() {
             element={
               <RequireAuth>
                 <ImportPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/migrate"
+            element={
+              <RequireAuth>
+                <MigrationPage />
               </RequireAuth>
             }
           />

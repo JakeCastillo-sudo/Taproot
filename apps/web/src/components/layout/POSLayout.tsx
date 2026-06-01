@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, X, LogOut, ShoppingCart, Package,
   ChevronRight, Plus, Minus, Trash2, Tag,
-  FileText, AlertTriangle, User, Layers, BarChart3, Upload,
+  FileText, AlertTriangle, User, Layers, BarChart3, Upload, ArrowRightLeft,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
@@ -374,6 +374,15 @@ export function POSLayout({ user }: POSLayoutProps) {
             <Upload size={15} className="shrink-0 text-gray-400" />
             Import
           </button>
+          {productList.length < 10 && (
+            <button
+              onClick={() => navigate('/migrate')}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+            >
+              <ArrowRightLeft size={15} className="shrink-0 text-gray-400" />
+              Migrate
+            </button>
+          )}
         </div>
 
         {/* Employee footer */}

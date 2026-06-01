@@ -14,6 +14,7 @@ import customerRoutes from './routes/customer.routes';
 import reportRoutes from './routes/report.routes';
 import importRoutes from './routes/import.routes';
 import aiRoutes from './routes/ai.routes';
+import migrationRoutes from './routes/migration.routes';
 import { AppError, ValidationError } from './errors';
 
 // Validate required env vars at startup — throws immediately if any are missing
@@ -99,6 +100,7 @@ async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(reportRoutes);
   await fastify.register(importRoutes);
   await fastify.register(aiRoutes);
+  await fastify.register(migrationRoutes);
 
   // ─── Health check (registered before preHandler so it is never gated) ────────
 

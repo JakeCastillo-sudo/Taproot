@@ -726,7 +726,15 @@ export const ai = {
 
 // ─── Import Jobs ──────────────────────────────────────────────────────────────
 
+export type MigrationImportType =
+  | 'migration_square'
+  | 'migration_shopify'
+  | 'migration_toast'
+  | 'migration_lightspeed'
+  | 'migration_clover';
+
 export type ImportType =
+  | MigrationImportType
   | 'document_menu'
   | 'document_invoice'
   | 'document_goods_receipt'
@@ -815,4 +823,107 @@ export const importsApi = {
     if (params?.offset)     qs.set('offset',     String(params.offset));
     return apiFetch<{ jobs: ImportJob[]; total: number }>(`/imports?${qs.toString()}`);
   },
+};
+
+// ─── Migrations ───────────────────────────────────────────────────────────────
+
+export interface MigrationApplyOptions {
+  importProducts?:      boolean;
+  importCustomers?:     boolean;
+  importLoyaltyPoints?: boolean;
+  overwriteExisting?:   boolean;
+}
+
+export interface MigrationResult {
+  categories: number;
+  products:   number;
+  customers:  number;
+  employees:  number;
+  failed:     number;
+  errors:     string[];
+}
+
+export const migrationsApi = {
+  /** Square — fetch catalog + customers from Square API */
+  startSquare: (locationId: string, accessToken: string, squareLocationId?: string) =>
+    apiFetch<{ job: ImportJob }>('/migrations/square', {
+      method: 'POST',
+      body:   JSON.stringify({ locationId, accessToken, squareLocationId }),
+    }).then((r) => r.job),
+
+  /** Shopify — fetch products + customers from Shopify Admin API */
+  startShopify: (locationId: string, shopDomain: string, accessToken: string) =>
+    apiFetch<{ job: ImportJob }>('/migrations/shopify', {
+      method: 'POST',
+      body:   JSON.stringify({ locationId, shopDomain, accessToken }),
+    }).then((r) => r.job),
+
+  /** Toast — fetch menus + employees from Toast API */
+  startToast: (locationId: string, clientId: string, clientSecret: string, restaurantGuid: string) =>
+    apiFetch<{ job: ImportJob }>('/migrations/toast', {
+      method: 'POST',
+      body:   JSON.stringify({ locationId, clientId, clientSecret, restaurantGuid }),
+    }).then((r) => r.job),
+
+  /** Lightspeed — fetch items from Lightspeed R-Series */
+  startLightspeed: (locationId: string, apiKey: string, accountId: string) =>
+    apiFetch<{ job: ImportJob }>('/migrations/lightspeed', {
+      method: 'POST',
+      body:   JSON.stringify({ locationId, apiKey, accountId }),
+    }).then((r) => r.job),
+
+  /** Clover — fetch items + customers from Clover API */
+  startClover: (locationId: string, accessToken: string, merchantId: string) =>
+    apiFetch<{ job: ImportJob }>('/migrations/clover', {
+      method: 'POST',
+      body:   JSON.stringify({ locationId, accessToken, merchantId }),
+    }).then((r) => r.job),
+
+  /** CSV — normalise a raw CSV file */
+  startCsv: (
+    locationId: string,
+    fileUrl: string,
+    targetSchema: 'products' | 'customers' | 'inventory',
+    rawCsv: string,
+  ) =>
+    apiFetch<{ job: ImportJob }>('/migrations/csv', {
+      method: 'POST',
+      body:   JSON.stringify({ locationId, fileUrl, targetSchema, rawCsv }),
+    }).then((r) => r.job),
+
+  /** Poll a migration job by id */
+  getJob: (jobId: string) =>
+    apiFetch<{ job: ImportJob }>(`/imports/${jobId}`).then((r) => r.job),
+
+  /** Apply a confirmed migration */
+  apply: (jobId: string, locationId: string, options: MigrationApplyOptions = {}) =>
+    apiFetch<{ result: MigrationResult }>(`/migrations/${jobId}/apply`, {
+      method: 'POST',
+      body:   JSON.stringify({ locationId, ...options }),
+    }).then((r) => r.result),
+
+  /** List migration jobs for this org */
+  list: () =>
+    apiFetch<{ jobs: ImportJob[] }>('/migrations').then((r) => r.jobs),
+
+  /** Test Square credentials (no write) */
+  testSquare: (accessToken: string) =>
+    apiFetch<{ ok: boolean; locationCount: number }>('/migrations/test/square', {
+      method: 'POST',
+      body:   JSON.stringify({ accessToken }),
+    }),
+
+  /** Test Shopify credentials (no write) */
+  testShopify: (shopDomain: string, accessToken: string) =>
+    apiFetch<{ ok: boolean; shopName: string }>('/migrations/test/shopify', {
+      method: 'POST',
+      body:   JSON.stringify({ shopDomain, accessToken }),
+    }),
+
+  /** Test Clover credentials (no write) */
+  testClover: (merchantId: string, accessToken: string) =>
+    apiFetch<{ ok: boolean; merchantName: string }>('/migrations/test/clover', {
+      method: 'POST',
+      body:   JSON.stringify({ merchantId, accessToken }),
+    }),
 };

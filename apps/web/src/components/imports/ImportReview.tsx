@@ -23,6 +23,11 @@ const TYPE_LABELS: Record<ImportType, string> = {
   document_inventory:     'Inventory List',
   document_recipe:        'Recipe Sheet',
   generic_csv:            'CSV Import',
+  migration_square:       'Square Migration',
+  migration_shopify:      'Shopify Migration',
+  migration_toast:        'Toast Migration',
+  migration_lightspeed:   'Lightspeed Migration',
+  migration_clover:       'Clover Migration',
 };
 
 const ALL_IMPORT_TYPES: ImportType[] = [
@@ -32,6 +37,11 @@ const ALL_IMPORT_TYPES: ImportType[] = [
   'document_inventory',
   'document_recipe',
   'generic_csv',
+  'migration_square',
+  'migration_shopify',
+  'migration_toast',
+  'migration_lightspeed',
+  'migration_clover',
 ];
 
 function getLocationId(): string {
