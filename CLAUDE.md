@@ -124,10 +124,38 @@
 - Tests: 206 passing — 51 new (customer.service.test, giftcard.service.test, reporting.service.test); typecheck: 0 errors
 - index.ts: registered customerRoutes + reportRoutes
 
+### Prompt 08 — React PWA checkout UI ✅
+- Converted apps/web from JSX to TypeScript (tsconfig.json, vite-env.d.ts, TS 6 with ignoreDeprecations)
+- Packages added: @tanstack/react-query@5, zustand@5, immer, react-hot-toast, clsx, tailwind-merge, @types/react, @types/react-dom, typescript
+- Design system: apps/web/src/styles/design-system.css — CSS variables (colors, typography, spacing, radii, shadows, transitions), global resets, animations
+- Tailwind extended: Taproot primary/accent/danger/surface color tokens, Inter font, shadow/radius/tap-target utilities
+- API client: apps/web/src/lib/api.ts — typed fetch wrapper, JWT auto-attach + auto-refresh (deduplicated), retry-once on network error, all API endpoints typed
+- Query client: apps/web/src/lib/queryClient.ts — staleTime 30s, retry 1, no refetch on window focus, typed QK constants
+- POS store: apps/web/src/store/pos.store.ts — Zustand + immer + sessionStorage persist; cart CRUD, undo stack, customer/table/notes/discount state, computed subtotal/tax/total/itemCount
+- Toast: apps/web/src/components/ui/Toast.tsx — react-hot-toast wrapper with Taproot-styled success/error/warning/info/loading helpers
+- SyncStatus: apps/web/src/components/ui/SyncStatus.tsx — online/offline indicator with pending count
+- useBarcode: apps/web/src/hooks/useBarcode.ts — 8+ chars in <100ms = barcode scan, calls API, adds to cart
+- useKeyboardShortcuts: apps/web/src/hooks/useKeyboardShortcuts.tsx — / search, Enter charge, F2-F8 actions, Ctrl+Z undo, Ctrl+D clear, ? help overlay; ShortcutsOverlay component included
+- CustomerSearch: apps/web/src/components/pos/CustomerSearch.tsx — debounced 300ms search, loyalty tier badges, account credit display, keyboard navigation
+- ModifierSheet: apps/web/src/components/pos/ModifierSheet.tsx — bottom sheet, single/multi/required groups, live price preview, quantity stepper
+- PaymentSheet: apps/web/src/components/pos/PaymentSheet.tsx — 4-step flow: tip selection (presets + custom) → method (cash/card/gift_card/account_credit/split) → processing → success/error; cash keypad with change calc
+- POSLayout: apps/web/src/components/layout/POSLayout.tsx — 3-column desktop layout (240px nav | flex product grid | 380px order panel); mobile single-column + floating cart button + bottom sheet; product tiles with long-press modifier support; cart with quantity steppers; CHARGE button
+- LoginPage: apps/web/src/pages/LoginPage.tsx — clean login form, show/hide password, demo credentials prefill
+- App.tsx: routes /login → LoginPage, / → POSLayout (auth guarded), /orders /inventory /reports /settings → PlaceholderPage; QueryClientProvider + ErrorBoundary + ToastContainer
+- main.tsx: replaced main.jsx, imports design-system.css
+- Typecheck: 0 errors. Vite build: 1580 modules, 295kb bundle, clean.
+
+## Key Web Patterns
+- `TOKEN_KEY`/`REFRESH_TOKEN_KEY`/`USER_KEY` in localStorage; token decoded for locationId
+- `VITE_API_URL=""` → relative URL → Vite proxy → `http://localhost:3001`
+- `usePOSStore.getState()` for imperative access outside React
+- `.tap-highlight` + `.active-scale` CSS classes for touch feedback
+- `data-product-tile` attribute enables keyboard 1-9 quick-add shortcuts
+
 ## Pending Issues
 - Fix 002 seed data columns (slug on locations table doesn't exist, plan 'pro' fails CHECK)
 - Configure PAT with Contents:write to unblock git push
 - Set DATABASE_URL, JWT_SECRET, MFA_TOKEN_SECRET, MFA_ENCRYPTION_KEY env vars before running server
 
 ## Next Prompt
-Prompt 08 — Admin UI (React dashboard, customer management views, reporting charts)
+Prompt 09 — Admin dashboard: customer management views, reporting charts, employee management
