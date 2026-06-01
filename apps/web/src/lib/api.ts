@@ -216,7 +216,7 @@ export const auth = {
 // ─── Products ─────────────────────────────────────────────────────────────────
 
 export const products = {
-  list: (params?: {
+  list: async (params?: {
     categoryId?: string;
     search?: string;
     isActive?: boolean;
@@ -230,7 +230,28 @@ export const products = {
     if (params?.page)    q.set('page',    String(params.page));
     if (params?.perPage) q.set('perPage', String(params.perPage));
     const qs = q.toString();
-    return apiFetch<ProductListResponse>(`/products${qs ? `?${qs}` : ''}`);
+
+    // API returns prices[] per product; extract the lowest as defaultPrice (cents)
+    const raw = await apiFetch<{
+      products: (Product & {
+        variants?: ProductVariant[];
+        prices?: Array<{ price: number }>;
+      })[];
+      total: number;
+      page: number;
+    }>(`/products${qs ? `?${qs}` : ''}`);
+
+    return {
+      products: raw.products.map((p) => ({
+        ...p,
+        defaultPrice: p.prices?.length
+          ? Math.min(...p.prices.map((pp) => Number(pp.price)))
+          : 0,
+      })),
+      total:   raw.total,
+      page:    raw.page,
+      perPage: params?.perPage ?? 50,
+    } satisfies ProductListResponse;
   },
 
   searchByBarcode: (barcode: string) =>
@@ -245,9 +266,7 @@ export const products = {
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export const categories = {
-  /** Not yet a dedicated endpoint — derive from products or return empty */
-  list: (): Promise<CategoryListResponse> =>
-    Promise.resolve({ categories: [] }),
+  list: () => apiFetch<CategoryListResponse>('/categories'),
 };
 
 // ─── Orders ───────────────────────────────────────────────────────────────────

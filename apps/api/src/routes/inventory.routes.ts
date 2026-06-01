@@ -15,6 +15,23 @@ type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
 
 export default async function inventoryRoutes(fastify: FastifyInstance): Promise<void> {
 
+  // ── Categories ────────────────────────────────────────────────────────────
+
+  // GET /api/v1/categories
+  fastify.get('/api/v1/categories', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { rows } = await (await import('../db/client')).query<{
+      id: string; name: string; color: string | null; sort_order: number;
+    }>(
+      `SELECT id, name, color, sort_order
+         FROM categories
+        WHERE organization_id = $1 AND deleted_at IS NULL
+        ORDER BY sort_order ASC, name ASC`,
+      [user.orgId],
+    );
+    return reply.send({ categories: rows });
+  });
+
   // ── Products ──────────────────────────────────────────────────────────────
 
   // GET /api/v1/products

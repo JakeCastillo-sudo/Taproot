@@ -17,7 +17,7 @@ import {
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
 import { usePOSStore, type CartItem } from '../../store/pos.store';
-import { products as productsApi } from '../../lib/api';
+import { products as productsApi, categories as categoriesApi } from '../../lib/api';
 import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
 import { ModifierSheet, type ModifierSheetProduct } from '../pos/ModifierSheet';
@@ -266,14 +266,13 @@ export function POSLayout({ user }: POSLayoutProps) {
 
   const productList = productsData?.products ?? [];
 
-  // Derive unique categories from products
-  const allCats: Category[] = Array.from(
-    new Map(
-      productList
-        .filter((p) => p.category_id)
-        .map((p) => [p.category_id, { id: p.category_id!, name: 'Category', color: null }]),
-    ).values(),
-  );
+  // Fetch real categories from the API
+  const { data: categoriesData } = useQuery({
+    queryKey: QK.categories(),
+    queryFn:  () => categoriesApi.list(),
+    staleTime: 5 * 60_000, // categories change rarely
+  });
+  const allCats: Category[] = categoriesData?.categories ?? [];
 
   const handleProductTap = useCallback((product: Product & { defaultPrice?: number }) => {
     const defaultVariant = (product as Product & { variants?: Array<{ id: string }> }).variants?.[0];
