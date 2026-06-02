@@ -105,6 +105,7 @@ export function decryptTotpSecret(encryptedStr: string): string {
 
 export function generateBackupCodes(count = 8): string[] {
   // Each code is 8 alphanumeric characters grouped as XXXX-XXXX
+  // eslint-disable-next-line no-secrets/no-secrets
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars (0/O, 1/I)
   return Array.from({ length: count }, () => {
     const half = Array.from({ length: 4 }, () => chars[crypto.randomInt(chars.length)]).join('');

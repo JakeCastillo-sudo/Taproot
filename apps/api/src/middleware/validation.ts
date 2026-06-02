@@ -55,7 +55,7 @@ export async function registerValidationHooks(
   // ── 1. Attach / propagate X-Request-ID ─────────────────────────────────────
   fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     const incoming = request.headers['x-request-id'] as string | undefined;
-    const requestId = incoming?.match(/^[\w\-]{1,64}$/) ? incoming : crypto.randomUUID();
+    const requestId = incoming?.match(/^[\w-]{1,64}$/) ? incoming : crypto.randomUUID();
 
     // Make it available via header lookup for downstream code
     (request.headers as Record<string, string>)['x-request-id'] = requestId;

@@ -1,0 +1,19 @@
+#!/bin/sh
+# Taproot POS pre-commit hook
+# Runs on every commit — blocks if typecheck or lint fails.
+
+echo "Running pre-commit checks..."
+
+# TypeScript — API
+npm run typecheck --workspace=@taproot/api || exit 1
+echo "  API typecheck passed"
+
+# TypeScript — Web
+npm run typecheck --workspace=@taproot/web || exit 1
+echo "  Web typecheck passed"
+
+# ESLint — API (fast feedback; web lint is in CI)
+npm run lint --workspace=@taproot/api || exit 1
+echo "  API lint passed"
+
+echo "Pre-commit checks done."

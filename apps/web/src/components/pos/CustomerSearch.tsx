@@ -182,7 +182,7 @@ export function CustomerSearch() {
             className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-primary font-medium border-t border-gray-100 hover:bg-primary-light transition-colors"
           >
             <User size={12} />
-            Create new customer for "{query}"
+            Create new customer for &ldquo;{query}&rdquo;
           </button>
         </div>
       )}

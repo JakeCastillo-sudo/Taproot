@@ -3,4 +3,12 @@ client/node_modules/
 server/node_modules/
 server/db/taproot.db
 dist/
+build/
+coverage/
 .env
+.env.staging
+.env.production
+logs/
+*.log
+apps/api/uploads/*
+!apps/api/uploads/.gitkeep

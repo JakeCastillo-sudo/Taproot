@@ -120,9 +120,7 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
     return () => window.removeEventListener('keydown', handler);
   }, [open, filtered, selected, onClose]);
 
-  if (!open) return null;
-
-  // Build grouped sections
+  // Build grouped sections — must be before early return to satisfy rules-of-hooks
   const groups = useMemo(() => {
     const map = new Map<string, CommandAction[]>();
     for (const action of filtered) {
@@ -132,6 +130,8 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
     }
     return map;
   }, [filtered]);
+
+  if (!open) return null;
 
   // Flat list index for selected highlighting
   let flatIdx = 0;

@@ -24,6 +24,7 @@ import reportRoutes from './routes/report.routes';
 import importRoutes from './routes/import.routes';
 import aiRoutes from './routes/ai.routes';
 import migrationRoutes from './routes/migration.routes';
+import { registerMonitoring } from './monitoring/health';
 
 // Validate required env vars at startup — throws immediately if any are missing
 validateConfig();
@@ -186,6 +187,9 @@ async function buildApp(): Promise<any> {
   await fastify.register(aiRoutes);
   await fastify.register(migrationRoutes);
 
+  // ─── Monitoring: Prometheus metrics + structured health ───────────────────────
+  await registerMonitoring(fastify);
+
   // ─── Health check ─────────────────────────────────────────────────────────────
   //
   // GET /api/health — returns { status, version, timestamp, checks, uptime }
@@ -255,6 +259,8 @@ async function buildApp(): Promise<any> {
     // Stripe webhooks — authenticated via signature, not JWT
     'POST /api/v1/webhooks/stripe/connect',
     'POST /api/v1/webhooks/stripe/terminal',
+    // Metrics — authenticated via X-Metrics-Secret header, not JWT
+    'GET /metrics',
   ]);
 
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {

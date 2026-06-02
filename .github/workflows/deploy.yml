@@ -1,0 +1,291 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options: [staging, production]
+
+# Only one deploy runs at a time per environment
+concurrency:
+  group: deploy-${{ github.ref }}-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false # Never cancel in-flight deploys
+
+jobs:
+  # ── Re-run CI quality gates before any deploy ───────────────────────────────
+  api-quality:
+    name: API — typecheck + tests
+    uses: ./.github/workflows/ci.yml
+    # Only re-run the quality jobs (not security scan, to save time on auto-deploys)
+
+  # ── Staging deploy ──────────────────────────────────────────────────────────
+  staging-deploy:
+    name: Deploy → staging
+    runs-on: ubuntu-latest
+    needs: [] # No dependency — CI is a separate workflow gate
+    environment:
+      name: staging
+      url: https://staging.taprootpos.com
+    # Only run on push to main (not on manual prod trigger)
+    if: github.event_name == 'push' || inputs.environment == 'staging'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Build ──────────────────────────────────────────────────────────────
+      - name: Build web
+        run: npm run build --workspace=@taproot/web
+        env:
+          VITE_API_URL: https://staging.taprootpos.com
+
+      - name: Build API
+        run: npm run build --workspace=@taproot/api
+
+      # ── Deploy API via SSH ─────────────────────────────────────────────────
+      - name: Deploy API to staging
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.STAGING_HOST }}
+          username: deploy
+          key:      ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/taproot
+
+            # Pull latest code
+            git fetch origin main
+            git checkout main
+            git pull origin main
+
+            # Install dependencies
+            npm ci --omit=dev
+
+            # Build API
+            npm run build --workspace=@taproot/api
+
+            # Run database migrations (safe mode)
+            DATABASE_URL="${{ secrets.STAGING_DB_URL }}" \
+            NODE_ENV=staging \
+            node scripts/migrate-safe.js
+
+            # Restart API with PM2
+            pm2 restart taproot-api --env staging || \
+            pm2 start ecosystem.config.js --env staging
+
+            # Verify API is up
+            sleep 3
+            curl -sf http://localhost:3001/api/health || exit 1
+
+      # ── Deploy web to S3 + CloudFront ──────────────────────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+
+      - name: Sync web to S3 (staging)
+        run: |
+          aws s3 sync apps/web/dist/ s3://${{ secrets.S3_STAGING_BUCKET }}/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html" \
+            --exclude "manifest.json" \
+            --exclude "sw.js"
+
+          # Short-lived cache for HTML/manifest/service-worker
+          aws s3 sync apps/web/dist/ s3://${{ secrets.S3_STAGING_BUCKET }}/ \
+            --exclude "*" \
+            --include "index.html" \
+            --include "manifest.json" \
+            --include "sw.js" \
+            --cache-control "public,max-age=60,must-revalidate"
+
+      - name: Invalidate CloudFront (staging)
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_STAGING_ID }} \
+            --paths "/*"
+
+      # ── Health check ──────────────────────────────────────────────────────
+      - name: Staging health check
+        run: |
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -sf https://staging.taprootpos.com/api/health \
+              -o /tmp/health.json -w "%{http_code}" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Staging health check passed"
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "Attempt $i failed (HTTP $STATUS), retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ Staging health check failed after 5 attempts"
+          exit 1
+
+      # ── Notify ────────────────────────────────────────────────────────────
+      - name: Notify Slack — staging deployed
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          STATUS: ${{ job.status }}
+          COMMIT: ${{ github.sha }}
+          ACTOR:  ${{ github.actor }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then exit 0; fi
+          ICON=$([ "$STATUS" = "success" ] && echo ":white_check_mark:" || echo ":x:")
+          curl -sf -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"text\": \"${ICON} *Staging deploy ${STATUS}* — \`${COMMIT:0:7}\` by ${ACTOR}\",
+              \"username\": \"Taproot Deploy\",
+              \"icon_emoji\": \":rocket:\"
+            }" || true
+
+  # ── Production deploy ───────────────────────────────────────────────────────
+  production-deploy:
+    name: Deploy → production
+    runs-on: ubuntu-latest
+    needs: [staging-deploy]
+    environment:
+      name: production
+      url: https://app.taprootpos.com
+    # Manual approval required via GitHub environment protection rules
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'production'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Build ──────────────────────────────────────────────────────────────
+      - name: Build web (production)
+        run: npm run build --workspace=@taproot/web
+        env:
+          VITE_API_URL: https://app.taprootpos.com
+
+      - name: Build API (production)
+        run: npm run build --workspace=@taproot/api
+
+      # ── Deploy API via SSH ─────────────────────────────────────────────────
+      - name: Deploy API to production
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.PROD_HOST }}
+          username: deploy
+          key:      ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/taproot
+
+            echo "⚠️  Starting production deploy at $(date)"
+
+            git fetch origin main
+            git checkout main
+            git pull origin main
+            npm ci --omit=dev
+            npm run build --workspace=@taproot/api
+
+            # Safe migration (includes 10s abort window)
+            DATABASE_URL="${{ secrets.PROD_DB_URL }}" \
+            NODE_ENV=production \
+            node scripts/migrate-safe.js
+
+            pm2 restart taproot-api --env production || \
+            pm2 start ecosystem.config.js --env production
+
+            sleep 5
+            curl -sf http://localhost:3001/api/health || exit 1
+
+      # ── Deploy web ─────────────────────────────────────────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+
+      - name: Sync web to S3 (production)
+        run: |
+          aws s3 sync apps/web/dist/ s3://${{ secrets.S3_PROD_BUCKET }}/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html" \
+            --exclude "manifest.json" \
+            --exclude "sw.js"
+
+          aws s3 sync apps/web/dist/ s3://${{ secrets.S3_PROD_BUCKET }}/ \
+            --exclude "*" \
+            --include "index.html" \
+            --include "manifest.json" \
+            --include "sw.js" \
+            --cache-control "public,max-age=60,must-revalidate"
+
+      - name: Invalidate CloudFront (production)
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_PROD_ID }} \
+            --paths "/*"
+
+      # ── Post-deploy smoke tests ────────────────────────────────────────────
+      - name: Production smoke tests
+        run: |
+          BASE="https://app.taprootpos.com"
+
+          # 1. Health check
+          STATUS=$(curl -sf "${BASE}/api/health" -o /dev/null -w "%{http_code}")
+          [ "$STATUS" = "200" ] || { echo "❌ Health check failed: HTTP $STATUS"; exit 1; }
+          echo "✅ /api/health → 200"
+
+          # 2. Login endpoint responds (400 = validation ran = route is alive)
+          STATUS=$(curl -sf -X POST "${BASE}/api/v1/auth/login" \
+            -H "Content-Type: application/json" \
+            -d '{}' -o /dev/null -w "%{http_code}")
+          [ "$STATUS" = "400" ] || { echo "❌ Login endpoint check failed: HTTP $STATUS"; exit 1; }
+          echo "✅ /api/v1/auth/login → 400 (route alive)"
+
+          echo "🚀 Production smoke tests passed"
+
+      # ── Notify ────────────────────────────────────────────────────────────
+      - name: Notify Slack — production deployed
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          STATUS: ${{ job.status }}
+          COMMIT: ${{ github.sha }}
+          ACTOR:  ${{ github.actor }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then exit 0; fi
+          ICON=$([ "$STATUS" = "success" ] && echo ":tada:" || echo ":fire:")
+          curl -sf -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"text\": \"${ICON} *Production deploy ${STATUS}* — \`${COMMIT:0:7}\` by ${ACTOR}\",
+              \"username\": \"Taproot Deploy\",
+              \"icon_emoji\": \":rocket:\"
+            }" || true

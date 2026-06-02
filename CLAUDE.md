@@ -358,5 +358,66 @@
   - haptic feedback on product tap (light) and long-press (medium)
 - **Typecheck**: 0 errors (both apps/api and apps/web)
 
+### Prompt 16 — CI/CD pipeline: GitHub Actions + monitoring + code quality ✅
+
+**GitHub Actions workflows:**
+- `.github/workflows/ci.yml` — 4 parallel jobs: api-quality (typecheck+jest with real PG+Redis
+  services), web-quality (typecheck+build+bundle size warn), lint (ESLint both apps),
+  security-scan (npm audit --omit=dev, git-secrets with AWS/Stripe/Anthropic patterns)
+  Branch protection: all 4 must pass before merge
+- `.github/workflows/deploy.yml` — staging auto-deploys on push to main (SSH → git pull → build →
+  db:migrate:safe → pm2 restart → S3 sync → CloudFront invalidation → health check → Slack notify);
+  production requires manual workflow_dispatch + GitHub environment approval; post-deploy smoke tests
+- `.github/workflows/release.yml` — triggers on v*.*.* tags; generates grouped changelog
+  (feat/fix/perf/docs/chore from commit messages); creates GitHub Release; dispatches production deploy
+- `.github/dependabot.yml` — weekly npm updates (grouped minor/patch, no major), monthly Actions
+  updates; PRs labeled `dependencies`+`automated`
+
+**Code quality:**
+- `.eslintrc.js` — root config: ESLint 8 + TypeScript ESLint + security + no-secrets (tolerance 4.5);
+  `no-eval/implied-eval/new-func/script-url` as errors; `while(true)` allowed (checkLoops:false);
+  React rules in apps/web override; test files relax secrets+any; migrations/scripts override CJS
+- `.prettierrc` — singleQuote, no semi, printWidth 100, trailingComma es5
+- Lint scripts added: `apps/api: npm run lint`, `apps/web: npm run lint`, root: `npm run lint`
+- `apps/web/package.json`: added `typecheck` and `lint` scripts
+
+**Husky pre-commit hooks:**
+- `.husky/pre-commit` — runs typecheck (API+web) + ESLint (API) on every commit; blocks on errors
+- `husky@9` + `lint-staged@15` installed; `"prepare": "husky"` in root package.json
+
+**Monitoring:**
+- `apps/api/src/monitoring/health.ts` — Fastify plugin; `GET /metrics` (protected by X-Metrics-Secret
+  header); Prometheus text format (no prom-client dep, written directly); HTTP request counter +
+  duration histogram (via onRequest/onResponse hooks); DB pool gauges; business counters
+  (incrementOrdersTotal, incrementRevenue); memory/uptime gauges; Redis client count; memory usage
+  warning at >80%; DB pool waiting warning in health check hook
+- `GET /metrics` added to PUBLIC_ROUTES in index.ts (protected by X-Metrics-Secret, not JWT)
+- `registerMonitoring(fastify)` called in index.ts after all route registration
+
+**Deployment config:**
+- `ecosystem.config.js` — PM2 cluster mode (instances:max), max_memory_restart:1G, kill_timeout:5000,
+  env_staging/env_production overrides, log rotation to logs/
+- `scripts/migrate-safe.js` — shows pending migrations, 10s abort window in production, exits
+  non-zero on failure; `npm run db:migrate:safe` added to root package.json
+- `scripts/release.js` — semantic version bump (patch/minor/major), CHANGELOG.md update (grouped
+  by commit type), git commit + tag + push
+- `apps/api/.env.staging.example` + `.env.production.example` — full env var templates with
+  generation instructions for secrets
+
+**Documentation:**
+- `docs/DEPLOYMENT.md` — complete guide: local dev setup, architecture diagram, GitHub Secrets
+  table, branch protection instructions, staging/production deploy steps, server setup, rollback
+  procedure, environment variable reference, DB migration safety, PM2 commands, common issues
+
+**Bug fixes (lint cleanup):**
+- `CommandPalette.tsx` — moved `useMemo(groups)` before early return to fix `rules-of-hooks`
+- `CustomerSearch.tsx` — escaped `"` → `&ldquo;/&rdquo;` to fix `no-unescaped-entities`
+- `MigrationPage.tsx` — escaped `'` → `&apos;` to fix `no-unescaped-entities`
+- `validation.ts` — removed useless `\-` escape in regex character class
+- `.gitignore` — added logs/, .env.staging, .env.production, coverage/, builds
+
+**Typecheck**: 0 errors (both apps/api and apps/web)
+**ESLint**: 0 errors, 42 warnings (all pre-existing unused imports — downgraded to warn)
+
 ## Next Prompt
-Prompt 16 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding
+Prompt 17 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding

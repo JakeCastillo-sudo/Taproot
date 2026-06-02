@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs on new push to the same branch
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Job 1: API quality ──────────────────────────────────────────────────────
+  api-quality:
+    name: API — typecheck + tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER:     taproot_test
+          POSTGRES_PASSWORD: taproot_test
+          POSTGRES_DB:       taproot_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL:            postgresql://taproot_test:taproot_test@localhost:5432/taproot_test
+      REDIS_URL:               redis://localhost:6379
+      JWT_SECRET:              ci-test-jwt-secret-minimum-64-characters-for-production-safety-x
+      JWT_REFRESH_SECRET:      ci-test-refresh-secret-minimum-64-characters-for-tests-only-xyz
+      MFA_TOKEN_SECRET:        ci-test-mfa-token-secret-minimum-64-characters-for-tests-only-z
+      MFA_ENCRYPTION_KEY:      0000000000000000000000000000000000000000000000000000000000000001
+      OFFLINE_ENCRYPTION_KEY:  0000000000000000000000000000000000000000000000000000000000000002
+      STRIPE_SECRET_KEY:       sk_test_placeholder
+      STRIPE_WEBHOOK_SECRET:   whsec_placeholder
+      ANTHROPIC_API_KEY:       sk-ant-placeholder
+      NODE_ENV:                test
+      PORT:                    3001
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck API
+        run: npx tsc --noEmit
+        working-directory: apps/api
+
+      - name: Run API tests
+        run: npm test -- --ci --reporters=default --reporters=github-actions
+        working-directory: apps/api
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-test-results
+          path: apps/api/coverage/
+          retention-days: 7
+
+  # ── Job 2: Web quality ──────────────────────────────────────────────────────
+  web-quality:
+    name: Web — typecheck + build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck web
+        run: npx tsc --noEmit
+        working-directory: apps/web
+
+      - name: Build web
+        run: npm run build
+        working-directory: apps/web
+        env:
+          VITE_API_URL: ''
+
+      - name: Check bundle size
+        run: |
+          BUNDLE_SIZE=$(du -sk apps/web/dist | cut -f1)
+          echo "Bundle size: ${BUNDLE_SIZE} KB"
+          # Warn if > 1MB (1024 KB)
+          if [ "$BUNDLE_SIZE" -gt 1024 ]; then
+            echo "::warning::Bundle size (${BUNDLE_SIZE} KB) exceeds 1 MB threshold"
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist/
+          retention-days: 3
+
+  # ── Job 3: Lint ─────────────────────────────────────────────────────────────
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint API
+        run: npm run lint --workspace=@taproot/api
+
+      - name: Lint Web
+        run: npm run lint --workspace=@taproot/web
+
+  # ── Job 4: Security scan ────────────────────────────────────────────────────
+  security-scan:
+    name: Security scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for git-secrets scan
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: npm audit — high/critical vulnerabilities
+        # audit only production deps to reduce noise from devDependency false positives
+        run: npm audit --audit-level=high --omit=dev
+        continue-on-error: true # Report but don't block on audit findings
+
+      - name: Install git-secrets
+        run: |
+          git clone --depth 1 https://github.com/awslabs/git-secrets.git /tmp/git-secrets
+          sudo make install -C /tmp/git-secrets
+
+      - name: Register secret patterns
+        run: |
+          # AWS access key pattern
+          git secrets --add 'AKIA[0-9A-Z]{16}'
+          # Stripe live key
+          git secrets --add 'sk_live_[0-9a-zA-Z_]+'
+          # Anthropic key
+          git secrets --add 'sk-ant-api[0-9a-zA-Z_\-]+'
+          # Generic high-entropy passwords (avoid flagging test fixtures)
+          git secrets --add '[Pp]assword\s*=\s*["\x27][^"]{12,}'
+          # Allow test/placeholder values
+          git secrets --add --allowed 'sk_test_'
+          git secrets --add --allowed 'sk-ant-placeholder'
+          git secrets --add --allowed 'whsec_placeholder'
+
+      - name: Scan repository for secrets
+        run: git secrets --scan-history

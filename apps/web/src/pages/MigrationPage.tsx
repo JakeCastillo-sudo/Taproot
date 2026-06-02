@@ -587,7 +587,7 @@ function Step4({ provider }: { provider: ProviderMeta }) {
       <ProviderIcon provider={provider} size="lg" />
       <div className="text-center">
         <h2 className="text-xl font-bold text-gray-900">Importing from {provider.label}</h2>
-        <p className="text-sm text-gray-500 mt-1">Please wait — don't close this page.</p>
+        <p className="text-sm text-gray-500 mt-1">Please wait &mdash; don&apos;t close this page.</p>
       </div>
 
       <div className="w-full max-w-sm space-y-2">

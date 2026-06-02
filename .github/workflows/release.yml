@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for changelog generation
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"         >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Find the previous tag to scope the changelog
+          PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found — including all commits"
+            RANGE="HEAD"
+          else
+            echo "Changelog range: $PREV_TAG..HEAD"
+            RANGE="$PREV_TAG..HEAD"
+          fi
+
+          # Build grouped changelog
+          {
+            echo "## What's Changed"
+            echo ""
+
+            FEATS=$(git log $RANGE --pretty="format:%s|%h" --no-merges | grep '^feat' || true)
+            FIXES=$(git log $RANGE --pretty="format:%s|%h" --no-merges | grep '^fix'  || true)
+            DOCS=$(git log  $RANGE --pretty="format:%s|%h" --no-merges | grep '^docs' || true)
+            CHORES=$(git log $RANGE --pretty="format:%s|%h" --no-merges | grep '^chore' || true)
+            PERF=$(git log  $RANGE --pretty="format:%s|%h" --no-merges | grep '^perf' || true)
+
+            if [ -n "$FEATS" ]; then
+              echo "### ✨ Features"
+              while IFS='|' read -r msg hash; do
+                echo "- ${msg} (\`${hash}\`)"
+              done <<< "$FEATS"
+              echo ""
+            fi
+
+            if [ -n "$FIXES" ]; then
+              echo "### 🐛 Bug Fixes"
+              while IFS='|' read -r msg hash; do
+                echo "- ${msg} (\`${hash}\`)"
+              done <<< "$FIXES"
+              echo ""
+            fi
+
+            if [ -n "$PERF" ]; then
+              echo "### ⚡ Performance"
+              while IFS='|' read -r msg hash; do
+                echo "- ${msg} (\`${hash}\`)"
+              done <<< "$PERF"
+              echo ""
+            fi
+
+            if [ -n "$DOCS" ]; then
+              echo "### 📚 Documentation"
+              while IFS='|' read -r msg hash; do
+                echo "- ${msg} (\`${hash}\`)"
+              done <<< "$DOCS"
+              echo ""
+            fi
+
+            if [ -n "$CHORES" ]; then
+              echo "### 🔧 Maintenance"
+              while IFS='|' read -r msg hash; do
+                echo "- ${msg} (\`${hash}\`)"
+              done <<< "$CHORES"
+              echo ""
+            fi
+
+            echo "**Full diff:** https://github.com/${{ github.repository }}/compare/${PREV_TAG:-HEAD~10}...${{ github.ref_name }}"
+          } > /tmp/changelog.md
+
+          cat /tmp/changelog.md
+          echo "notes_path=/tmp/changelog.md" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name:    ${{ steps.version.outputs.tag }}
+          release_name: Release ${{ steps.version.outputs.tag }}
+          body_path:   ${{ steps.changelog.outputs.notes_path }}
+          draft:       false
+          prerelease:  ${{ contains(steps.version.outputs.tag, '-') }}
+
+      - name: Trigger production deploy
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              workflow_id: 'deploy.yml',
+              ref:   context.ref,
+              inputs: { environment: 'production' },
+            });

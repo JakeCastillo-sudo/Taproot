@@ -57,6 +57,7 @@ export interface ListProductsFilters {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function generateSku(): string {
+  // eslint-disable-next-line no-secrets/no-secrets
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const rand = Array.from({ length: 6 }, () => chars[crypto.randomInt(chars.length)]).join('');
   return `TAP-${rand}`;

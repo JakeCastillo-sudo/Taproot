@@ -17,12 +17,26 @@
     "db:migrate": "ts-node apps/api/src/db/migrate.ts up",
     "db:migrate:down": "ts-node apps/api/src/db/migrate.ts down",
     "db:seed": "ts-node apps/api/src/db/migrate.ts up",
-    "db:reseed": "node scripts/reseed.js"
+    "db:reseed": "node scripts/reseed.js",
+    "db:migrate:safe": "node scripts/migrate-safe.js",
+    "lint": "eslint apps/api/src apps/web/src --ext .ts,.tsx",
+    "lint:api": "npm run lint --workspace=@taproot/api",
+    "lint:web": "npm run lint --workspace=@taproot/web",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/pg": "^8.20.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "concurrently": "^8.2.2",
+    "eslint": "^8.57.1",
+    "eslint-plugin-no-secrets": "^1.1.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-security": "^3.0.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"
   },
