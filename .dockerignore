@@ -1,0 +1,45 @@
+node_modules
+.git
+.gitignore
+
+# Environment files — never bake into image
+.env
+.env.*
+!.env.example
+
+# Uploads — mounted as volume at runtime
+apps/api/uploads
+
+# Build artifacts
+dist
+build
+coverage
+
+# CI/CD and infra — not needed in container
+.github
+infra
+docs
+
+# Development files
+*.log
+*.local
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Test files
+**/__tests__
+**/*.test.ts
+**/*.spec.ts
+jest.config.*
+
+# Scripts (not needed in production image)
+scripts
+
+# Husky
+.husky

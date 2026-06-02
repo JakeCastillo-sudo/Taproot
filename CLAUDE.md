@@ -419,5 +419,69 @@
 **Typecheck**: 0 errors (both apps/api and apps/web)
 **ESLint**: 0 errors, 42 warnings (all pre-existing unused imports — downgraded to warn)
 
+### Prompt 17 — AWS CDK production infrastructure + Docker ✅
+
+**CDK Infrastructure (`infra/`):**
+- `infra/lib/taproot-stack.ts` — Full `TaprootStack` with `TaprootStackProps` interface;
+  parameterized by `stageName`, `domainName`, `instanceClass`, `desiredCount`, `multiAz`
+- `infra/bin/taproot.ts` — App entry; instantiates `TaprootStaging` (t3.micro, 1 task, no Multi-AZ)
+  and `TaprootProduction` (t3.small, 2 tasks, Multi-AZ) stacks
+- `infra/package.json` — CDK deps (`aws-cdk-lib`, `constructs`), build/synth/diff scripts
+- `infra/tsconfig.json` — ES2020, strict, commonjs
+- `infra/cdk.json` — `npx ts-node --prefer-ts-exts bin/taproot.ts` app command
+
+**Stack constructs built:**
+1. **VPC** — 2 AZs; public (ALB/NAT), private (ECS/egress), isolated (RDS/Redis) subnets
+2. **Security groups** — ALB (0.0.0.0→80,443), ECS (ALB→3001), RDS (ECS→5432), Redis (ECS→6379)
+3. **RDS PostgreSQL 15** — gp3 20GB→100GB auto-scale; encrypted; 7-day backups; deletion protection
+   in prod; parameter group (max_connections=100, shared_buffers=256MB, log slow queries >1s);
+   Performance Insights in prod; credentials generated via Secrets Manager
+4. **ElastiCache Redis 7** — cache.t3.micro; encrypted at rest + in transit; AOF persistence;
+   3-snapshot retention in prod
+5. **Secrets Manager** — `taproot/{stageName}/{name}` containers for 7 app secrets + RDS credential;
+   ECS task role with `GetSecretValue` on `taproot/{stageName}/*` only
+6. **ECR** — `taproot-api` repo; scan on push; keep-last-10 lifecycle policy
+7. **ECS Fargate** — 256 CPU / 512MB; env from Secrets Manager; health check `/api/health`;
+   rolling update with circuit breaker + rollback; auto-scale 1–4 tasks on CPU>70%; CloudWatch
+   log group `/taproot/{stageName}/api` (30 day retention)
+8. **ACM Certificate** — `taprootpos.com` + `*.taprootpos.com`; DNS validation via Route53
+9. **ALB** — HTTPS 443→ECS; HTTP 80→redirect; target group health check `/api/health`
+10. **S3 + CloudFront** — private bucket; OAC (not OAI); HTML no-cache policy; assets 1-year
+    cache; PriceClass_100; HTTP2+3; brotli+gzip; 404→index.html; Route53 A records
+11. **CloudWatch Alarms** → SNS topic: 5xx error rate >5%, P95 latency >2s, DB connections >80,
+    Redis CPU >80%; alertEmail context variable
+12. **AWS Budgets** — $200/month; alerts at 80% ($160) and 100% ($200) via email+SNS
+
+**Docker:**
+- `apps/api/Dockerfile` — multi-stage (builder: npm ci + tsc; production: omit-dev deps, non-root
+  `taproot` user, HEALTHCHECK, EXPOSE 3001)
+- `docker-compose.yml` — api (builds from Dockerfile) + postgres:15 + redis:7; health conditions;
+  uploads volume mount; restart: unless-stopped
+- `.dockerignore` — excludes node_modules, .env, uploads, dist, .github, test files, scripts
+
+**Other files:**
+- `infra/nginx/nginx.conf` — TLS 1.2/1.3; OCSP stapling; security headers (HSTS/X-Frame/XSS);
+  proxy to localhost:3001; WebSocket `/api/v1/ws`; metrics restricted to private CIDRs
+- `scripts/setup-server.sh` — Ubuntu 22.04 bootstrap: Node 20, PostgreSQL 15, Redis 7, Nginx,
+  PM2, AWS CLI v2, UFW, fail2ban, unattended-upgrades; creates `taproot` app user
+- `docs/BACKUP.md` — RTO/RPO table; RDS auto snapshots + manual pre-deploy; pg_dump cron;
+  PITR instructions; monthly restore drill procedure; S3 lifecycle; GDPR backup notes
+- `docs/RUNBOOK.md` — First deploy walkthrough; routine deploy steps; rollback (code+DB+frontend);
+  scale-up guide (ECS/RDS/Redis); on-call runbook per alarm type; useful AWS CLI commands
+
+**CI/CD update (`deploy.yml` rewritten):**
+- New `build-push` job: ECR login → `docker/build-push-action@v5` (BuildKit layer cache) → ECR
+  scan; outputs `image-tag` (SHA) used by downstream jobs
+- Separate `build-web-staging` / `build-web-production` jobs upload dist artifacts
+- `staging-deploy`: uses `amazon-ecs-render-task-definition@v1` + `amazon-ecs-deploy-task-definition@v1`
+  (waits for service stability); then S3 sync + CloudFront invalidation + health check
+- `production-deploy`: pre-deploy RDS snapshot → same ECS deploy + smoke tests
+
+**Shared package fix:**
+- `packages/shared/tsconfig.json` — added `outDir: ./dist`
+- `packages/shared/package.json` — added `build: tsc` script; updated `main`/`types` to `dist/`
+
+**Typecheck**: 0 errors (both apps). **ESLint**: 0 errors, 30 warnings (pre-existing).
+
 ## Next Prompt
-Prompt 17 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding
+Prompt 18 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding

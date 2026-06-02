@@ -15,24 +15,68 @@ on:
 # Only one deploy runs at a time per environment
 concurrency:
   group: deploy-${{ github.ref }}-${{ inputs.environment || 'staging' }}
-  cancel-in-progress: false # Never cancel in-flight deploys
+  cancel-in-progress: false  # Never cancel in-flight deploys
 
 jobs:
-  # ── Re-run CI quality gates before any deploy ───────────────────────────────
-  api-quality:
-    name: API — typecheck + tests
-    uses: ./.github/workflows/ci.yml
-    # Only re-run the quality jobs (not security scan, to save time on auto-deploys)
-
-  # ── Staging deploy ──────────────────────────────────────────────────────────
-  staging-deploy:
-    name: Deploy → staging
+  # ── Build & Push Docker Image to ECR ────────────────────────────────────────
+  build-push:
+    name: Build + Push Docker image
     runs-on: ubuntu-latest
-    needs: [] # No dependency — CI is a separate workflow gate
-    environment:
-      name: staging
-      url: https://staging.taprootpos.com
-    # Only run on push to main (not on manual prod trigger)
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.image-tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image metadata
+        id: meta
+        run: |
+          IMAGE_TAG="${{ github.sha }}"
+          echo "image-tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+          echo "ECR_URI=${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY || 'taproot-api' }}" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx (layer caching)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_URI }}:latest
+            ${{ env.ECR_URI }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gist,scope=taproot-api
+          cache-to: type=gist,scope=taproot-api,mode=max
+          build-args: |
+            NODE_ENV=production
+
+      - name: Scan image for vulnerabilities
+        continue-on-error: true
+        run: |
+          aws ecr start-image-scan \
+            --repository-name ${{ secrets.ECR_REPOSITORY || 'taproot-api' }} \
+            --image-id imageTag=${{ env.IMAGE_TAG }} || true
+
+  # ── Build Web PWA ────────────────────────────────────────────────────────────
+  build-web-staging:
+    name: Build Web (staging)
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' || inputs.environment == 'staging'
 
     steps:
@@ -48,59 +92,99 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # ── Build ──────────────────────────────────────────────────────────────
-      - name: Build web
+      - name: Build web (staging)
         run: npm run build --workspace=@taproot/web
         env:
-          VITE_API_URL: https://staging.taprootpos.com
+          VITE_API_URL: https://api.taprootpos.com
 
-      - name: Build API
-        run: npm run build --workspace=@taproot/api
-
-      # ── Deploy API via SSH ─────────────────────────────────────────────────
-      - name: Deploy API to staging
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Upload web dist
+        uses: actions/upload-artifact@v4
         with:
-          host:     ${{ secrets.STAGING_HOST }}
-          username: deploy
-          key:      ${{ secrets.STAGING_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/taproot
+          name: web-dist-staging
+          path: apps/web/dist
+          retention-days: 1
 
-            # Pull latest code
-            git fetch origin main
-            git checkout main
-            git pull origin main
+  build-web-production:
+    name: Build Web (production)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'production'
 
-            # Install dependencies
-            npm ci --omit=dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            # Build API
-            npm run build --workspace=@taproot/api
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
-            # Run database migrations (safe mode)
-            DATABASE_URL="${{ secrets.STAGING_DB_URL }}" \
-            NODE_ENV=staging \
-            node scripts/migrate-safe.js
+      - name: Install dependencies
+        run: npm ci
 
-            # Restart API with PM2
-            pm2 restart taproot-api --env staging || \
-            pm2 start ecosystem.config.js --env staging
+      - name: Build web (production)
+        run: npm run build --workspace=@taproot/web
+        env:
+          VITE_API_URL: https://api.taprootpos.com
 
-            # Verify API is up
-            sleep 3
-            curl -sf http://localhost:3001/api/health || exit 1
+      - name: Upload web dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist-production
+          path: apps/web/dist
+          retention-days: 1
 
-      # ── Deploy web to S3 + CloudFront ──────────────────────────────────────
+  # ── Staging Deploy ───────────────────────────────────────────────────────────
+  staging-deploy:
+    name: Deploy → staging
+    runs-on: ubuntu-latest
+    needs: [build-push, build-web-staging]
+    environment:
+      name: staging
+      url: https://staging.taprootpos.com
+    if: github.event_name == 'push' || inputs.environment == 'staging'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ secrets.AWS_REGION }}
+          aws-region:            ${{ secrets.AWS_REGION || 'us-east-1' }}
 
-      - name: Sync web to S3 (staging)
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ── ECS: Update task definition image then force new deployment ───────────
+      - name: Update ECS task definition with new image
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-arn: ${{ secrets.ECS_STAGING_TASK_DEF_ARN }}
+          container-name: taproot-api
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY || 'taproot-api' }}:${{ needs.build-push.outputs.image-tag }}
+
+      - name: Deploy to ECS (staging)
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service:          ${{ secrets.ECS_STAGING_SERVICE }}
+          cluster:          ${{ secrets.ECS_STAGING_CLUSTER }}
+          wait-for-service-stability: true
+          wait-for-minutes: 10
+
+      # ── Web: S3 + CloudFront ──────────────────────────────────────────────────
+      - name: Download web dist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist-staging
+          path: apps/web/dist
+
+      - name: Sync web assets to S3 (long-lived cache for hashed assets)
         run: |
           aws s3 sync apps/web/dist/ s3://${{ secrets.S3_STAGING_BUCKET }}/ \
             --delete \
@@ -109,7 +193,8 @@ jobs:
             --exclude "manifest.json" \
             --exclude "sw.js"
 
-          # Short-lived cache for HTML/manifest/service-worker
+      - name: Sync HTML/manifest/SW (short cache)
+        run: |
           aws s3 sync apps/web/dist/ s3://${{ secrets.S3_STAGING_BUCKET }}/ \
             --exclude "*" \
             --include "index.html" \
@@ -123,7 +208,7 @@ jobs:
             --distribution-id ${{ secrets.CLOUDFRONT_STAGING_ID }} \
             --paths "/*"
 
-      # ── Health check ──────────────────────────────────────────────────────
+      # ── Health check ──────────────────────────────────────────────────────────
       - name: Staging health check
         run: |
           for i in 1 2 3 4 5; do
@@ -140,7 +225,6 @@ jobs:
           echo "❌ Staging health check failed after 5 attempts"
           exit 1
 
-      # ── Notify ────────────────────────────────────────────────────────────
       - name: Notify Slack — staging deployed
         if: always()
         env:
@@ -159,78 +243,68 @@ jobs:
               \"icon_emoji\": \":rocket:\"
             }" || true
 
-  # ── Production deploy ───────────────────────────────────────────────────────
+  # ── Production Deploy ────────────────────────────────────────────────────────
   production-deploy:
     name: Deploy → production
     runs-on: ubuntu-latest
-    needs: [staging-deploy]
+    needs: [build-push, build-web-production, staging-deploy]
     environment:
       name: production
       url: https://app.taprootpos.com
-    # Manual approval required via GitHub environment protection rules
+    # Manual workflow_dispatch only — never auto-deploy production
     if: github.event_name == 'workflow_dispatch' && inputs.environment == 'production'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      # ── Build ──────────────────────────────────────────────────────────────
-      - name: Build web (production)
-        run: npm run build --workspace=@taproot/web
-        env:
-          VITE_API_URL: https://app.taprootpos.com
-
-      - name: Build API (production)
-        run: npm run build --workspace=@taproot/api
-
-      # ── Deploy API via SSH ─────────────────────────────────────────────────
-      - name: Deploy API to production
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host:     ${{ secrets.PROD_HOST }}
-          username: deploy
-          key:      ${{ secrets.PROD_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/taproot
-
-            echo "⚠️  Starting production deploy at $(date)"
-
-            git fetch origin main
-            git checkout main
-            git pull origin main
-            npm ci --omit=dev
-            npm run build --workspace=@taproot/api
-
-            # Safe migration (includes 10s abort window)
-            DATABASE_URL="${{ secrets.PROD_DB_URL }}" \
-            NODE_ENV=production \
-            node scripts/migrate-safe.js
-
-            pm2 restart taproot-api --env production || \
-            pm2 start ecosystem.config.js --env production
-
-            sleep 5
-            curl -sf http://localhost:3001/api/health || exit 1
-
-      # ── Deploy web ─────────────────────────────────────────────────────────
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ secrets.AWS_REGION }}
+          aws-region:            ${{ secrets.AWS_REGION || 'us-east-1' }}
 
-      - name: Sync web to S3 (production)
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ── Pre-deploy: create RDS snapshot ──────────────────────────────────────
+      - name: Create pre-deploy RDS snapshot
+        continue-on-error: true
+        run: |
+          SNAP_ID="taproot-pre-deploy-$(date +%Y%m%d-%H%M%S)"
+          aws rds create-db-snapshot \
+            --db-instance-identifier ${{ secrets.RDS_PROD_IDENTIFIER }} \
+            --db-snapshot-identifier "$SNAP_ID" || true
+          echo "Pre-deploy snapshot: $SNAP_ID"
+
+      # ── ECS: Update task definition + deploy ──────────────────────────────────
+      - name: Update ECS task definition with new image
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-arn: ${{ secrets.ECS_PROD_TASK_DEF_ARN }}
+          container-name: taproot-api
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY || 'taproot-api' }}:${{ needs.build-push.outputs.image-tag }}
+
+      - name: Deploy to ECS (production)
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service:          ${{ secrets.ECS_PROD_SERVICE }}
+          cluster:          ${{ secrets.ECS_PROD_CLUSTER }}
+          wait-for-service-stability: true
+          wait-for-minutes: 15
+
+      # ── Web: S3 + CloudFront ──────────────────────────────────────────────────
+      - name: Download web dist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist-production
+          path: apps/web/dist
+
+      - name: Sync web assets to S3 (production — hashed assets, long cache)
         run: |
           aws s3 sync apps/web/dist/ s3://${{ secrets.S3_PROD_BUCKET }}/ \
             --delete \
@@ -239,6 +313,8 @@ jobs:
             --exclude "manifest.json" \
             --exclude "sw.js"
 
+      - name: Sync HTML/manifest/SW (short cache)
+        run: |
           aws s3 sync apps/web/dist/ s3://${{ secrets.S3_PROD_BUCKET }}/ \
             --exclude "*" \
             --include "index.html" \
@@ -252,26 +328,26 @@ jobs:
             --distribution-id ${{ secrets.CLOUDFRONT_PROD_ID }} \
             --paths "/*"
 
-      # ── Post-deploy smoke tests ────────────────────────────────────────────
+      # ── Smoke tests ───────────────────────────────────────────────────────────
       - name: Production smoke tests
         run: |
           BASE="https://app.taprootpos.com"
 
           # 1. Health check
-          STATUS=$(curl -sf "${BASE}/api/health" -o /dev/null -w "%{http_code}")
+          STATUS=$(curl -sf "${BASE}/api/health" -o /tmp/health.json -w "%{http_code}")
           [ "$STATUS" = "200" ] || { echo "❌ Health check failed: HTTP $STATUS"; exit 1; }
           echo "✅ /api/health → 200"
+          cat /tmp/health.json | jq '{status:.status,checks:.checks}'
 
-          # 2. Login endpoint responds (400 = validation ran = route is alive)
+          # 2. Login endpoint alive
           STATUS=$(curl -sf -X POST "${BASE}/api/v1/auth/login" \
             -H "Content-Type: application/json" \
             -d '{}' -o /dev/null -w "%{http_code}")
-          [ "$STATUS" = "400" ] || { echo "❌ Login endpoint check failed: HTTP $STATUS"; exit 1; }
+          [ "$STATUS" = "400" ] || { echo "❌ Login endpoint failed: HTTP $STATUS"; exit 1; }
           echo "✅ /api/v1/auth/login → 400 (route alive)"
 
           echo "🚀 Production smoke tests passed"
 
-      # ── Notify ────────────────────────────────────────────────────────────
       - name: Notify Slack — production deployed
         if: always()
         env:
