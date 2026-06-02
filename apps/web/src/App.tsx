@@ -11,7 +11,15 @@ import { InventoryPage } from './pages/InventoryPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { ImportPage } from './pages/ImportPage';
 import { MigrationPage } from './pages/MigrationPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { BillingPage } from './pages/BillingPage';
+import { UpgradePage } from './pages/UpgradePage';
+import { LandingPage } from './pages/LandingPage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { TermsPage } from './pages/TermsPage';
 import { ToastContainer } from './components/ui/Toast';
+import { TrialBanner } from './components/ui/TrialBanner';
+import { HelpButton } from './components/ui/HelpButton';
 import { TOKEN_KEY, USER_KEY } from './lib/api';
 
 // ─── PWA install banner ───────────────────────────────────────────────────────
@@ -106,6 +114,10 @@ function getStoredUser(): { firstName: string; lastName: string; role: string; l
   }
 }
 
+function isLoggedIn(): boolean {
+  return !!localStorage.getItem(TOKEN_KEY);
+}
+
 function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
   const token    = localStorage.getItem(TOKEN_KEY);
@@ -148,6 +160,7 @@ class ErrorBoundary extends React.Component<{ children: ReactNode }, EBState> {
 
 export default function App() {
   const user = getStoredUser();
+  const loggedIn = isLoggedIn();
 
   const defaultUser = {
     firstName:   user?.firstName   ?? 'Cashier',
@@ -159,20 +172,24 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
-        <Routes>
-          {/* Public */}
-          <Route path="/login" element={<LoginPage />} />
+        {/* Trial banner — shown inside app when trialing */}
+        {loggedIn && <TrialBanner />}
 
-          {/* Protected */}
+        <Routes>
+          {/* ── Public marketing ─────────────────────────────────────────── */}
           <Route
             path="/"
-            element={
-              <RequireAuth>
-                <POSLayout user={defaultUser} />
-              </RequireAuth>
+            element={loggedIn
+              ? <POSLayout user={defaultUser} />
+              : <LandingPage />
             }
           />
+          <Route path="/login"    element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/privacy"  element={<PrivacyPage />} />
+          <Route path="/terms"    element={<TermsPage />} />
 
+          {/* ── Protected app routes ──────────────────────────────────────── */}
           <Route
             path="/orders"
             element={
@@ -219,6 +236,24 @@ export default function App() {
           />
 
           <Route
+            path="/billing"
+            element={
+              <RequireAuth>
+                <BillingPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/upgrade"
+            element={
+              <RequireAuth>
+                <UpgradePage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
             path="/settings"
             element={
               <RequireAuth>
@@ -234,6 +269,7 @@ export default function App() {
 
       <ToastContainer />
       <PWAInstallBanner />
+      {loggedIn && <HelpButton />}
       {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );

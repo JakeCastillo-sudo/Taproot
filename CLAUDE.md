@@ -483,5 +483,58 @@
 
 **Typecheck**: 0 errors (both apps). **ESLint**: 0 errors, 30 warnings (pre-existing).
 
+### Prompt 18 — Beta: Subscription billing & registration ✅
+
+**Backend:**
+- `migrations/009_subscriptions.js` — adds stripe_customer_id, stripe_subscription_id,
+  subscription_status (CHECK), subscription_plan (CHECK), trial_ends_at (14d default),
+  subscription_ends_at, location_count, referral_source, metadata to organizations table
+- `apps/api/src/payments/stripe.config.ts` — added `validateStripeMode()`: production requires
+  `sk_live_`, dev rejects `sk_live_`; logged at startup
+- `scripts/register-webhooks.js` — CLI to register Stripe webhook endpoints; outputs secrets
+- `apps/api/src/services/subscription.service.ts` — createSubscription, handleSubscriptionWebhook,
+  checkSubscriptionAccess (Redis cache 5min), getSubscriptionPortalUrl
+- `apps/api/src/middleware/subscription.ts` — 402 with SUBSCRIPTION_REQUIRED for expired orgs
+- `apps/api/src/services/email.service.ts` — sendWelcomeEmail, sendTrialEndingEmail,
+  sendPaymentFailedEmail, sendPasswordResetEmailTemplate, sendLowStockAlertEmail
+- `apps/api/src/routes/registration.routes.ts` — POST /api/v1/register + /check-email (rate
+  limited 10/hr); LegalZoom → 30d trial, slug gen, withTransaction, JWT auto-login
+- `apps/api/src/routes/billing.routes.ts` — GET /subscription, POST /portal, GET /invoices,
+  POST /subscribe
+- `apps/api/src/monitoring/sentry.ts` — Sentry.init at startup; beforeSend deletes request.data +
+  redacts Authorization; captureException for 5xx only
+- `apps/api/src/config.ts` — added SENTRY_DSN, STRIPE_BILLING_PRICE_ID, SENDGRID_API_KEY
+- `apps/api/src/index.ts` — validateStripeMode + initSentry at startup; billingRoutes registered
+
+**Frontend:**
+- `apps/web/src/lib/analytics.ts` — Plausible wrappers (pageView, login, orderCompleted,
+  trialStarted, subscriptionStarted, upgradePageViewed, import/migration events)
+- `apps/web/src/components/ui/TrialBanner.tsx` — amber/orange/red banner (urgent ≤3d, critical ≤1d);
+  dismissible per session; navigate('/billing') CTA
+- `apps/web/src/components/ui/HelpButton.tsx` — fixed ? button; help panel with search, 6 articles,
+  docs link, support email, bug report mailto
+- `apps/web/src/pages/RegisterPage.tsx` — multi-step (account→business→success); email availability
+  debounce 500ms; password strength meter; business type emoji grid; LegalZoom banner
+- `apps/web/src/pages/BillingPage.tsx` — plan status, features, Stripe portal, invoices, usage stats
+- `apps/web/src/pages/UpgradePage.tsx` — Stripe Elements card form → POST /billing/subscribe
+- `apps/web/src/pages/LandingPage.tsx` — hero, 6-feature grid, pricing section, footer
+- `apps/web/src/pages/PrivacyPage.tsx` — full privacy policy (GDPR, CCPA)
+- `apps/web/src/pages/TermsPage.tsx` — full terms of service
+- `apps/web/src/lib/api.ts` — exported apiFetch; added billingApi, registrationApi + types
+- `apps/web/src/lib/queryClient.ts` — added QK.billing(), QK.billingInvoices()
+- `apps/web/src/App.tsx` — TrialBanner + HelpButton; / = LandingPage (logged out) or POS (logged in);
+  routes: /register, /billing, /upgrade, /privacy, /terms
+- `apps/web/src/pages/LoginPage.tsx` — "Start free trial" link → /register; Privacy/Terms footer
+- `apps/web/index.html` — Plausible script tag (data-domain=app.taprootpos.com)
+- `apps/web/src/main.tsx` — @sentry/react init (prod-only, no request bodies, no session replay)
+
+**Bug fixes:**
+- `subscription.service.ts` — logAudit → createAuditLog, emailQueue → queues.email
+- `registration.routes.ts` — generateTokenPair → signAccessToken/signRefreshToken with proper fields;
+  logAudit → createAuditLog
+- `sentry.ts` — removed invalid @ts-expect-error directive
+
+**Typecheck**: 0 errors (both apps). **ESLint**: 0 errors, 33 API warnings / 12 web warnings (all pre-existing).
+
 ## Next Prompt
-Prompt 18 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding
+Prompt 19 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding

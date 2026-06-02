@@ -41,4 +41,6 @@ export const QK = {
   importJobs:           (params?: object)  => ['import', 'jobs', params]       as const,
   migrationJob:         (id: string)       => ['migration', 'job', id]         as const,
   migrationJobs:        ()                 => ['migration', 'jobs']            as const,
+  billing:              ()                 => ['billing']                      as const,
+  billingInvoices:      ()                 => ['billing', 'invoices']          as const,
 } as const;

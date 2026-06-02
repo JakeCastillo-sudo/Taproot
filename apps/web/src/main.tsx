@@ -1,11 +1,30 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import * as Sentry from '@sentry/react';
 import App from './App';
 import './index.css';
 import './styles/design-system.css';
 import './styles/ios.css';
 import './styles/animations.css';
+
+// ── Sentry error monitoring (production only) ────────────────────────────────
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    dsn:               import.meta.env.VITE_SENTRY_DSN as string,
+    environment:       import.meta.env.MODE,
+    tracesSampleRate:  0.1,
+    replaysOnErrorSampleRate: 0,  // no session replay (privacy)
+    beforeSend(event) {
+      // Never send form data — may contain passwords or card numbers
+      if (event.request?.data) delete event.request.data;
+      if (event.request?.headers?.Authorization) {
+        event.request.headers.Authorization = '[REDACTED]';
+      }
+      return event;
+    },
+  });
+}
 
 // ── iOS Safari viewport fix ───────────────────────────────────────────────────
 // Sets --vh = 1% of the real inner height so `calc(var(--vh,1vh)*100)` works

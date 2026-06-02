@@ -80,7 +80,7 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(
+export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
   _retry = true,
@@ -927,5 +927,95 @@ export const migrationsApi = {
     apiFetch<{ ok: boolean; merchantName: string }>('/migrations/test/clover', {
       method: 'POST',
       body:   JSON.stringify({ merchantId, accessToken }),
+    }),
+};
+
+// ─── Billing ──────────────────────────────────────────────────────────────────
+
+export interface SubscriptionInfo {
+  status:             string;
+  plan:               string;
+  isTrialing:         boolean;
+  daysRemaining:      number;
+  trialEndsAt:        string | null;
+  subscriptionEndsAt: string | null;
+  locationCount:      number;
+  stripeCustomerId:   string | null;
+}
+
+export interface Invoice {
+  id:           string;
+  number:       string;
+  amountPaid:   number;
+  currency:     string;
+  status:       string;
+  created:      number;
+  invoicePdf:   string | null;
+}
+
+export const billingApi = {
+  /** Get current subscription info */
+  getSubscription: () =>
+    apiFetch<SubscriptionInfo>('/billing/subscription'),
+
+  /** Create Stripe billing portal session */
+  createPortalSession: () =>
+    apiFetch<{ url: string }>('/billing/portal', { method: 'POST' }),
+
+  /** List recent paid invoices */
+  getInvoices: () =>
+    apiFetch<{ invoices: Invoice[] }>('/billing/invoices'),
+
+  /** Start a new subscription with a payment method */
+  subscribe: (paymentMethodId: string, locationCount?: number) =>
+    apiFetch<{ status: string; stripeCustomerId: string; stripeSubscriptionId: string }>(
+      '/billing/subscribe',
+      {
+        method: 'POST',
+        body:   JSON.stringify({ paymentMethodId, locationCount }),
+      },
+    ),
+};
+
+// ─── Registration ─────────────────────────────────────────────────────────────
+
+export interface RegisterPayload {
+  firstName:     string;
+  lastName:      string;
+  email:         string;
+  password:      string;
+  businessName:  string;
+  businessType?: string;
+  referralSource?: string;
+}
+
+export interface RegisterResponse {
+  accessToken:  string;
+  refreshToken: string;
+  employee: {
+    id:          string;
+    email:       string;
+    firstName:   string;
+    lastName:    string;
+    role:        string;
+    orgId:       string;
+    locationIds: string[];
+    permissions: string[];
+  };
+}
+
+export const registrationApi = {
+  /** Register a new organization + owner account */
+  register: (payload: RegisterPayload) =>
+    apiFetch<RegisterResponse>('/register', {
+      method: 'POST',
+      body:   JSON.stringify(payload),
+    }),
+
+  /** Check if an email address is available */
+  checkEmail: (email: string) =>
+    apiFetch<{ available: boolean }>('/register/check-email', {
+      method: 'POST',
+      body:   JSON.stringify({ email }),
     }),
 };

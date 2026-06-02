@@ -17,6 +17,43 @@
 import Stripe from 'stripe';
 import { config } from '../config';
 
+// ─── Live-mode validation + startup log ──────────────────────────────────────
+
+/**
+ * Call once at server startup to validate Stripe mode and log active mode.
+ * Prevents accidental live charges in development.
+ */
+export function validateStripeMode(): void {
+  const key = config.STRIPE_SECRET_KEY;
+  const env = config.NODE_ENV;
+
+  if (env === 'production') {
+    if (!key.startsWith('sk_live_')) {
+      throw new Error(
+        '[Stripe] Production requires a live key (sk_live_...). Got: ' +
+          key.substring(0, 12) + '...',
+      );
+    }
+    console.info('[Stripe] LIVE mode active — real charges enabled');
+  } else if (env === 'test') {
+    // In CI/test, accept either — but never live
+    if (key.startsWith('sk_live_')) {
+      throw new Error('[Stripe] NEVER use a live key in test environment');
+    }
+    console.info('[Stripe] TEST mode active');
+  } else {
+    // Development
+    if (key.startsWith('sk_live_')) {
+      throw new Error(
+        '[Stripe] NEVER use a live key in development. Use sk_test_... instead.',
+      );
+    }
+    if (key) {
+      console.info('[Stripe] TEST mode active');
+    }
+  }
+}
+
 // ─── Version pin ──────────────────────────────────────────────────────────────
 
 export const STRIPE_API_VERSION = '2026-05-27.dahlia' as const;

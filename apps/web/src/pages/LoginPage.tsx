@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { auth, TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY } from '../lib/api';
 
@@ -133,8 +133,18 @@ export function LoginPage() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          © {new Date().getFullYear()} Taproot POS
+        <p className="text-center text-sm text-gray-500 mt-5">
+          Don&apos;t have an account?{' '}
+          <Link to="/register" className="text-primary font-medium hover:underline">
+            Start free trial
+          </Link>
+        </p>
+
+        <p className="text-center text-xs text-gray-400 mt-3">
+          © {new Date().getFullYear()} Taproot POS ·{' '}
+          <Link to="/privacy" className="hover:underline">Privacy</Link>
+          {' '}·{' '}
+          <Link to="/terms" className="hover:underline">Terms</Link>
         </p>
       </div>
     </div>

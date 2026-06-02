@@ -174,6 +174,31 @@ export const config = {
   /** AWS secret access key. */
   AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
 
+  // ─── Error monitoring ────────────────────────────────────────────────────────
+
+  /**
+   * Sentry DSN for error monitoring.
+   * Optional — Sentry is silently disabled when absent.
+   * @example SENTRY_DSN=https://xxx@o0.ingest.sentry.io/xxx
+   */
+  SENTRY_DSN: process.env.SENTRY_DSN,
+
+  // ─── Stripe Billing ───────────────────────────────────────────────────────────
+
+  /**
+   * Stripe Price ID for the $199/mo Taproot Starter plan.
+   * Create in Stripe Dashboard → Products.
+   * @example STRIPE_BILLING_PRICE_ID=price_xxxxx
+   */
+  STRIPE_BILLING_PRICE_ID: process.env.STRIPE_BILLING_PRICE_ID ?? '',
+
+  /**
+   * SendGrid API key for production transactional email.
+   * Uses jsonTransport (console log) in development when absent.
+   * @example SENDGRID_API_KEY=SG.xxx
+   */
+  SENDGRID_API_KEY: process.env.SENDGRID_API_KEY,
+
   // ─── Token lifetimes ──────────────────────────────────────────────────────────
 
   /** JWT access token expiry string (jsonwebtoken format). */

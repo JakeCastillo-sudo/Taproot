@@ -24,10 +24,21 @@ import reportRoutes from './routes/report.routes';
 import importRoutes from './routes/import.routes';
 import aiRoutes from './routes/ai.routes';
 import migrationRoutes from './routes/migration.routes';
+import registrationRoutes from './routes/registration.routes';
+import billingRoutes from './routes/billing.routes';
 import { registerMonitoring } from './monitoring/health';
+import { initSentry, registerSentryHooks } from './monitoring/sentry';
+import { checkSubscription } from './middleware/subscription';
+import { validateStripeMode } from './payments/stripe.config';
 
 // Validate required env vars at startup — throws immediately if any are missing
 validateConfig();
+
+// Validate Stripe mode (prevents accidental live charges in dev)
+validateStripeMode();
+
+// Initialise Sentry error monitoring (no-op if SENTRY_DSN not set)
+initSentry();
 
 // buildApp returns the Fastify instance typed broadly so helmet's HTTP/2 type
 // augmentation doesn't conflict with route helper signatures.
@@ -175,6 +186,12 @@ async function buildApp(): Promise<any> {
 
   // ─── Auth plugin (registers /api/v1/auth/* routes + request decorators) ──────
 
+  // ─── Sentry request context hooks ────────────────────────────────────────────
+  registerSentryHooks(fastify);
+
+  // ─── Public registration routes (before auth middleware) ─────────────────────
+  await fastify.register(registrationRoutes);
+
   await fastify.register(authPlugin);
   await fastify.register(inventoryRoutes);
   await fastify.register(orderRoutes);
@@ -186,6 +203,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(importRoutes);
   await fastify.register(aiRoutes);
   await fastify.register(migrationRoutes);
+  await fastify.register(billingRoutes);
 
   // ─── Monitoring: Prometheus metrics + structured health ───────────────────────
   await registerMonitoring(fastify);
@@ -261,12 +279,17 @@ async function buildApp(): Promise<any> {
     'POST /api/v1/webhooks/stripe/terminal',
     // Metrics — authenticated via X-Metrics-Secret header, not JWT
     'GET /metrics',
+    // Registration — public
+    'POST /api/v1/register',
+    'POST /api/v1/register/check-email',
   ]);
 
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const routeKey = `${request.method} ${request.routeOptions.url}`;
     if (PUBLIC_ROUTES.has(routeKey)) return;
     await fastify.authenticate(request, reply);
+    // Check subscription access after authentication
+    await checkSubscription(request, reply);
   });
 
   // ─── Global error handler (production-safe) ───────────────────────────────────
