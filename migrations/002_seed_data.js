@@ -1,5 +1,7 @@
+const bcrypt = require('bcrypt');
+
 /** @type {import('node-pg-migrate').MigrationBuilder} */
-exports.up = (pgm) => {
+exports.up = async (pgm) => {
   // ── Constants (valid UUIDs with readable 8-hex prefix) ───────────────────
   // org:  10000000-...
   // loc:  20000000-...
@@ -36,7 +38,8 @@ exports.up = (pgm) => {
   `);
 
   // ── Owner Employee ────────────────────────────────────────────────────────
-  // password: TaprootDemo2026!  (bcrypt cost 12)
+  // Password: TaprootDemo2026! (bcrypt 12 rounds, generated at seed time)
+  const passwordHash = await bcrypt.hash('TaprootDemo2026!', 12);
   pgm.sql(`
     INSERT INTO employees (
       id, organization_id, email, password_hash,
@@ -45,7 +48,7 @@ exports.up = (pgm) => {
       '30000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000001',
       'demo@taproot.pos',
-      '$2b$12$W/yAW3jTGEuQY6en5eTNP.M6WBi0uArImgJA00OAKEwiLMQNViXwq',
+      '${passwordHash}',
       'Demo',
       'Owner',
       'owner',

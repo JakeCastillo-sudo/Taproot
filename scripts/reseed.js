@@ -20,6 +20,15 @@ execSync(
   { stdio: 'inherit' },
 );
 
+// Remove data-migration records from pgmigrations so they re-run on the next
+// db:migrate call. Schema migrations (001, 003-007, 009-010) are left in place
+// because re-running CREATE TABLE / ALTER TABLE would fail with "already exists".
+console.log('   Clearing data migration records from pgmigrations...');
+execSync(
+  `psql "${DB_URL}" -c "DELETE FROM pgmigrations WHERE name IN ('002_seed_data', '008_demo_enrich');"`,
+  { stdio: 'inherit' },
+);
+
 console.log('   Re-running all migrations...');
 
 execSync(
