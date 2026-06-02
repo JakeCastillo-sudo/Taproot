@@ -82,11 +82,11 @@ export function registerProcessors(queues: QueuesMap): void {
     );
 
     const { rows: managers } = await query<{ email: string; name: string }>(
-      `SELECT e.email, e.name
+      `SELECT e.email, e.first_name || ' ' || e.last_name AS name
        FROM employees e
        WHERE e.organization_id = $1
          AND e.role IN ('owner', 'manager')
-         AND e.is_active = true`,
+         AND e.deleted_at IS NULL`,
       [orgId],
     );
 

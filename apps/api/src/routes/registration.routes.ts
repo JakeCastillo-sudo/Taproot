@@ -132,36 +132,37 @@ export default async function registrationRoutes(fastify: FastifyInstance): Prom
       );
       const org = orgRes.rows[0];
 
-      // Create first location (same name as business)
-      const locRes = await client.query<{ id: string }>(
-        `INSERT INTO locations
-           (organization_id, name, address, timezone, currency, created_by)
-         VALUES ($1, $2, '{"city":"","state":"","country":"US"}'::jsonb,
-                 'America/New_York', 'USD', gen_random_uuid())
-         RETURNING id`,
-        [org.id, businessName],
-      );
-      const location = locRes.rows[0];
-
-      // Create owner employee
+      // Create owner employee first (location_ids starts empty — filled below)
       const empRes = await client.query<{
         id: string; email: string; first_name: string; last_name: string; role: string;
       }>(
         `INSERT INTO employees
            (organization_id, email, password_hash, first_name, last_name,
-            role, is_active, primary_location_id)
-         VALUES ($1, $2, $3, $4, $5, 'owner', true, $6)
+            role, location_ids)
+         VALUES ($1, $2, $3, $4, $5, 'owner', '{}'::uuid[])
          RETURNING id, email, first_name, last_name, role`,
-        [org.id, email, passwordHash, firstName, lastName, location.id],
+        [org.id, email, passwordHash, firstName, lastName],
       );
       const employee = empRes.rows[0];
 
-      // Grant owner access to the new location
-      await client.query(
-        `INSERT INTO employee_locations (employee_id, location_id)
-         VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        [employee.id, location.id],
+      // Create first location, referencing the now-existing employee
+      const locRes = await client.query<{ id: string }>(
+        `INSERT INTO locations
+           (organization_id, name, address, timezone, currency, created_by)
+         VALUES ($1, $2, '{"city":"","state":"","country":"US"}'::jsonb,
+                 'America/New_York', 'USD', $3)
+         RETURNING id`,
+        [org.id, businessName, employee.id],
       );
+      const location = locRes.rows[0];
+
+      // Back-fill location into employee's location_ids array
+      await client.query(
+        'UPDATE employees SET location_ids = ARRAY[$1::uuid] WHERE id = $2',
+        [location.id, employee.id],
+      );
+
+      // Note: access is managed via employees.location_ids (no junction table)
 
       return { org, location, employee };
     });

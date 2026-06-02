@@ -126,10 +126,28 @@ async function findEmployeeById(employeeId: string): Promise<EmployeeRow | null>
   return rows[0] ?? null;
 }
 
-async function resolveOrgFromRequest(request: FastifyRequest): Promise<OrgRow | null> {
+async function findOrgByEmail(email: string): Promise<OrgRow | null> {
+  const { rows } = await query<OrgRow>(
+    `SELECT o.id, o.name, o.slug, o.deleted_at
+     FROM organizations o
+     JOIN employees e ON e.organization_id = o.id
+     WHERE lower(e.email) = lower($1) AND e.deleted_at IS NULL
+     ORDER BY e.created_at ASC
+     LIMIT 1`,
+    [email],
+  );
+  return rows[0] ?? null;
+}
+
+async function resolveOrgFromRequest(
+  request: FastifyRequest,
+  emailFallback?: string,
+): Promise<OrgRow | null> {
   const slug = (request.headers['x-organization-slug'] as string | undefined)?.trim();
-  if (!slug) return null;
-  return findOrgBySlug(slug);
+  if (slug) return findOrgBySlug(slug);
+  // Fall back to email-based lookup (allows login without knowing the org slug)
+  if (emailFallback) return findOrgByEmail(emailFallback);
+  return null;
 }
 
 // ─── Shared login completion (used by /login, /login/mfa, /login/pin) ────────
@@ -262,7 +280,8 @@ export async function registerAuthRoutes(fastify: FastifyInstance): Promise<void
     config: { rateLimit: { max: 5, timeWindow: 15 * 60 * 1000 } },
   }, async (request, reply) => {
     const body = parseBody(loginBodySchema, request.body);
-    const org = await resolveOrgFromRequest(request);
+    // Resolve org by slug header OR by email (so users don't need to know their slug)
+    const org = await resolveOrgFromRequest(request, body.email);
 
     if (!org || org.deleted_at) {
       await dummyPasswordDelay();

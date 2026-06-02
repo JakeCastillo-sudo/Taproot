@@ -149,9 +149,11 @@ async function buildApp(): Promise<any> {
       return req.ip;
     },
     errorResponseBuilder: (_req, context) => {
-      const ttl = (context as { ttl: number }).ttl;
-      const retryAfter = Math.ceil(ttl / 1000);
+      // context.ttl is ms until reset (v10 API)
+      const ctx = context as { ttl?: number; after?: string };
+      const retryAfter = ctx.ttl != null ? Math.ceil(ctx.ttl / 1000) : 60;
       return {
+        statusCode: 429,
         code:       'RATE_LIMITED',
         message:    `Too many requests. Retry after ${retryAfter} seconds.`,
         retryAfter,

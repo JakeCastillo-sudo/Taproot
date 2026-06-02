@@ -38,3 +38,94 @@
   processes on ports 3001, 5173-5178 before starting. Use `npm run dev:clean`
   instead of `npm run dev` to start cleanly.
 - Status: RESOLVED
+
+---
+
+## Prompt 20 QA Pass Findings
+
+### BUG-QA-001: Registration FK violation ✅ RESOLVED
+- Symptom: POST /api/v1/register → 500 "locations_created_by_fk" FK violation
+- Root cause: Code tried to insert location before employee existed (FK: locations.created_by → employees.id)
+- Fix: Reordered to employee → location → UPDATE employee.location_ids in withTransaction
+- Status: RESOLVED
+
+### BUG-QA-002 + BUG-QA-003: Wrong columns in registration INSERT ✅ RESOLVED
+- Symptom: "column is_active does not exist", "relation employee_locations does not exist"
+- Root cause: Service assumed is_active and employee_locations junction table; actual schema uses deleted_at and location_ids uuid[]
+- Fix: Removed is_active from INSERT; removed employee_locations INSERT; uses location_ids array instead
+- Status: RESOLVED
+
+### BUG-QA-004: employees.is_active in order service ✅ RESOLVED
+- Symptom: POST /api/v1/locations/:id/orders → 500 "column is_active does not exist"
+- Root cause: order.service.ts queried `SELECT id, is_active FROM employees` — employees table uses deleted_at
+- Fix: Changed to `SELECT id FROM employees WHERE ... AND deleted_at IS NULL`
+- Status: RESOLVED
+
+### BUG-QA-005: tax_rates table missing ✅ RESOLVED
+- Symptom: POST /api/v1/locations/:id/orders → 500 "relation tax_rates does not exist"
+- Root cause: calculateTax() queried non-existent tax_rates table; schema stores rates in locations.tax_config JSONB
+- Fix: Rewrote calculateTax() to read `{rates: [{name, rate, included}]}` from locations.tax_config; defaults to 0% if not configured
+- Status: RESOLVED
+
+### BUG-QA-006: getDashboardMetrics PostgreSQL 42P18 ✅ RESOLVED
+- Symptom: GET /api/v1/reports/dashboard → 500 "could not determine data type of parameter $2"
+- Root cause: Query passed `[orgId, null, timezone]` but $2 never appeared in SQL — PostgreSQL can't infer type of unused parameter
+- Fix: Changed params to `[orgId, timezone]`; all `$3` references in SQL updated to `$2`
+- Status: RESOLVED
+
+### BUG-QA-007: SQL injection in getDashboardMetrics ✅ RESOLVED
+- Symptom: locationId was string-interpolated: `AND location_id = '${locationId}'`
+- Risk: Low (locationId comes from validated JWT UUID) but violates parameterization standard
+- Fix: Replaced with bindings-array pattern; location condition now uses `$3` binding
+- Status: RESOLVED
+
+### BUG-QA-008: Rate limit returns HTTP 500 instead of 429 ✅ RESOLVED
+- Symptom: 6th login attempt returned HTTP 500 with RATE_LIMITED body instead of 429
+- Root cause: errorResponseBuilder accessed `context.ttl` without null guard; NaN result caused Fastify serialization error
+- Fix: Added null-safe `ctx.ttl != null ? Math.ceil(ctx.ttl/1000) : 60`; added `statusCode: 429` to response object
+- Status: RESOLVED
+
+### BUG-QA-009: Login fails for new registrations (no org slug) ✅ RESOLVED
+- Symptom: New users who just registered couldn't log in (don't know their org slug)
+- Root cause: Frontend sent x-organization-slug header based on hardcoded 'demo-restaurant'
+- Fix: Backend resolves org from email JOIN when no slug header provided; frontend no longer sends slug header
+- Status: RESOLVED
+
+### BUG-QA-010: processors.ts uses employees.is_active and employees.name ✅ RESOLVED
+- Symptom: Low-stock alert job would fail with column errors
+- Root cause: Queue processor queried `e.is_active = true` and `e.name` — neither exist on employees table
+- Fix: Changed to `e.deleted_at IS NULL` and `e.first_name || ' ' || e.last_name AS name`
+- Status: RESOLVED
+
+---
+
+## P3 — Low Priority (future backlog)
+
+### BUG-QA-011: MFA enforcement UI step missing
+- Symptom: Logging in with MFA-enabled account doesn't show TOTP prompt
+- Location: LoginPage.tsx:24 (TODO comment)
+- Fix needed: Add /login/mfa step; detect mfa_required in login response
+- Status: OPEN
+
+### BUG-QA-012: Create customer from POS search not wired
+- Symptom: "+" button in CustomerSearch doesn't open create modal
+- Location: CustomerSearch.tsx:180 (TODO comment)
+- Fix needed: Open CustomerCreateModal or navigate to /customers/new
+- Status: OPEN
+
+### BUG-QA-013: Tax configuration UI missing
+- Symptom: No way for restaurant owner to set their tax rate through UI
+- Root cause: tax_config JSONB exists on locations table but no settings UI
+- Fix needed: Add tax rate field to location settings page (Prompt 21 candidate)
+- Status: OPEN
+
+### BUG-QA-014: Top customers report empty
+- Symptom: GET /api/v1/reports/top-customers returns 0 rows
+- Root cause: Seed orders have customer_id = NULL (not linked to demo customers)
+- Fix needed: Update 008_demo_enrich.js seed to link orders to demo customers
+- Status: OPEN
+
+### BUG-QA-015: Data integrity check overpaid_orders too strict
+- Symptom: QA test flagged cash order with change_due as "overpaid"
+- Root cause: Check should be `SUM(payments) > total + change_due + 0.01`
+- Status: INFORMATIONAL — not a real bug, just overly strict check script

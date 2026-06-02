@@ -292,7 +292,10 @@ export async function getDashboardMetrics(
   locationId?: string,
   timezone   = 'UTC',
 ): Promise<DashboardMetrics> {
-  const locCondition = locationId ? `AND location_id = '${locationId}'` : '';
+  const mainBindings: unknown[] = [orgId, timezone];
+  const locCondition = locationId
+    ? (mainBindings.push(locationId), `AND location_id = $${mainBindings.length}`)
+    : '';
 
   const { rows: [r] } = await query<{
     today_sales:         string;
@@ -308,55 +311,59 @@ export async function getDashboardMetrics(
   }>(
     `SELECT
        -- today
-       COALESCE(SUM(total) FILTER (WHERE created_at AT TIME ZONE $3
-         >= date_trunc('day', now() AT TIME ZONE $3)
+       COALESCE(SUM(total) FILTER (WHERE created_at AT TIME ZONE $2
+         >= date_trunc('day', now() AT TIME ZONE $2)
          AND status NOT IN ('voided','parked')), 0)            AS today_sales,
-       COUNT(*)  FILTER (WHERE created_at AT TIME ZONE $3
-         >= date_trunc('day', now() AT TIME ZONE $3)
+       COUNT(*)  FILTER (WHERE created_at AT TIME ZONE $2
+         >= date_trunc('day', now() AT TIME ZONE $2)
          AND status NOT IN ('voided','parked'))                AS today_orders,
        COUNT(DISTINCT customer_id) FILTER (
-         WHERE created_at AT TIME ZONE $3
-           >= date_trunc('day', now() AT TIME ZONE $3)
+         WHERE created_at AT TIME ZONE $2
+           >= date_trunc('day', now() AT TIME ZONE $2)
            AND customer_id IS NOT NULL)                        AS today_customers,
        -- yesterday
-       COALESCE(SUM(total) FILTER (WHERE created_at AT TIME ZONE $3
-         >= date_trunc('day', now() AT TIME ZONE $3) - interval '1 day'
-         AND created_at AT TIME ZONE $3
-          < date_trunc('day', now() AT TIME ZONE $3)
+       COALESCE(SUM(total) FILTER (WHERE created_at AT TIME ZONE $2
+         >= date_trunc('day', now() AT TIME ZONE $2) - interval '1 day'
+         AND created_at AT TIME ZONE $2
+          < date_trunc('day', now() AT TIME ZONE $2)
          AND status NOT IN ('voided','parked')), 0)            AS yesterday_sales,
-       COUNT(*) FILTER (WHERE created_at AT TIME ZONE $3
-         >= date_trunc('day', now() AT TIME ZONE $3) - interval '1 day'
-         AND created_at AT TIME ZONE $3
-          < date_trunc('day', now() AT TIME ZONE $3)
+       COUNT(*) FILTER (WHERE created_at AT TIME ZONE $2
+         >= date_trunc('day', now() AT TIME ZONE $2) - interval '1 day'
+         AND created_at AT TIME ZONE $2
+          < date_trunc('day', now() AT TIME ZONE $2)
          AND status NOT IN ('voided','parked'))                AS yesterday_orders,
        COUNT(DISTINCT customer_id) FILTER (
-         WHERE created_at AT TIME ZONE $3
-           >= date_trunc('day', now() AT TIME ZONE $3) - interval '1 day'
-           AND created_at AT TIME ZONE $3
-            < date_trunc('day', now() AT TIME ZONE $3)
+         WHERE created_at AT TIME ZONE $2
+           >= date_trunc('day', now() AT TIME ZONE $2) - interval '1 day'
+           AND created_at AT TIME ZONE $2
+            < date_trunc('day', now() AT TIME ZONE $2)
            AND customer_id IS NOT NULL)                        AS yesterday_customers,
        -- this week (Mon-start)
-       COALESCE(SUM(total) FILTER (WHERE created_at AT TIME ZONE $3
-         >= date_trunc('week', now() AT TIME ZONE $3)
+       COALESCE(SUM(total) FILTER (WHERE created_at AT TIME ZONE $2
+         >= date_trunc('week', now() AT TIME ZONE $2)
          AND status NOT IN ('voided','parked')), 0)            AS week_sales,
-       COUNT(*) FILTER (WHERE created_at AT TIME ZONE $3
-         >= date_trunc('week', now() AT TIME ZONE $3)
+       COUNT(*) FILTER (WHERE created_at AT TIME ZONE $2
+         >= date_trunc('week', now() AT TIME ZONE $2)
          AND status NOT IN ('voided','parked'))                AS week_orders,
        -- this month
-       COALESCE(SUM(total) FILTER (WHERE created_at AT TIME ZONE $3
-         >= date_trunc('month', now() AT TIME ZONE $3)
+       COALESCE(SUM(total) FILTER (WHERE created_at AT TIME ZONE $2
+         >= date_trunc('month', now() AT TIME ZONE $2)
          AND status NOT IN ('voided','parked')), 0)            AS month_sales,
-       COUNT(*) FILTER (WHERE created_at AT TIME ZONE $3
-         >= date_trunc('month', now() AT TIME ZONE $3)
+       COUNT(*) FILTER (WHERE created_at AT TIME ZONE $2
+         >= date_trunc('month', now() AT TIME ZONE $2)
          AND status NOT IN ('voided','parked'))                AS month_orders
      FROM orders
      WHERE organization_id = $1
        AND created_at >= now() - interval '32 days'
        ${locCondition}`,
-    [orgId, null, timezone],
+    mainBindings,
   );
 
   // Top product today
+  const topBindings: unknown[] = [orgId, timezone];
+  const topLocCondition = locationId
+    ? (topBindings.push(locationId), `AND o.location_id = $${topBindings.length}`)
+    : '';
   const { rows: [top] } = await query<{ name: string; qty: string }>(
     `SELECT p.name, SUM(li.quantity) AS qty
      FROM order_line_items li
@@ -366,11 +373,11 @@ export async function getDashboardMetrics(
        AND o.created_at AT TIME ZONE $2 >= date_trunc('day', now() AT TIME ZONE $2)
        AND o.status NOT IN ('voided','parked')
        AND li.voided_at IS NULL
-       ${locCondition}
+       ${topLocCondition}
      GROUP BY p.name
      ORDER BY qty DESC
      LIMIT 1`,
-    [orgId, timezone],
+    topBindings,
   );
 
   const todayOrders   = parseInt(r?.today_orders   ?? '0', 10);

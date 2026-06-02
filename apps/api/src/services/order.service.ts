@@ -339,19 +339,28 @@ async function applyDiscounts(
 }
 
 // ─── calculateTax ─────────────────────────────────────────────────────────────
+// Tax rates are stored in locations.tax_config JSONB as:
+//   { rates: [{ name: string, rate: number, included: boolean }] }
+// If tax_config is missing or has no rates, returns 0.
 
 async function calculateTax(
   client: PoolClient,
-  orgId: string,
+  _orgId: string,
   taxableAmount: number,
+  locationId?: string,
 ): Promise<number> {
-  if (taxableAmount <= 0) return 0;
-  const { rows } = await client.query<{ rate: number }>(
-    `SELECT rate FROM tax_rates WHERE organization_id = $1 AND is_active = true`,
-    [orgId],
+  if (taxableAmount <= 0 || !locationId) return 0;
+  const { rows } = await client.query<{ tax_config: { rates?: Array<{ rate: number; included?: boolean }> } }>(
+    `SELECT tax_config FROM locations WHERE id = $1`,
+    [locationId],
   );
   if (rows.length === 0) return 0;
-  const totalRate = rows.reduce((s, r) => s + Number(r.rate), 0);
+  const rateEntries = rows[0].tax_config?.rates ?? [];
+  if (rateEntries.length === 0) return 0;
+  // Only sum non-included (exclusive) rates; included taxes are already in the price
+  const totalRate = rateEntries
+    .filter((r) => !r.included)
+    .reduce((s, r) => s + Number(r.rate), 0);
   return Math.round(taxableAmount * totalRate);
 }
 
@@ -435,6 +444,13 @@ async function recalcAndSaveOrder(
   );
   const subtotal = items.reduce((s, li) => s + Number(li.unit_price) * Number(li.quantity), 0);
 
+  // Look up location_id for tax calculation
+  const { rows: [orderRow] } = await client.query<{ location_id: string }>(
+    `SELECT location_id FROM orders WHERE id = $1`,
+    [orderId],
+  );
+  const locationId = orderRow?.location_id;
+
   // Reverse old discounts
   const { rows: oldDiscounts } = await client.query<AppliedDiscount>(
     `SELECT * FROM applied_discounts WHERE order_id = $1`,
@@ -460,7 +476,7 @@ async function recalcAndSaveOrder(
     client, orgId, subtotal, resolvedForDiscount, discountCodes, discountIds,
   );
   const discountTotal = discountApps.reduce((s, d) => s + d.amountSaved, 0);
-  const taxTotal = await calculateTax(client, orgId, Math.max(0, subtotal - discountTotal));
+  const taxTotal = await calculateTax(client, orgId, Math.max(0, subtotal - discountTotal), locationId);
   const total = subtotal - discountTotal + taxTotal;
 
   // Re-insert applied_discounts
@@ -499,12 +515,12 @@ export async function createOrder(
     );
     if (!loc || !loc.is_active || loc.deleted_at) throw new ValidationError('Location not found or inactive');
 
-    // Verify employee
-    const { rows: [emp] } = await client.query<{ id: string; is_active: boolean }>(
-      `SELECT id, is_active FROM employees WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+    // Verify employee (employees uses deleted_at for soft-delete, no is_active column)
+    const { rows: [emp] } = await client.query<{ id: string }>(
+      `SELECT id FROM employees WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
       [employeeId, orgId],
     );
-    if (!emp || !emp.is_active) throw new ValidationError('Employee not found or inactive');
+    if (!emp) throw new ValidationError('Employee not found or inactive');
 
     // Verify customer
     if (input.customerId) {
@@ -536,7 +552,7 @@ export async function createOrder(
     const discountTotal = discountApps.reduce((s, d) => s + d.amountSaved, 0);
 
     // Tax
-    const taxTotal = await calculateTax(client, orgId, Math.max(0, subtotal - discountTotal));
+    const taxTotal = await calculateTax(client, orgId, Math.max(0, subtotal - discountTotal), locationId);
     const total = subtotal - discountTotal + taxTotal;
 
     // Insert order (order_number='' → DB trigger generates it)
