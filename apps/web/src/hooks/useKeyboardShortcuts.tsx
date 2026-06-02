@@ -19,6 +19,7 @@ export const SHORTCUTS: ShortcutMap[] = [
   { key: '/',      label: '/',         description: 'Focus search bar' },
   { key: 'Escape', label: 'Esc',       description: 'Close any open sheet' },
   { key: 'Enter',  label: 'Enter',     description: 'Open payment (cart has items)' },
+  { key: 'k', ctrl: true, label: '⌘K', description: 'Open command palette' },
   { key: 'F2',     label: 'F2',        description: 'Park current order' },
   { key: 'F3',     label: 'F3',        description: 'Resume parked order' },
   { key: 'F4',     label: 'F4',        description: 'Focus customer search' },
@@ -30,14 +31,15 @@ export const SHORTCUTS: ShortcutMap[] = [
 ];
 
 export function useKeyboardShortcuts(opts?: {
-  onOpenPayment?:   () => void;
-  onParkOrder?:     () => void;
-  onResumeOrder?:   () => void;
-  onFocusSearch?:   () => void;
-  onFocusCustomer?: () => void;
-  onOpenDiscounts?: () => void;
-  onPrintReceipt?:  () => void;
-  onShowHelp?:      () => void;
+  onOpenPayment?:       () => void;
+  onParkOrder?:         () => void;
+  onResumeOrder?:       () => void;
+  onFocusSearch?:       () => void;
+  onFocusCustomer?:     () => void;
+  onOpenDiscounts?:     () => void;
+  onPrintReceipt?:      () => void;
+  onShowHelp?:          () => void;
+  onOpenCommandPalette?: () => void;
 }) {
   const {
     cart, clearCart, undoLastRemove,
@@ -63,6 +65,13 @@ export function useKeyboardShortcuts(opts?: {
       if (key === 'Escape') {
         if (isPaymentSheetOpen)  { setPaymentSheetOpen(false);  e.preventDefault(); return; }
         if (isModifierSheetOpen) { setModifierSheetOpen(false); e.preventDefault(); return; }
+        return;
+      }
+
+      // ⌘K / Ctrl+K — command palette (works even when a sheet is open)
+      if (key === 'k' && ctrl) {
+        e.preventDefault();
+        opts?.onOpenCommandPalette?.();
         return;
       }
 

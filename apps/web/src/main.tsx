@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 import './styles/design-system.css';
+import './styles/ios.css';
+import './styles/animations.css';
 
 // ── iOS Safari viewport fix ───────────────────────────────────────────────────
 // Sets --vh = 1% of the real inner height so `calc(var(--vh,1vh)*100)` works

@@ -323,5 +323,40 @@
   - All demo UUID prefixes documented in 008 migration header
   - `checkOrder: false` in migrate.ts is permanent (002 was seeded after 003-006 in earlier session)
 
+### Prompt 15 — PWA mobile optimization for iPad and iPhone ✅
+- **vite-plugin-pwa** installed; `vite.config.js` updated with VitePWA plugin (autoUpdate, Workbox
+  NetworkFirst for API routes, StaleWhileRevalidate for assets, offline-first strategy)
+- **manifest.json** rewritten: theme_color #1D9E75, orientation: any, display_override, 10 PNG icons
+  (72–512px, `any` + `maskable` purposes), 3 shortcuts (Register/Orders/Inventory) with icons
+- **scripts/generate-icons.js**: pure Node.js PNG generator (zlib+Buffer, no canvas/sharp); creates
+  Taproot green (#1D9E75) circle with white "T" at 72/96/128/144/152/192/384/512px
+- **styles/ios.css**: touch-action: manipulation globally; 100svh/100dvh viewport heights; safe area
+  insets; -webkit-overflow-scrolling; input font-size max(16px,1rem) to prevent iOS zoom; tap highlight
+- **styles/animations.css**: GPU-only animations (transform+opacity only); CSS timing vars
+  --anim-fast/base/slow; easing --ease-out/spring/decel; keyframes slide-up/down/in-left, fade,
+  scale-in, bounce-in, tap-pulse, toast-in, shimmer, spin, hint-in
+- **useSwipeGesture.ts**: touchstart/touchmove/touchend; threshold 50px; velocity 0.3px/ms; supports
+  all 4 directions + onMove + onRelease callbacks
+- **useHaptic.ts**: navigator.vibrate wrapper; light(10ms)/medium(30ms)/heavy(60ms)/success([15,50,15])
+  /error([40,30,40,30,40])/custom patterns; silent fallback on unsupported devices
+- **useOrientation.ts**: viewport-based orientation detection (not unreliable ScreenOrientation API);
+  isTablet (≥768px), orientation, showHint (tablet+portrait)
+- **BottomSheet.tsx**: drag handle + swipe-down to dismiss (useSwipeGesture); body scroll lock; safe
+  area padding; backdrop tap close; Escape key; animate-slide-up; BottomSheetFooter exported
+- **MobileCart.tsx**: floating FAB with badge (cart item count) + total; opens BottomSheet;
+  per-item qty steppers + Remove; totals section; sticky Charge CTA above safe area; haptic feedback
+- **CommandPalette.tsx**: ⌘K launcher; fuzzy search; grouped actions with icons/descriptions/shortcuts;
+  ↑↓ arrow nav + Enter select; Esc close; auto-scrolls selected into view
+- **useKeyboardShortcuts.tsx**: added onOpenCommandPalette callback; ⌘K/Ctrl+K fires even when
+  sheets are open (unlike other shortcuts); ⌘K entry added to SHORTCUTS display list
+- **POSLayout.tsx** fully responsive:
+  - iPhone (<md): 2-col grid, bottom nav (Register/Inventory/Reports/More), MobileCart FAB
+  - iPad portrait (md, not lg): hamburger → overlay sidebar (animate-slide-in-left), MobileCart FAB bottom-right, 3-col grid
+  - iPad landscape / desktop (lg+): full 3-col inline layout (w-48 sidebar / flex / w-80 cart)
+  - SidebarContent extracted as shared component (inline + overlay share same markup)
+  - CommandPalette integrated with 8 actions across Navigate/Cart/Search/Help groups
+  - haptic feedback on product tap (light) and long-press (medium)
+- **Typecheck**: 0 errors (both apps/api and apps/web)
+
 ## Next Prompt
-Prompt 15 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding
+Prompt 16 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding
