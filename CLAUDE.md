@@ -483,6 +483,42 @@
 
 **Typecheck**: 0 errors (both apps). **ESLint**: 0 errors, 30 warnings (pre-existing).
 
+### Prompt 19 — Open for Business: Onboarding Wizard ✅
+
+**Backend:**
+- `migrations/010_partner_codes.js` — partner_codes table (code, partner_name, trial_days, is_active, uses_count, max_uses, expires_at); seeded TAPROOT30 (30d) + EARLYBIRD (21d)
+- `apps/api/src/services/referral.service.ts` — getTrialDays(referralSource, partnerCode?): queries partner_codes, validates, falls back to 14d; trackReferral(): updates org.metadata, increments uses_count, audit log
+- `apps/api/src/routes/registration.routes.ts` — updated to use getTrialDays() + trackReferral(); returns `{ accessToken, refreshToken, employee: { ...orgId, locationIds, permissions }, trialEndsAt, trialDays }`; partnerCode param added
+- `apps/api/src/routes/onboarding.routes.ts` — GET/POST /onboarding/status (JSONB merge), POST /onboarding/complete, POST /onboarding/menu-from-url (server-side fetch + strip HTML + createImportJob)
+- `apps/api/src/index.ts` — registered onboardingRoutes
+
+**Frontend — state + hooks:**
+- `apps/web/src/store/onboarding.store.ts` — Zustand persist; org-scoped key; actions: setStep, skipStep, completeOnboarding, updateBusinessInfo/MenuUpload/RecipeSetup/StripeConnect; partialize: returns {} if isComplete
+- `apps/web/src/hooks/useOnboardingGate.ts` — shouldShowOnboarding: isOwner && !isComplete && productCount < 5
+- `apps/web/src/hooks/useOnboardingResume.ts` — resume banner: owner, !complete, step !== 'welcome', started >5min ago, not dismissed (24hr)
+- `apps/web/src/lib/analytics.ts` — onboarding funnel events: onboardingStarted/StepViewed/StepCompleted/StepSkipped/Abandoned, menuUpload*, menuItemsApproved, recipeSetup*, stripeConnected, onboardingCompleted
+
+**Frontend — step components:**
+- `apps/web/src/components/onboarding/WelcomeStep.tsx` — bouncing 🌿, staggered timeline, "Let's go →"
+- `apps/web/src/components/onboarding/MenuUploadStep.tsx` — 4 cards (PDF/photo, CSV, URL, manual), polling import jobs, drag-and-drop, CSV template blob, DemoMenuButton
+- `apps/web/src/components/onboarding/ManualEntryStep.tsx` — 4-column spreadsheet table, Tab/Enter navigation, Excel TSV paste
+- `apps/web/src/components/onboarding/DemoMenuButton.tsx` — 14-item hardcoded sample menu (isDemo: true)
+- `apps/web/src/components/onboarding/MenuReviewStep.tsx` — category tabs, inline cell editing, confidence dots (green/amber/red), bulk select/delete/move, DEMO badge, flagged items sorted to top
+- `apps/web/src/components/onboarding/RecipeSetupStep.tsx` — 3 benefit cards, file upload or text paste, polling import job, done/error states
+- `apps/web/src/components/onboarding/StripeConnectStep.tsx` — card logos, POST /connect/account, opens Stripe tab, polls status every 5s, waiting/connected states
+- `apps/web/src/components/onboarding/CompleteStep.tsx` — canvas-confetti burst, animated SVG checkmark, summary chips, 3 action cards, fires analytics + POST /onboarding/complete
+
+**Frontend — page + routing:**
+- `apps/web/src/pages/OnboardingPage.tsx` — full-screen shell; progress bar; step label + "Step X of 4"; Skip/Back/Exit (×) buttons; CSS slide transitions; step rendering switch; confirms import job on review approve (non-blocking); analytics per step
+- `apps/web/src/pages/RegisterPage.tsx` — updated response parsing (`accessToken` not `tokens.accessToken`); redirect to /onboarding; partnerCode URL param + input; extended referral dropdown (Reddit/Facebook/review_site); saves businessInfo to onboarding store
+- `apps/web/src/App.tsx` — added /onboarding → OnboardingPage (RequireAuth)
+
+**Fixes:**
+- MenuUploadStep/RecipeSetupStep: `parsed_data` → `mapping_config` (correct ImportJob field)
+- OnboardingPage: `importsApi.confirm(jobId, locationId)` — passes required locationId arg
+
+**Typecheck**: 0 errors (both apps). **ESLint**: 0 errors, 14 web warnings / 33 API warnings (all pre-existing).
+
 ### Prompt 18 — Beta: Subscription billing & registration ✅
 
 **Backend:**
@@ -537,4 +573,4 @@
 **Typecheck**: 0 errors (both apps). **ESLint**: 0 errors, 33 API warnings / 12 web warnings (all pre-existing).
 
 ## Next Prompt
-Prompt 19 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding
+Prompt 20 — Settings page: location settings, employee management, tax rates, printer config, Stripe Connect onboarding

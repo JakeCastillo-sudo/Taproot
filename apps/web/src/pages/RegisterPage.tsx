@@ -8,7 +8,7 @@ import { analytics } from '../lib/analytics';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type BusinessType = 'restaurant' | 'cafe' | 'bar' | 'retail' | 'food_truck' | 'other';
-type ReferralSource = 'legalzoom' | 'google' | 'referral' | 'other';
+type ReferralSource = 'legalzoom' | 'google' | 'reddit' | 'facebook' | 'referral' | 'review_site' | 'other';
 
 const BUSINESS_TYPES: { value: BusinessType; label: string; emoji: string }[] = [
   { value: 'restaurant', label: 'Restaurant',  emoji: '🍽️' },
@@ -41,6 +41,7 @@ export function RegisterPage() {
   const navigate       = useNavigate();
   const [params]       = useSearchParams();
   const ref            = params.get('ref');
+  const partnerCode    = params.get('code') ?? '';
   const isLegalZoom    = ref === 'legalzoom';
   const trialDays      = isLegalZoom ? 30 : 14;
 
@@ -62,6 +63,7 @@ export function RegisterPage() {
   const [referralSource, setReferralSource] = useState<ReferralSource | ''>(
     isLegalZoom ? 'legalzoom' : '',
   );
+  const [partnerCodeInput, setPartnerCodeInput] = useState(partnerCode);
 
   const pwStrength = passwordStrength(password);
 
@@ -102,31 +104,45 @@ export function RegisterPage() {
 
     try {
       const data = await apiFetch<{
-        tokens: { accessToken: string; refreshToken: string };
-        employee: { id: string; email: string; firstName: string; lastName: string; role: string };
-        org: { id: string; name: string; slug: string };
+        accessToken:  string;
+        refreshToken: string;
+        employee: {
+          id: string; email: string; firstName: string; lastName: string;
+          role: string; orgId: string; locationIds: string[]; permissions: string[];
+        };
+        org:      { id: string; name: string; slug: string };
         location: { id: string };
         trialDays: number;
       }>('/api/v1/register', {
         method: 'POST',
         body: JSON.stringify({
           firstName, lastName, email, password, businessName, businessType,
-          phone: phone || undefined,
-          referralSource: referralSource || undefined,
+          phone:         phone           || undefined,
+          referralSource:referralSource  || undefined,
+          partnerCode:   partnerCodeInput.trim() || undefined,
         }),
       });
 
       // Store tokens + user
-      localStorage.setItem(TOKEN_KEY,         data.tokens.accessToken);
-      localStorage.setItem(REFRESH_TOKEN_KEY, data.tokens.refreshToken);
+      localStorage.setItem(TOKEN_KEY,         data.accessToken);
+      localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
       localStorage.setItem(USER_KEY,          JSON.stringify(data.employee));
+
+      // Update onboarding store with business info
+      try {
+        const { useOnboardingStore } = await import('../store/onboarding.store');
+        useOnboardingStore.getState().updateBusinessInfo({
+          name: businessName,
+          type: businessType,
+        });
+      } catch { /* non-blocking */ }
 
       // Analytics
       analytics.trialStarted(referralSource || undefined);
 
       // Brief loading delay for animation effect
       await new Promise((r) => setTimeout(r, 1200));
-      navigate('/', { replace: true });
+      navigate('/onboarding', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
       setStep(2);
@@ -134,7 +150,7 @@ export function RegisterPage() {
       setLoading(false);
     }
   }, [step1Valid, step2Valid, firstName, lastName, email, password, businessName,
-      businessType, phone, referralSource, navigate]);
+      businessType, phone, referralSource, partnerCodeInput, navigate]);
 
   return (
     <div className="min-h-screen bg-surface-2 flex items-center justify-center p-4">
@@ -351,10 +367,37 @@ export function RegisterPage() {
                   >
                     <option value="">Select one…</option>
                     <option value="google">Google Search</option>
+                    <option value="reddit">Reddit</option>
+                    <option value="facebook">Facebook</option>
+                    <option value="referral">A friend or colleague</option>
+                    <option value="review_site">Review site (Capterra, G2…)</option>
                     <option value="legalzoom">LegalZoom</option>
-                    <option value="referral">A friend / colleague</option>
                     <option value="other">Other</option>
                   </select>
+                </div>
+              )}
+
+              {/* Partner code (pre-filled from ?code= URL param) */}
+              {partnerCodeInput && (
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-md">
+                  <Leaf size={14} className="text-primary shrink-0" />
+                  <p className="text-xs text-primary font-medium">
+                    Partner code <strong>{partnerCodeInput.toUpperCase()}</strong> applied
+                  </p>
+                </div>
+              )}
+              {!partnerCodeInput && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Partner code <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={partnerCodeInput}
+                    onChange={(e) => setPartnerCodeInput(e.target.value.toUpperCase())}
+                    placeholder="e.g. TAPROOT30"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-md bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors font-mono uppercase tracking-wider"
+                  />
                 </div>
               )}
 

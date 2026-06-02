@@ -26,6 +26,7 @@ import aiRoutes from './routes/ai.routes';
 import migrationRoutes from './routes/migration.routes';
 import registrationRoutes from './routes/registration.routes';
 import billingRoutes from './routes/billing.routes';
+import onboardingRoutes from './routes/onboarding.routes';
 import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
 import { checkSubscription } from './middleware/subscription';
@@ -204,6 +205,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(aiRoutes);
   await fastify.register(migrationRoutes);
   await fastify.register(billingRoutes);
+  await fastify.register(onboardingRoutes);
 
   // ─── Monitoring: Prometheus metrics + structured health ───────────────────────
   await registerMonitoring(fastify);

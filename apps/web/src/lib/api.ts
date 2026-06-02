@@ -1019,3 +1019,29 @@ export const registrationApi = {
       body:   JSON.stringify({ email }),
     }),
 };
+
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+
+export interface OnboardingProgress {
+  [key: string]: unknown;
+}
+
+export const onboardingApi = {
+  getStatus: () =>
+    apiFetch<{ progress: OnboardingProgress | null }>('/onboarding/status'),
+
+  saveStatus: (step: string, status: string, data?: Record<string, unknown>) =>
+    apiFetch<{ ok: boolean }>('/onboarding/status', {
+      method: 'POST',
+      body:   JSON.stringify({ step, status, data }),
+    }),
+
+  complete: () =>
+    apiFetch<{ ok: boolean }>('/onboarding/complete', { method: 'POST' }),
+
+  menuFromUrl: (url: string) =>
+    apiFetch<{ jobId: string; status: string }>('/onboarding/menu-from-url', {
+      method: 'POST',
+      body:   JSON.stringify({ url }),
+    }),
+};

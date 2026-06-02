@@ -24,6 +24,7 @@ import { signAccessToken, signRefreshToken } from '../auth/jwt';
 import { createAuditLog } from '../auth/audit';
 import { DEFAULT_ROLE_PERMISSIONS } from '../auth/permissions';
 import { sendWelcomeEmail } from '../services/email.service';
+import { getTrialDays, trackReferral } from '../services/referral.service';
 import { config } from '../config';
 
 // ─── Validation schema ────────────────────────────────────────────────────────
@@ -36,7 +37,8 @@ const RegisterSchema = z.object({
   businessName:   z.string().min(1).max(255),
   businessType:   z.enum(['restaurant', 'cafe', 'bar', 'retail', 'food_truck', 'other']),
   phone:          z.string().max(50).optional(),
-  referralSource: z.enum(['legalzoom', 'google', 'referral', 'other']).optional(),
+  referralSource: z.string().max(100).optional(),  // 'google'|'reddit'|'facebook'|'friend'|etc.
+  partnerCode:    z.string().max(100).optional(),  // partner code → extended trial
 });
 
 // ─── Slug generation ──────────────────────────────────────────────────────────
@@ -94,7 +96,7 @@ export default async function registrationRoutes(fastify: FastifyInstance): Prom
     }
 
     const { firstName, lastName, email, password, businessName,
-            businessType, phone, referralSource } = parsed.data;
+            businessType, phone, referralSource, partnerCode } = parsed.data;
 
     // Check email availability
     const emailCheck = await query(
@@ -111,28 +113,22 @@ export default async function registrationRoutes(fastify: FastifyInstance): Prom
     // Hash password
     const passwordHash = await bcrypt.hash(password, config.BCRYPT_ROUNDS);
 
-    // LegalZoom trial extension
-    const isLegalZoom = referralSource === 'legalzoom';
-    const trialDays   = isLegalZoom ? 30 : 14;
+    // Data-driven trial length — partner codes extend the trial
+    const trialDays   = await getTrialDays(referralSource ?? 'direct', partnerCode);
     const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
 
     // ── Transactional creation ──────────────────────────────────────────────────
     const { org, location, employee } = await withTransaction(async (client) => {
       const slug = await uniqueSlug(toSlug(businessName));
 
-      // Metadata tags for LegalZoom tracking
-      const metadata = isLegalZoom
-        ? JSON.stringify({ tags: ['legalzoom'] })
-        : JSON.stringify({});
-
       // Create organization
       const orgRes = await client.query<{ id: string; name: string; slug: string }>(
         `INSERT INTO organizations
            (name, slug, plan, billing_email, trial_ends_at,
             subscription_status, referral_source, metadata)
-         VALUES ($1, $2, 'trial', $3, $4, 'trialing', $5, $6::jsonb)
+         VALUES ($1, $2, 'trial', $3, $4, 'trialing', $5, '{}'::jsonb)
          RETURNING id, name, slug`,
-        [businessName, slug, email, trialEndsAt, referralSource ?? null, metadata],
+        [businessName, slug, email, trialEndsAt, referralSource ?? null],
       );
       const org = orgRes.rows[0];
 
@@ -175,11 +171,15 @@ export default async function registrationRoutes(fastify: FastifyInstance): Prom
       organizationId: org.id,
       actorId:        employee.id,
       actorType:      'employee',
-      action:         isLegalZoom ? 'org.created_via_legalzoom' : 'org.created',
+      action:         'org.created',
       resourceType:   'organization',
       resourceId:     org.id,
-      metadata:       { businessType, referralSource, trialDays },
+      metadata:       { businessType, referralSource, partnerCode, trialDays },
     });
+
+    // ── Track referral (updates org metadata, increments partner code counter) ─
+    trackReferral(org.id, referralSource, partnerCode)
+      .catch((err) => fastify.log.warn({ err }, '[registration] referral tracking failed'));
 
     // ── Generate JWT tokens ────────────────────────────────────────────────────
     const sessionId    = crypto.randomUUID();
@@ -205,11 +205,14 @@ export default async function registrationRoutes(fastify: FastifyInstance): Prom
       accessToken,
       refreshToken,
       employee: {
-        id:        employee.id,
-        email:     employee.email,
-        firstName: employee.first_name,
-        lastName:  employee.last_name,
-        role:      employee.role,
+        id:          employee.id,
+        email:       employee.email,
+        firstName:   employee.first_name,
+        lastName:    employee.last_name,
+        role:        employee.role,
+        orgId:       org.id,
+        locationIds: [location.id],
+        permissions: permissions as unknown as string[],
       },
       org: {
         id:   org.id,

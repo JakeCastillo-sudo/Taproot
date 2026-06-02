@@ -17,6 +17,7 @@ import { UpgradePage } from './pages/UpgradePage';
 import { LandingPage } from './pages/LandingPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
+import { OnboardingPage } from './pages/OnboardingPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -188,6 +189,16 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/privacy"  element={<PrivacyPage />} />
           <Route path="/terms"    element={<TermsPage />} />
+
+          {/* ── Onboarding wizard ─────────────────────────────────────────── */}
+          <Route
+            path="/onboarding"
+            element={
+              <RequireAuth>
+                <OnboardingPage />
+              </RequireAuth>
+            }
+          />
 
           {/* ── Protected app routes ──────────────────────────────────────── */}
           <Route
