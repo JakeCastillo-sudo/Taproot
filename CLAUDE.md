@@ -617,5 +617,44 @@
 - `orders.order_type` CHECK: `in_store|takeout|delivery|table_service|online|phone` (NOT dine_in)
 - Demo account: `demo@taproot.pos` — password reset to `TaprootDemo123` (was unknown)
 
+### Prompt 21 — Ghost Mode Deployment: Vercel + Railway ✅
+
+**Goal:** Zero-cost live demo URL — Vercel (frontend) + Railway (backend + PostgreSQL + Redis).
+No AWS. No Docker required for local dev.
+
+**Target URLs:**
+- Frontend: https://taproot-pos.vercel.app
+- Backend:  https://taproot-api.up.railway.app
+- Login:    demo@taproot.pos / TaprootDemo2026!
+
+**Files created:**
+
+| File | Purpose |
+|---|---|
+| `railway.json` | Builder: NIXPACKS; `releaseCommand` runs migrations before deploy goes live; `startCommand` runs server |
+| `nixpacks.toml` | Nixpacks build phases: `npm ci` → build shared → build api |
+| `scripts/railway-migrate.js` | Railway `releaseCommand` — runs compiled `apps/api/dist/db/migrate.js`, exits 0/1 |
+| `docs/RAILWAY_ENV.md` | All env vars with copy-paste `openssl rand -hex 32` commands |
+| `vercel.json` | SPA rewrite routing (all paths → index.html), long-cache for assets, security headers |
+| `apps/web/.env.production` | `VITE_API_URL=https://taproot-api.up.railway.app` (baked into Vite bundle) |
+
+**Architecture decisions:**
+- `releaseCommand` (not startCommand wrapper) for migrations — if migrations fail, Railway cancels the deploy and the old version keeps serving
+- Shared package built first in both nixpacks.toml and railway.json buildCommand — required so `@taproot/shared` symlink resolves at api compile time
+- `APP_URL=https://taproot-pos.vercel.app` on Railway — used for CORS allow-origin and email links (NOT the backend URL)
+- `.env.production` is safe to commit — contains only `VITE_*` vars which are public bundle constants, not secrets
+- Rate limits relaxed in dev (100/15 min) via `rl()` helper in auth/routes.ts; production keeps original strict limits
+
+**Railway setup checklist:**
+1. Create Railway project → add PostgreSQL plugin + Redis plugin (auto-injects DATABASE_URL + REDIS_URL)
+2. Set env vars from docs/RAILWAY_ENV.md (generate secrets with `openssl rand -hex 32`)
+3. Connect GitHub repo → Railway auto-deploys on push to main
+4. Railway runs: `npm ci` → build shared → build api → `node scripts/railway-migrate.js` → `node apps/api/dist/index.js`
+
+**Vercel setup checklist:**
+1. Import GitHub repo at vercel.com → framework = Other (vercel.json auto-detected)
+2. (Optional) Set `VITE_API_URL=https://taproot-api.up.railway.app` in Vercel env vars to override .env.production
+3. Vercel runs: `npm install` → build shared → build web → deploy `apps/web/dist/`
+
 ## Next Prompt
-Prompt 21 — Settings page: location settings, employee management, tax rates UI, printer config
+Prompt 22 — Settings page: location settings, employee management, tax rates UI, printer config

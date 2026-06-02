@@ -8,6 +8,8 @@ coverage/
 .env
 .env.staging
 .env.production
+# apps/web/.env.production is safe to commit — only contains VITE_API_URL (public bundle constant, not a secret)
+!apps/web/.env.production
 logs/
 *.log
 apps/api/uploads/*
