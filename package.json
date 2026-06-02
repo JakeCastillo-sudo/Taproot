@@ -22,7 +22,7 @@
     "lint": "eslint apps/api/src apps/web/src --ext .ts,.tsx",
     "lint:api": "npm run lint --workspace=@taproot/api",
     "lint:web": "npm run lint --workspace=@taproot/web",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
