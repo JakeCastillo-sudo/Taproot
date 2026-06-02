@@ -179,7 +179,7 @@ jobs:
 
       # ── Web: S3 + CloudFront ──────────────────────────────────────────────────
       - name: Download web dist
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: web-dist-staging
           path: apps/web/dist
@@ -299,7 +299,7 @@ jobs:
 
       # ── Web: S3 + CloudFront ──────────────────────────────────────────────────
       - name: Download web dist
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: web-dist-production
           path: apps/web/dist
