@@ -275,9 +275,20 @@ async function completeLogin(opts: LoginCompletionOpts): Promise<FastifyReply> {
 
 export async function registerAuthRoutes(fastify: FastifyInstance): Promise<void> {
 
+  // ── Dev-mode rate limit helper ───────────────────────────────────────────────
+  // In development: all auth routes allow 100 req/15 min so the demo account
+  // doesn't get locked out during normal local testing.
+  // In production: the original strict per-route limits are preserved.
+  const isDev = config.NODE_ENV === 'development';
+  const rl = (prodMax: number, prodWindow: number) => ({
+    rateLimit: isDev
+      ? { max: 100, timeWindow: 15 * 60 * 1000 }
+      : { max: prodMax, timeWindow: prodWindow },
+  });
+
   // ── POST /login ─────────────────────────────────────────────────────────────
   fastify.post('/login', {
-    config: { rateLimit: { max: 5, timeWindow: 15 * 60 * 1000 } },
+    config: rl(5, 15 * 60 * 1000),
   }, async (request, reply) => {
     const body = parseBody(loginBodySchema, request.body);
     // Resolve org by slug header OR by email (so users don't need to know their slug)
@@ -338,7 +349,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance): Promise<void
 
   // ── POST /login/mfa ─────────────────────────────────────────────────────────
   fastify.post('/login/mfa', {
-    config: { rateLimit: { max: 3, timeWindow: 5 * 60 * 1000 } },
+    config: rl(3, 5 * 60 * 1000),
   }, async (request, reply) => {
     const body = parseBody(loginMfaBodySchema, request.body);
 
@@ -407,7 +418,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance): Promise<void
 
   // ── POST /login/pin ─────────────────────────────────────────────────────────
   fastify.post('/login/pin', {
-    config: { rateLimit: { max: 10, timeWindow: 5 * 60 * 1000 } },
+    config: rl(10, 5 * 60 * 1000),
   }, async (request, reply) => {
     const body = parseBody(loginPinBodySchema, request.body);
 
@@ -459,7 +470,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance): Promise<void
 
   // ── POST /refresh ───────────────────────────────────────────────────────────
   fastify.post('/refresh', {
-    config: { rateLimit: { max: 20, timeWindow: 60 * 1000 } },
+    config: rl(20, 60 * 1000),
   }, async (request, reply) => {
     const { refreshToken: rawToken } = parseBody(refreshBodySchema, request.body);
 
@@ -763,7 +774,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance): Promise<void
 
   // ── POST /password/reset/request ──────────────────────────────────────────────
   fastify.post('/password/reset/request', {
-    config: { rateLimit: { max: 3, timeWindow: 15 * 60 * 1000 } },
+    config: rl(3, 15 * 60 * 1000),
   }, async (request, reply) => {
     const { email } = parseBody(passwordResetRequestSchema, request.body);
 
@@ -807,7 +818,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance): Promise<void
 
   // ── POST /password/reset/confirm ──────────────────────────────────────────────
   fastify.post('/password/reset/confirm', {
-    config: { rateLimit: { max: 5, timeWindow: 15 * 60 * 1000 } },
+    config: rl(5, 15 * 60 * 1000),
   }, async (request, reply) => {
     const body = parseBody(passwordResetConfirmSchema, request.body);
     const tokenHash = hashToken(body.token);

@@ -209,6 +209,21 @@ async function buildApp(): Promise<any> {
   await fastify.register(billingRoutes);
   await fastify.register(onboardingRoutes);
 
+  // ─── Dev-only utilities (never registered in production) ──────────────────────
+  //
+  // POST /api/v1/dev/reset-rate-limits
+  //   Calls redis.flushall() so the demo account's rate-limit counters are cleared
+  //   without needing to restart the server or wait for the window to expire.
+  //   No auth required — this endpoint is registered only when NODE_ENV=development.
+  if (config.NODE_ENV === 'development') {
+    fastify.post('/api/v1/dev/reset-rate-limits', async (_req, reply) => {
+      const redis = getPublisher();
+      await redis.flushall();
+      fastify.log.warn('DEV: Redis flushed via /api/v1/dev/reset-rate-limits');
+      return reply.send({ success: true });
+    });
+  }
+
   // ─── Monitoring: Prometheus metrics + structured health ───────────────────────
   await registerMonitoring(fastify);
 
@@ -286,6 +301,8 @@ async function buildApp(): Promise<any> {
     // Registration — public
     'POST /api/v1/register',
     'POST /api/v1/register/check-email',
+    // Dev-only — this route is not registered in production so this entry is harmless
+    ...(config.NODE_ENV === 'development' ? ['POST /api/v1/dev/reset-rate-limits'] : []),
   ]);
 
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
