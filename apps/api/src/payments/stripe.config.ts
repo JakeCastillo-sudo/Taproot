@@ -28,13 +28,17 @@ export function validateStripeMode(): void {
   const env = config.NODE_ENV;
 
   if (env === 'production') {
-    if (!key.startsWith('sk_live_')) {
-      throw new Error(
-        '[Stripe] Production requires a live key (sk_live_...). Got: ' +
-          key.substring(0, 12) + '...',
-      );
+    // Missing key is already caught by validateConfig() — just guard against it here.
+    if (!key) return;
+
+    if (key.startsWith('sk_live_')) {
+      console.info('[Stripe] LIVE mode active — real charges enabled');
+    } else {
+      // Warn but do NOT throw — ghost-mode beta runs with test keys on Railway
+      // until real payments are enabled. validateConfig() emits the same warning.
+      console.warn('[Stripe] [WARNING] Using Stripe TEST keys in production — real payments will not process');
+      console.info('[Stripe] TEST mode active in production environment');
     }
-    console.info('[Stripe] LIVE mode active — real charges enabled');
   } else if (env === 'test') {
     // In CI/test, accept either — but never live
     if (key.startsWith('sk_live_')) {

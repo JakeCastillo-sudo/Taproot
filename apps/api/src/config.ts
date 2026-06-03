@@ -83,7 +83,8 @@ export const config = {
   /**
    * Stripe platform secret key.
    * Development: sk_test_...
-   * Production:  sk_live_... (validated at startup in production)
+   * Beta/ghost mode: sk_test_... (warned at startup — no real charges)
+   * Production revenue: sk_live_... (required before accepting real money)
    * @see https://dashboard.stripe.com/apikeys
    */
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? '',
@@ -232,6 +233,7 @@ export const config = {
 
 export function validateConfig(): void {
   const errors: string[] = [];
+  const warnings: string[] = [];
 
   // ── Always required ─────────────────────────────────────────────────────────
   const required: Array<keyof typeof config> = [
@@ -258,33 +260,50 @@ export function validateConfig(): void {
     errors.push('JWT_RS256_PUBLIC_KEY is required when JWT_RS256_PRIVATE_KEY is set');
   }
 
-  // ── Production-only strict checks ──────────────────────────────────────────
+  // ── Production checks ──────────────────────────────────────────────────────
   if (config.NODE_ENV === 'production') {
     if (config.JWT_SECRET.length < 64) {
       errors.push('JWT_SECRET must be >= 64 characters in production (use openssl rand -hex 64)');
     }
 
-    if (config.STRIPE_SECRET_KEY && !config.STRIPE_SECRET_KEY.startsWith('sk_live_')) {
-      errors.push('STRIPE_SECRET_KEY must start with "sk_live_" in production');
+    // Stripe secret key — hard-fail if missing; warn (don't crash) on test keys so
+    // ghost-mode beta can run on Railway with sk_test_ before going live.
+    if (!config.STRIPE_SECRET_KEY) {
+      errors.push('STRIPE_SECRET_KEY is required in production');
+    } else if (!config.STRIPE_SECRET_KEY.startsWith('sk_live_')) {
+      warnings.push('[WARNING] Using Stripe TEST keys in production — real payments will not process. Set STRIPE_SECRET_KEY=sk_live_... before accepting real money.');
     }
 
+    // Webhook secrets — warn only; test whsec_ values are valid for beta.
     if (config.STRIPE_WEBHOOK_SECRET && !config.STRIPE_WEBHOOK_SECRET.startsWith('whsec_')) {
-      errors.push('STRIPE_WEBHOOK_SECRET must start with "whsec_" in production');
+      warnings.push('[WARNING] STRIPE_WEBHOOK_SECRET does not start with "whsec_" — webhook signature verification will fail');
     }
 
     if (config.STRIPE_CONNECT_WEBHOOK_SECRET &&
         !config.STRIPE_CONNECT_WEBHOOK_SECRET.startsWith('whsec_')) {
-      errors.push('STRIPE_CONNECT_WEBHOOK_SECRET must start with "whsec_" in production');
+      warnings.push('[WARNING] STRIPE_CONNECT_WEBHOOK_SECRET does not start with "whsec_" — Connect webhook verification will fail');
     }
 
+    if (config.STRIPE_TERMINAL_WEBHOOK_SECRET &&
+        !config.STRIPE_TERMINAL_WEBHOOK_SECRET.startsWith('whsec_')) {
+      warnings.push('[WARNING] STRIPE_TERMINAL_WEBHOOK_SECRET does not start with "whsec_" — Terminal webhook verification will fail');
+    }
+
+    // SSL — warn only; Railway injects a DATABASE_URL that already uses SSL
+    // but may not include the explicit sslmode= query param.
     if (!config.DATABASE_URL.includes('sslmode=require') &&
         !config.DATABASE_URL.includes('ssl=true')) {
-      errors.push('DATABASE_URL must use SSL in production (append ?sslmode=require)');
+      warnings.push('[WARNING] DATABASE_URL does not explicitly include SSL mode. Railway PostgreSQL uses SSL by default; add ?sslmode=require if connecting from outside Railway.');
     }
 
     if (!config.ANTHROPIC_API_KEY) {
-      errors.push('ANTHROPIC_API_KEY is required in production for AI features');
+      warnings.push('[WARNING] ANTHROPIC_API_KEY is not set — AI import and NL query features will be unavailable');
     }
+  }
+
+  // ── Emit warnings to stderr before potentially throwing ───────────────────
+  for (const w of warnings) {
+    console.warn(w);
   }
 
   if (errors.length > 0) {
