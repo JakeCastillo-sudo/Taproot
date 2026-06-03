@@ -44,13 +44,13 @@ module.exports = {
       // Environment: staging
       env_staging: {
         NODE_ENV: 'staging',
-        PORT:     3001,
+        PORT:     3001, // Keep this for local staging, but production will use Railway's PORT
       },
 
       // Environment: production
       env_production: {
         NODE_ENV: 'production',
-        PORT:     3001,
+        // PORT is injected by Railway; do not override
       },
     },
   ],
