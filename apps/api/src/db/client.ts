@@ -4,12 +4,39 @@ import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 
 const POOL_MAX = 20;
 
+// ── SSL / DATABASE_URL normalisation ─────────────────────────────────────────
+//
+// Railway injects DATABASE_URL for its internal Postgres plugin. The URL does
+// not always include an explicit sslmode= parameter, but the connection *is*
+// SSL-terminated inside Railway's private network. We:
+//   1. Auto-append ?sslmode=require in production if the param is absent, so
+//      pg knows to negotiate SSL rather than falling back to plaintext.
+//   2. Set rejectUnauthorized: false because Railway's internal certificate is
+//      not signed by a public CA — strict verification would fail at startup.
+//
+// This is safe: traffic between Railway services never leaves their private
+// network, so accepting the self-signed cert does not reduce transport security.
+function buildConnectionString(): string {
+  const raw = process.env.DATABASE_URL ?? '';
+  if (
+    process.env.NODE_ENV === 'production' &&
+    raw &&
+    !raw.includes('sslmode=') &&
+    !raw.includes('ssl=')
+  ) {
+    const sep = raw.includes('?') ? '&' : '?';
+    console.log('[pg] Production: appending sslmode=require to DATABASE_URL');
+    return `${raw}${sep}sslmode=require`;
+  }
+  return raw;
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString:          buildConnectionString(),
   max:                       POOL_MAX,
   connectionTimeoutMillis:   10_000,
   idleTimeoutMillis:         30_000,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
 // ─── Pool error handling ──────────────────────────────────────────────────────

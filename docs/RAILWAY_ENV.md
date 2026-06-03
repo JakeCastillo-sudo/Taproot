@@ -27,12 +27,17 @@ openssl rand -hex 32
 
 ## Required Variables
 
+> **Do NOT set `PORT` manually.** Railway injects `$PORT` automatically and configures
+> its proxy to forward to that port. Setting a static `PORT=3001` causes the service
+> domain to lock to that value on every deploy, overriding Railway's routing config.
+> The app reads `process.env.PORT` with a fallback of 3001 — Railway's injected value
+> always takes precedence.
+
 | Variable | Value / Source | Notes |
 |---|---|---|
 | `DATABASE_URL` | Auto-injected by Railway PostgreSQL plugin | Set by Railway — do not override |
 | `REDIS_URL` | Auto-injected by Railway Redis plugin | Set by Railway — do not override |
 | `NODE_ENV` | `production` | Enables HSTS, strict CORS, live Stripe key check |
-| `PORT` | `3001` | Railway also auto-sets this — value must match |
 | `JWT_SECRET` | `openssl rand -hex 32` | Min 64 chars in production |
 | `MFA_TOKEN_SECRET` | `openssl rand -hex 32` | Used for short-lived MFA challenge tokens |
 | `MFA_ENCRYPTION_KEY` | `openssl rand -hex 32` | AES-256-GCM key for TOTP secrets at rest |
@@ -108,10 +113,11 @@ This is already pre-configured in `apps/web/.env.production` for local Vercel CL
 
 ```
 NODE_ENV=production
-PORT=3001
 APP_URL=https://taproot-pos.vercel.app
 TAPROOT_APPLICATION_FEE_RATE=0.003
 ```
+
+> **PORT is intentionally omitted.** Railway injects it automatically.
 
 Generate and add these individually (do not copy — generate fresh values):
 ```bash

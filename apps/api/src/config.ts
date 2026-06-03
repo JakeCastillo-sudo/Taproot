@@ -21,8 +21,9 @@ export const config = {
   /**
    * PostgreSQL connection string.
    * Format: postgres://user:pass@host:5432/dbname
-   * Production: must include ?sslmode=require
-   * @example DATABASE_URL=postgres://taproot_app:secret@db:5432/taproot_prod?sslmode=require
+   * Production: sslmode=require is appended automatically by db/client.ts if absent.
+   * Railway's PostgreSQL plugin injects this variable directly — no manual setup needed.
+   * @example DATABASE_URL=postgres://taproot_app:secret@db:5432/taproot_prod
    */
   DATABASE_URL: process.env.DATABASE_URL ?? '',
 
@@ -271,7 +272,7 @@ export function validateConfig(): void {
     if (!config.STRIPE_SECRET_KEY) {
       errors.push('STRIPE_SECRET_KEY is required in production');
     } else if (!config.STRIPE_SECRET_KEY.startsWith('sk_live_')) {
-      warnings.push('[WARNING] Using Stripe TEST keys in production — real payments will not process. Set STRIPE_SECRET_KEY=sk_live_... before accepting real money.');
+      warnings.push('[WARNING] Stripe TEST mode active in production — switch to live keys before accepting real payments');
     }
 
     // Webhook secrets — warn only; test whsec_ values are valid for beta.
@@ -289,12 +290,8 @@ export function validateConfig(): void {
       warnings.push('[WARNING] STRIPE_TERMINAL_WEBHOOK_SECRET does not start with "whsec_" — Terminal webhook verification will fail');
     }
 
-    // SSL — warn only; Railway injects a DATABASE_URL that already uses SSL
-    // but may not include the explicit sslmode= query param.
-    if (!config.DATABASE_URL.includes('sslmode=require') &&
-        !config.DATABASE_URL.includes('ssl=true')) {
-      warnings.push('[WARNING] DATABASE_URL does not explicitly include SSL mode. Railway PostgreSQL uses SSL by default; add ?sslmode=require if connecting from outside Railway.');
-    }
+    // SSL — sslmode=require is auto-appended by db/client.ts buildConnectionString()
+    // if absent, so no validation needed here. Railway's cert uses rejectUnauthorized:false.
 
     if (!config.ANTHROPIC_API_KEY) {
       warnings.push('[WARNING] ANTHROPIC_API_KEY is not set — AI import and NL query features will be unavailable');

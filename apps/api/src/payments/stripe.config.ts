@@ -36,7 +36,7 @@ export function validateStripeMode(): void {
     } else {
       // Warn but do NOT throw — ghost-mode beta runs with test keys on Railway
       // until real payments are enabled. validateConfig() emits the same warning.
-      console.warn('[Stripe] [WARNING] Using Stripe TEST keys in production — real payments will not process');
+      console.warn('[Stripe] [WARNING] Stripe TEST mode active in production — switch to live keys before accepting real payments');
       console.info('[Stripe] TEST mode active in production environment');
     }
   } else if (env === 'test') {
