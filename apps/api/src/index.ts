@@ -109,6 +109,7 @@ async function buildApp(): Promise<any> {
   });
 
   // ─── CORS ─────────────────────────────────────────────────────────────────────
+  // Railway deploy trigger: 2026-06-03T00:00:00Z
 
   // Explicit extra origins from env (comma-separated) — used for preview deployments, staging, etc.
   const corsOrigins = (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean);
