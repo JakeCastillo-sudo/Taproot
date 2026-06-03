@@ -261,8 +261,9 @@ async function buildApp(): Promise<any> {
         ),
       ]);
       checks['database'] = 'ok';
-    } catch {
+    } catch (err) {
       checks['database'] = 'error';
+      fastify.log.error({ err }, '[health] database check failed');
     }
 
     // Redis check — PING with 2s timeout
@@ -275,18 +276,23 @@ async function buildApp(): Promise<any> {
         ),
       ]);
       checks['redis'] = 'ok';
-    } catch {
+    } catch (err) {
       checks['redis'] = 'error';
+      fastify.log.error({ err }, '[health] redis check failed');
     }
 
     // Stripe check — key presence only (no live API call)
     checks['stripe'] = config.STRIPE_SECRET_KEY ? 'ok' : 'error';
 
-    const anyError  = Object.values(checks).some((v) => v === 'error');
-    const status    = anyError ? 'degraded' : 'ok';
-    const httpCode  = anyError ? 503 : 200;
+    const anyError = Object.values(checks).some((v) => v === 'error');
+    const status   = anyError ? 'degraded' : 'ok';
 
-    return reply.code(httpCode).send({
+    // Always return HTTP 200 — Railway (and most uptime monitors) use the
+    // status code to decide whether to keep the deployment alive. A 503 here
+    // causes Railway to kill the container even when the app itself is
+    // running fine. Service health is communicated through the `status` and
+    // `checks` fields in the response body instead.
+    return reply.code(200).send({
       status,
       version:   process.env.npm_package_version ?? '1.0.0',
       timestamp: new Date().toISOString(),
