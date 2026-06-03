@@ -6,27 +6,34 @@ const POOL_MAX = 20;
 
 // ── SSL / DATABASE_URL normalisation ─────────────────────────────────────────
 //
-// Railway injects DATABASE_URL for its internal Postgres plugin. The URL does
-// not always include an explicit sslmode= parameter, but the connection *is*
-// SSL-terminated inside Railway's private network. We:
-//   1. Auto-append ?sslmode=require in production if the param is absent, so
-//      pg knows to negotiate SSL rather than falling back to plaintext.
-//   2. Set rejectUnauthorized: false because Railway's internal certificate is
-//      not signed by a public CA — strict verification would fail at startup.
+// Railway injects DATABASE_URL with ?sslmode=require already appended.
+// When pg sees sslmode=require in a URL it sets ssl:true using Node's default
+// TLS context, which has rejectUnauthorized:true — this rejects Railway's
+// internal self-signed certificate and prevents the pool from connecting.
 //
-// This is safe: traffic between Railway services never leaves their private
-// network, so accepting the self-signed cert does not reduce transport security.
+// Fix: strip ALL ssl/sslmode query params from the URL and manage SSL
+// exclusively via the Pool's ssl:{rejectUnauthorized:false} option below.
+// That option accepts the self-signed cert while still encrypting traffic.
+//
+// This is safe — all Railway service-to-service traffic stays on their
+// private network and never traverses the public internet.
 function buildConnectionString(): string {
   const raw = process.env.DATABASE_URL ?? '';
-  if (
-    process.env.NODE_ENV === 'production' &&
-    raw &&
-    !raw.includes('sslmode=') &&
-    !raw.includes('ssl=')
-  ) {
-    const sep = raw.includes('?') ? '&' : '?';
-    console.log('[pg] Production: appending sslmode=require to DATABASE_URL');
-    return `${raw}${sep}sslmode=require`;
+  if (process.env.NODE_ENV === 'production' && raw) {
+    try {
+      const url = new URL(raw);
+      const hadParam = url.searchParams.has('sslmode') || url.searchParams.has('ssl');
+      url.searchParams.delete('sslmode');
+      url.searchParams.delete('ssl');
+      const cleaned = url.toString();
+      if (hadParam) {
+        console.log('[pg] Production: stripped SSL params from DATABASE_URL (Pool ssl option takes over)');
+      }
+      return cleaned;
+    } catch {
+      // URL parse failed (malformed DATABASE_URL) — return raw and let pg error clearly
+      return raw;
+    }
   }
   return raw;
 }
