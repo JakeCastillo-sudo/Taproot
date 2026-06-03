@@ -110,10 +110,22 @@ async function buildApp(): Promise<any> {
 
   // ─── CORS ─────────────────────────────────────────────────────────────────────
 
+  // Explicit extra origins from env (comma-separated) — used for preview deployments, staging, etc.
+  const corsOrigins = (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean);
+
   await fastify.register(cors, {
-    origin: config.NODE_ENV === 'production'
-      ? [config.APP_URL]
-      : ['http://localhost:5173', 'http://localhost:3000'],
+    origin: (origin, callback) => {
+      // Server-to-server or same-origin requests have no Origin header — allow them.
+      if (!origin) return callback(null, true);
+      // Explicitly listed origins (CORS_ORIGINS env var or APP_URL)
+      if (corsOrigins.includes(origin)) return callback(null, true);
+      if (origin === config.APP_URL) return callback(null, true);
+      // Any Vercel preview / production deployment (*.vercel.app)
+      if (origin.endsWith('.vercel.app')) return callback(null, true);
+      // Local development
+      if (origin.startsWith('http://localhost')) return callback(null, true);
+      callback(new Error('Not allowed by CORS'), false);
+    },
     methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Authorization',

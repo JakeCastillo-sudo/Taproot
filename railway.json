@@ -8,7 +8,7 @@
     "releaseCommand": "node scripts/railway-migrate.js",
     "startCommand": "node apps/api/dist/index.js",
     "healthcheckPath": "/api/health",
-    "healthcheckTimeout": 30,
+    "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   },
