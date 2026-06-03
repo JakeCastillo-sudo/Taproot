@@ -5,6 +5,7 @@
     "moduleResolution": "node",
     "lib": ["ES2022"],
     "outDir": "./dist",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -15,7 +16,7 @@
     "skipLibCheck": true,
     "types": ["node"],
     "paths": {
-      "@taproot/shared": ["../../packages/shared/src"]
+      "@taproot/shared": ["../../packages/shared/dist"]
     },
     "baseUrl": "."
   },
