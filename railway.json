@@ -5,7 +5,6 @@
     "buildCommand": "npm install && npm run build --workspace=@taproot/shared && npm run build --workspace=@taproot/api"
   },
   "deploy": {
-    "releaseCommand": "node scripts/railway-migrate.js",
     "startCommand": "node apps/api/dist/index.js",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 300,
