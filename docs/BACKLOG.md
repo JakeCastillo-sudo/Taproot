@@ -129,3 +129,37 @@
 - Symptom: QA test flagged cash order with change_due as "overpaid"
 - Root cause: Check should be `SUM(payments) > total + change_due + 0.01`
 - Status: INFORMATIONAL — not a real bug, just overly strict check script
+
+---
+
+## Prompt 22 Auth Bug Fixes ✅ RESOLVED
+
+### BUG-AUTH-001: Registration email field triggers redirect to /login ✅ RESOLVED
+- Symptom: Typing email on /register redirected to /login before form was complete
+- Root cause: Stale/expired token in localStorage → apiFetch email-check request
+  included the bad Authorization header → 401 → refresh failed → clearTokens() +
+  window.location.href = '/login'
+- Fixes applied (Prompt 22):
+  1. `RegisterPage.tsx`: Mount effect decodes JWT, redirects to / if valid, or
+     calls clearTokens() silently if expired/malformed — so apiFetch never sends bad header
+  2. `api.ts`: apiFetch 401 handler now checks PUBLIC_PATHS — no redirect from /register or /login
+- Status: RESOLVED
+
+### BUG-AUTH-002: Demo login briefly shows POS then redirects back ✅ RESOLVED
+- Symptom: After demo login, POS flashed then app reverted (loop on next login)
+- Root cause (multi-factor):
+  a. `TrialBanner` fired apiFetch('/api/v1/billing/subscription') immediately after
+     mount; if that returned 401 for any reason (e.g. billing endpoint edge-case),
+     apiFetch triggered window.location.href = '/login' *before* TrialBanner's catch
+     block could swallow the error
+  b. `onboarding.store.ts` partialize returned {} when isComplete=true, causing
+     isComplete to reset to false on rehydration (Zustand merges {} with defaults)
+  c. React Query cache from previous SPA session could serve stale/error state
+- Fixes applied (Prompt 22):
+  1. `TrialBanner.tsx`: Uses apiFetch noRedirect:true — billing check never forces logout
+  2. `LoginPage.tsx`: Calls queryClient.clear() before navigate; marks onboarding
+     complete if account has ≥5 products (self-heals demo and existing accounts)
+  3. `onboarding.store.ts`: Partialize now persists { isComplete:true, completedAt }
+     instead of {} — isComplete survives rehydration correctly
+  4. `useOnboardingGate.ts`: Added !loading guard to shouldShow + mounted ref
+- Status: RESOLVED

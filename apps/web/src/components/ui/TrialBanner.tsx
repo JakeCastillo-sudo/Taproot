@@ -14,7 +14,11 @@ interface SubscriptionStatus {
 
 async function fetchSubscriptionStatus(): Promise<SubscriptionStatus | null> {
   try {
-    const data = await apiFetch<SubscriptionStatus>('/api/v1/billing/subscription');
+    // noRedirect: true — billing check is optional; a 401 here must not force
+    // the user to /login (e.g. right after demo login before subscription resolves)
+    const data = await apiFetch<SubscriptionStatus>(
+      '/api/v1/billing/subscription', {}, true, { noRedirect: true },
+    );
     return data;
   } catch {
     return null;

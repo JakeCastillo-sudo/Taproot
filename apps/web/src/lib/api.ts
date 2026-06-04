@@ -80,10 +80,14 @@ export class ApiError extends Error {
   }
 }
 
+// Public routes that should never be hard-redirected away from on auth failure
+const PUBLIC_PATHS = new Set(['/login', '/register', '/privacy', '/terms']);
+
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
   _retry = true,
+  options: { noRedirect?: boolean } = {},
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -99,15 +103,18 @@ export async function apiFetch<T>(
     res = await fetch(`${BASE}${path}`, { ...init, headers });
   } catch {
     // Network error — retry once
-    if (_retry) return apiFetch<T>(path, init, false);
+    if (_retry) return apiFetch<T>(path, init, false, options);
     throw new ApiError(0, 'NETWORK_ERROR', 'Network request failed');
   }
 
   if (res.status === 401 && _retry) {
     const newToken = await refreshTokens();
-    if (newToken) return apiFetch<T>(path, init, false);
+    if (newToken) return apiFetch<T>(path, init, false, options);
     clearTokens();
-    window.location.href = '/login';
+    // Guard: don't redirect to /login from public pages or optional callers (e.g. TrialBanner)
+    if (!options.noRedirect && !PUBLIC_PATHS.has(window.location.pathname)) {
+      window.location.href = '/login';
+    }
     throw new ApiError(401, 'UNAUTHORIZED', 'Session expired');
   }
 

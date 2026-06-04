@@ -8,7 +8,7 @@
  *   - Organization has < 5 products (proxy for "fresh account")
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { USER_KEY, products } from '../lib/api';
 import { useOnboardingStore } from '../store/onboarding.store';
 import type { OnboardingStep } from '../store/onboarding.store';
@@ -39,33 +39,41 @@ export function useOnboardingGate(): OnboardingGateResult {
   const { isComplete, currentStep } = useOnboardingStore();
   const [productCount, setProductCount] = useState<number | null>(null);
   const [loading,      setLoading]      = useState(true);
+  const mounted = useRef(true);
 
   const user = getStoredUser();
   const isOwner = user?.role === 'owner';
 
   useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  useEffect(() => {
     // Short-circuit: non-owners and complete accounts don't need the check
     if (!isOwner || isComplete) {
-      setLoading(false);
+      if (mounted.current) setLoading(false);
       return;
     }
 
     let cancelled = false;
     products.list({ perPage: 1 })
       .then((res) => {
-        if (!cancelled) setProductCount(res.total);
+        if (!cancelled && mounted.current) setProductCount(res.total);
       })
       .catch(() => {
-        if (!cancelled) setProductCount(999); // assume populated on error
+        if (!cancelled && mounted.current) setProductCount(999); // assume populated on error
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && mounted.current) setLoading(false);
       });
 
     return () => { cancelled = true; };
   }, [isOwner, isComplete]);
 
+  // Only fire when loading is DONE and productCount is a confirmed number
   const shouldShow =
+    !loading &&
     isOwner &&
     !isComplete &&
     productCount !== null &&

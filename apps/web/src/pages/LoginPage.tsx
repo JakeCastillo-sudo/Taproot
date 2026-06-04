@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
-import { auth, TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY } from '../lib/api';
+import { auth, TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY, products as productsApi } from '../lib/api';
+import { queryClient } from '../lib/queryClient';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -29,6 +30,21 @@ export function LoginPage() {
       localStorage.setItem(TOKEN_KEY, data.accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
       localStorage.setItem(USER_KEY, JSON.stringify(data.employee));
+
+      // Flush React Query cache so POSLayout fetches fresh data with the new token
+      queryClient.clear();
+
+      // Self-heal: if this account already has products (e.g. demo / existing org),
+      // mark onboarding as complete so no wizard redirect fires after login.
+      try {
+        const { total } = await productsApi.list({ perPage: 1 });
+        if (total >= 5) {
+          const { useOnboardingStore } = await import('../store/onboarding.store');
+          useOnboardingStore.getState().completeOnboarding();
+        }
+      } catch {
+        // Non-fatal — don't block navigation on products check failure
+      }
 
       navigate('/', { replace: true });
     } catch (err) {

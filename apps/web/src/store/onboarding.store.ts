@@ -155,8 +155,12 @@ export const useOnboardingStore = create<OnboardingStore>()(
     {
       name:    getStorageKey(),
       storage: createJSONStorage(() => localStorage),
-      // Don't persist if already complete
-      partialize: (state) => state.isComplete ? ({} as Partial<OnboardingStore>) : state,
+      // When complete, persist only the completion flag.
+      // Previously this returned {} which caused isComplete to reset to false
+      // on rehydration (Zustand merges {} with defaults → isComplete: false).
+      partialize: (state) => state.isComplete
+        ? ({ isComplete: true, completedAt: state.completedAt } as Partial<OnboardingStore>)
+        : state,
     },
   ),
 );

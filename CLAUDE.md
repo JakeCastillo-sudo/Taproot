@@ -656,5 +656,32 @@ No AWS. No Docker required for local dev.
 2. (Optional) Set `VITE_API_URL=https://taproot-api.up.railway.app` in Vercel env vars to override .env.production
 3. Vercel runs: `npm install` → build shared → build web → deploy `apps/web/dist/`
 
+### Prompt 22 — Auth Bug Fixes ✅
+
+**Two critical auth bugs fixed:**
+
+**BUG-AUTH-001: Registration redirect** — Stale token in localStorage caused `apiFetch` to send a bad
+`Authorization` header on the email-check call → 401 → refresh failed → `window.location.href = '/login'`.
+- `RegisterPage.tsx`: mount effect decodes JWT payload, redirects if valid, `clearTokens()` if expired
+- `api.ts`: `apiFetch` gained `options.noRedirect` param + `PUBLIC_PATHS` guard — never hard-redirects
+  from `/register` or `/login` on auth failure
+
+**BUG-AUTH-002: Demo login doom loop** — `TrialBanner` fired `apiFetch('/api/v1/billing/subscription')`
+immediately after mount; a 401 from the billing endpoint set `window.location.href = '/login'` *before*
+TrialBanner's `catch` block could suppress it. Secondary issues: `onboarding.store.ts` `partialize`
+returned `{}` when complete (caused `isComplete` to reset to false on rehydrate), and React Query cache
+could serve stale error state from previous session.
+- `TrialBanner.tsx`: billing check uses `noRedirect: true` — optional call, never forces logout
+- `LoginPage.tsx`: `queryClient.clear()` before navigate + self-heal (mark onboarding complete if ≥5 products)
+- `onboarding.store.ts`: partialize now persists `{ isComplete: true, completedAt }` (not `{}`)
+- `useOnboardingGate.ts`: added `!loading` guard to `shouldShow` + mounted ref
+
+**Files changed:** `apps/web/src/lib/api.ts`, `apps/web/src/pages/RegisterPage.tsx`,
+`apps/web/src/pages/LoginPage.tsx`, `apps/web/src/store/onboarding.store.ts`,
+`apps/web/src/components/ui/TrialBanner.tsx`, `apps/web/src/hooks/useOnboardingGate.ts`,
+`docs/BACKLOG.md`
+
+**Typecheck:** 0 errors (apps/web). CLAUDE.md updated.
+
 ## Next Prompt
-Prompt 22 — Settings page: location settings, employee management, tax rates UI, printer config
+Prompt 23 — Settings page: location settings, employee management, tax rates UI, printer config

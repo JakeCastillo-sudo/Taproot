@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Eye, EyeOff, Check, X, Loader2, AlertCircle, Leaf } from 'lucide-react';
 import { clsx } from 'clsx';
-import { apiFetch, TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY } from '../lib/api';
+import { apiFetch, TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY, clearTokens } from '../lib/api';
 import { analytics } from '../lib/analytics';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -66,6 +66,29 @@ export function RegisterPage() {
   const [partnerCodeInput, setPartnerCodeInput] = useState(partnerCode);
 
   const pwStrength = passwordStrength(password);
+
+  // ── Auth gate ──────────────────────────────────────────────────────────────
+  // On mount: if a valid token exists → user is already logged in → go to home.
+  // If an expired/invalid token exists → clear it silently so the email-check
+  // apiFetch won't send the bad header and trigger a redirect to /login.
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+    try {
+      const [, payloadB64] = token.split('.');
+      const payload = JSON.parse(atob(payloadB64)) as { exp?: number };
+      if (typeof payload.exp === 'number' && payload.exp * 1000 > Date.now()) {
+        // Token is still valid — this user is already authenticated
+        navigate('/', { replace: true });
+      } else {
+        // Expired token — wipe silently and let registration proceed
+        clearTokens();
+      }
+    } catch {
+      // Malformed / non-JWT token — clear it
+      clearTokens();
+    }
+  }, [navigate]);
 
   // ── Email availability check (debounced 500ms) ─────────────────────────────
   useEffect(() => {
