@@ -19,7 +19,7 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search, X, LogOut, ShoppingCart, Package,
@@ -36,6 +36,7 @@ import { products as productsApi, categories as categoriesApi } from '../../lib/
 import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
 import { CategoryTileGrid } from '../pos/CategoryTileGrid';
+import { DayPartToggle } from '../pos/DayPartToggle';
 import { ModifierSheet, type ModifierSheetProduct } from '../pos/ModifierSheet';
 import { PaymentSheet } from '../pos/PaymentSheet';
 import { MobileCart } from '../pos/MobileCart';
@@ -367,6 +368,7 @@ export function POSLayout({ user }: POSLayoutProps) {
     sidebarCollapsed, toggleSidebar,
     posViewMode, selectedCategoryId, selectedCategoryName,
     setPosViewItems, resetPosView,
+    activeDayPart, setActiveDayPart,
   } = useUIStore();
 
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
@@ -391,18 +393,48 @@ export function POSLayout({ user }: POSLayoutProps) {
   const totalProductCount = allCats.reduce((s, c) => s + c.product_count, 0);
 
   const { data: productsData, isLoading: loadingProducts } = useQuery({
-    queryKey: QK.products({ categoryId: selectedCategoryId, search: searchQuery }),
+    queryKey: QK.products({ categoryId: selectedCategoryId, search: searchQuery, dayPart: activeDayPart }),
     queryFn:  () => productsApi.list({
       categoryId: selectedCategoryId ?? undefined,
       search: searchQuery || undefined,
       isActive: true,
       perPage: 100,
+      dayPart: activeDayPart !== 'all' ? activeDayPart : undefined,
     }),
     staleTime: 30_000,
-    // Only fetch when in items view or searching
-    enabled: posViewMode === 'items' || !!searchQuery,
+    // Fetch when in items view, searching, OR when a day-part is active (for accurate tile counts)
+    enabled: posViewMode === 'items' || !!searchQuery || activeDayPart !== 'all',
   });
   const productList = productsData?.products ?? [];
+
+  // Background fetch of ALL products for the active day part — used to compute
+  // per-category filtered counts shown on category tiles.
+  const { data: allDayPartData } = useQuery({
+    queryKey: QK.products({ dayPart: activeDayPart, _scope: 'counts' }),
+    queryFn:  () => productsApi.list({
+      isActive: true,
+      perPage: 200,
+      dayPart: activeDayPart !== 'all' ? activeDayPart : undefined,
+    }),
+    staleTime: 30_000,
+    enabled: activeDayPart !== 'all',
+  });
+
+  // Compute per-category filtered counts when a day part is active
+  const filteredCategoryCounts = useMemo(() => {
+    if (activeDayPart === 'all' || !allDayPartData) return undefined;
+    const counts: Record<string, number> = {};
+    for (const p of allDayPartData.products) {
+      // Products have category_id from the shared Product type
+      const catId = (p as Product & { category_id?: string | null }).category_id ?? '__none__';
+      counts[catId] = (counts[catId] ?? 0) + 1;
+    }
+    return counts;
+  }, [allDayPartData, activeDayPart]);
+
+  const filteredTotal = activeDayPart !== 'all' && allDayPartData
+    ? allDayPartData.total
+    : undefined;
 
   // ── Search handler: auto-switch to item view ───────────────────────────────
 
@@ -611,6 +643,13 @@ export function POSLayout({ user }: POSLayoutProps) {
             )}
           </div>
 
+          {/* Day-part toggle */}
+          <DayPartToggle
+            active={activeDayPart}
+            onChange={setActiveDayPart}
+            compact
+          />
+
           {/* ⌘K hint — desktop */}
           <button
             onClick={() => setCmdOpen(true)}
@@ -647,6 +686,9 @@ export function POSLayout({ user }: POSLayoutProps) {
               loading={loadingCats}
               onSelectAll={() => setPosViewItems(null, 'All Items')}
               onSelectCategory={(id, name) => setPosViewItems(id, name)}
+              activeDayPart={activeDayPart}
+              filteredCounts={filteredCategoryCounts}
+              filteredTotal={filteredTotal}
             />
           ) : (
             /* ── PRODUCT GRID ──────────────────────────────────────────── */

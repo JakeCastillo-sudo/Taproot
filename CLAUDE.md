@@ -764,5 +764,42 @@ for both customer receipt and kitchen prep ticket.
 
 **Typecheck:** 0 errors (both apps).
 
+### Prompt 26 — Day-Part Toggle (Breakfast / Brunch / Lunch / Dinner) ✅
+
+**Critical rule: ADDITIVE filtering.** Products with no `day_parts` assignment are
+ALWAYS visible. Only products explicitly assigned to specific parts are hidden in other
+modes. This ensures all existing demo products remain visible after deploy.
+
+**Migration:** `migrations/011_day_parts.js` — adds `day_parts varchar(50)[]` to products
+(null/empty = always visible) + GIN index `idx_products_day_parts`.
+Run on Railway after push: `npx node-pg-migrate up --migrations-dir migrations`
+
+**Backend:**
+- `product.service.ts`: added `VALID_DAY_PARTS`, `DayPart` type; `dayPart?` to
+  `ListProductsFilters`; additive SQL filter
+  `(p.day_parts IS NULL OR p.day_parts = '{}' OR $N = ANY(p.day_parts))`;
+  `dayParts?` to `UpdateProductData` (stored as `day_parts` array column)
+- `inventory.routes.ts`: passes `q.dayPart` to `listProducts`
+
+**Frontend:**
+- `ui.store.ts`: added `activeDayPart: ActiveDayPart` (default `'all'`, NOT persisted —
+  always resets to 'all' on page load); `setActiveDayPart` action
+- `api.ts`: `products.list` accepts `dayPart?` param; `products.update` new method for
+  PATCH /products/:id; `products.get` includes `day_parts` in return type
+- `DayPartToggle.tsx` (new): compact pill-style toggle (All/Breakfast/Brunch/Lunch/Dinner)
+  with emoji icons; compact mode shows emoji only on small screens; placed in POS search bar
+- `POSLayout.tsx`: imports DayPartToggle; products query key includes `activeDayPart`;
+  background query fetches all day-part-filtered products for tile counts; `filteredCategoryCounts`
+  computed per-category; passed to CategoryTileGrid
+- `CategoryTileGrid.tsx`: accepts `filteredCounts`, `filteredTotal`, `activeDayPart` props;
+  shows filtered counts when day part active; dimmed (opacity-40) tiles with 0 items
+- `ProductDetailSheet.tsx`: new "When to show on register" section with checkboxes for
+  day parts; fetches product day_parts via `products.get`; saves via `products.update`
+
+**Demo scenario:** Inventory → find "Classic Burger" → Edit day parts → check Lunch + Dinner
+→ POS → toggle Breakfast → Classic Burger disappears → toggle Lunch → reappears
+
+**Typecheck:** 0 errors (both apps).
+
 ## Next Prompt
-Prompt 26 — Settings page: location settings, employee management, tax rates UI, printer config
+Prompt 27 — Settings page: location settings, employee management, tax rates UI, printer config

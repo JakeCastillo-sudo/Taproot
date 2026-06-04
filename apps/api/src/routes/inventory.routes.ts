@@ -56,6 +56,8 @@ export default async function inventoryRoutes(fastify: FastifyInstance): Promise
       limit: q.limit ? parseInt(q.limit, 10) : undefined,
       sortBy: q.sortBy as ProductSvc.ListProductsFilters['sortBy'],
       sortOrder: q.sortOrder as ProductSvc.ListProductsFilters['sortOrder'],
+      // Additive day-part filter — products with no assignment are always visible
+      dayPart: q.dayPart,
     });
 
     return reply.send(result);

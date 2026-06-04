@@ -5,11 +5,20 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, TrendingUp, TrendingDown, Minus, Plus, History, AlertCircle } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Plus, History, AlertCircle, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
-import { inventoryApi, type InventoryLevelRow } from '../../lib/api';
+import { inventoryApi, products as productsApi, type InventoryLevelRow } from '../../lib/api';
 import { QK } from '../../lib/queryClient';
 import { showToast } from '../ui/Toast';
+
+// ─── Day-part constants ───────────────────────────────────────────────────────
+
+const DAY_PARTS = [
+  { id: 'breakfast', label: 'Breakfast', emoji: '🌅' },
+  { id: 'brunch',    label: 'Brunch',    emoji: '🥂' },
+  { id: 'lunch',     label: 'Lunch',     emoji: '🌤️' },
+  { id: 'dinner',    label: 'Dinner',    emoji: '🌙' },
+] as const;
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -41,6 +50,35 @@ export function ProductDetailSheet({ row, locationId, onClose }: ProductDetailSh
   const [adjustDelta,  setAdjustDelta]  = useState(0);
   const [adjustReason, setAdjustReason] = useState('adjustment');
   const [adjustNotes,  setAdjustNotes]  = useState('');
+
+  // Fetch product to get day_parts assignment
+  const { data: productData } = useQuery({
+    queryKey: ['product', row.product_id],
+    queryFn:  () => productsApi.get(row.product_id),
+    staleTime: 60_000,
+  });
+  const currentDayParts: string[] = (productData as { day_parts?: string[] | null } | undefined)?.day_parts ?? [];
+  const [selectedParts, setSelectedParts] = useState<string[]>(currentDayParts);
+  const [dayPartsLoaded, setDayPartsLoaded] = useState(false);
+
+  // Sync once when product data loads
+  if (productData && !dayPartsLoaded) {
+    const loaded = (productData as { day_parts?: string[] | null }).day_parts ?? [];
+    if (JSON.stringify(loaded) !== JSON.stringify(selectedParts)) {
+      setSelectedParts(loaded);
+    }
+    setDayPartsLoaded(true);
+  }
+
+  const dayPartMutation = useMutation({
+    mutationFn: () => productsApi.update(row.product_id, { dayParts: selectedParts }),
+    onSuccess: () => {
+      showToast.success('Day parts updated');
+      void qc.invalidateQueries({ queryKey: ['product', row.product_id] });
+      void qc.invalidateQueries({ queryKey: QK.products() });
+    },
+    onError: (err) => showToast.error(err instanceof Error ? err.message : 'Save failed'),
+  });
 
   // Fetch movement history
   const { data: movData, isLoading: movLoading } = useQuery({
@@ -130,6 +168,52 @@ export function ProductDetailSheet({ row, locationId, onClose }: ProductDetailSh
                 <p className="text-[11px] text-gray-400">{row.unit_of_measure}</p>
               )}
             </div>
+          </div>
+
+          {/* Day-part assignment */}
+          <div className="px-5 pb-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 flex items-center gap-1.5">
+              <Clock size={11} /> When to show on register
+            </h3>
+            <p className="text-[11px] text-gray-400 mb-3">
+              Items with no selection are always visible.
+            </p>
+            <div className="space-y-2">
+              {/* All day option */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedParts.length === 0}
+                  onChange={() => setSelectedParts([])}
+                  className="rounded border-gray-300 text-primary focus:ring-primary/30"
+                />
+                <span className="text-sm text-gray-700">☀️ All day (always visible)</span>
+              </label>
+              {DAY_PARTS.map((dp) => (
+                <label key={dp.id} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedParts.includes(dp.id)}
+                    onChange={(e) => {
+                      setSelectedParts((prev) =>
+                        e.target.checked
+                          ? [...prev, dp.id]
+                          : prev.filter((p) => p !== dp.id),
+                      );
+                    }}
+                    className="rounded border-gray-300 text-primary focus:ring-primary/30"
+                  />
+                  <span className="text-sm text-gray-700">{dp.emoji} {dp.label}</span>
+                </label>
+              ))}
+            </div>
+            <button
+              onClick={() => dayPartMutation.mutate()}
+              disabled={dayPartMutation.isPending}
+              className="mt-3 w-full h-9 bg-gray-800 text-white rounded-md text-xs font-semibold hover:bg-gray-700 transition-colors disabled:opacity-50"
+            >
+              {dayPartMutation.isPending ? 'Saving…' : 'Save day parts'}
+            </button>
           </div>
 
           {/* Quick Adjust */}

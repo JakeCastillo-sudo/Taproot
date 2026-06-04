@@ -10,6 +10,8 @@ import { clsx } from 'clsx';
 import { resolveColor } from '../../lib/categoryColors';
 import type { CategoryWithCount } from '../../lib/api';
 
+// clsx is used above for Tile; also used for dimmed category tiles
+
 // ─── Tile ─────────────────────────────────────────────────────────────────────
 
 interface TileProps {
@@ -76,6 +78,11 @@ interface CategoryTileGridProps {
   loading:           boolean;
   onSelectAll:       () => void;
   onSelectCategory:  (id: string, name: string) => void;
+  /** When a day-part is active, pre-computed counts per category id. */
+  filteredCounts?:   Record<string, number>;
+  /** Total filtered count across all categories (for the "All Items" tile). */
+  filteredTotal?:    number;
+  activeDayPart?:    string;
 }
 
 export function CategoryTileGrid({
@@ -84,7 +91,12 @@ export function CategoryTileGrid({
   loading,
   onSelectAll,
   onSelectCategory,
+  filteredCounts,
+  filteredTotal,
+  activeDayPart,
 }: CategoryTileGridProps) {
+  const isFiltered = !!activeDayPart && activeDayPart !== 'all';
+
   if (loading) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-4">
@@ -99,23 +111,30 @@ export function CategoryTileGrid({
       <Tile
         name="All Items"
         color="#1D9E75"
-        count={totalProductCount}
+        count={isFiltered && filteredTotal !== undefined ? filteredTotal : totalProductCount}
         initials="AI"
         isAllItems
         onTap={onSelectAll}
       />
 
       {/* Category tiles */}
-      {categories.map((cat) => (
-        <Tile
-          key={cat.id}
-          name={cat.name}
-          color={resolveColor(cat.name, cat.color)}
-          count={cat.product_count}
-          initials={cat.name.slice(0, 2).toUpperCase()}
-          onTap={() => onSelectCategory(cat.id, cat.name)}
-        />
-      ))}
+      {categories.map((cat) => {
+        const displayCount = isFiltered && filteredCounts !== undefined
+          ? (filteredCounts[cat.id] ?? 0)
+          : cat.product_count;
+        const dimmed = isFiltered && displayCount === 0;
+        return (
+          <div key={cat.id} className={clsx('transition-opacity', dimmed && 'opacity-40')}>
+            <Tile
+              name={cat.name}
+              color={resolveColor(cat.name, cat.color)}
+              count={displayCount}
+              initials={cat.name.slice(0, 2).toUpperCase()}
+              onTap={() => onSelectCategory(cat.id, cat.name)}
+            />
+          </div>
+        );
+      })}
 
       {/* Empty state when no categories */}
       {categories.length === 0 && (

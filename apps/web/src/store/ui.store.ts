@@ -4,13 +4,18 @@
  * sidebarCollapsed  — persisted to localStorage (user preference)
  * posViewMode       — NOT persisted; always starts as 'categories' on page load
  * selectedCategory* — NOT persisted; always null on page load
+ * activeDayPart     — NOT persisted; always 'all' on page load
  *
- * This intentional split means the POS always lands on the category tile view
- * after a refresh, while the sidebar collapse preference is remembered.
+ * The intentional split means:
+ * - POS always lands on category tiles after refresh
+ * - Sidebar collapse preference is remembered
+ * - Day-part mode resets every session (restaurants open showing all items)
  */
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+
+export type ActiveDayPart = 'all' | 'breakfast' | 'brunch' | 'lunch' | 'dinner';
 
 export interface UIStore {
   // ── Sidebar ─────────────────────────────────────────────────────────────────
@@ -34,6 +39,14 @@ export interface UIStore {
 
   /** Return to the category tile grid. */
   resetPosView: () => void;
+
+  // ── Day-part filter (never persisted — always 'all' on page load) ────────────
+  /**
+   * Active meal period. Products with no day_parts assignment are always shown.
+   * Only products explicitly assigned to specific parts are hidden in other modes.
+   */
+  activeDayPart:    ActiveDayPart;
+  setActiveDayPart: (part: ActiveDayPart) => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -60,11 +73,16 @@ export const useUIStore = create<UIStore>()(
         selectedCategoryId:   null,
         selectedCategoryName: null,
       }),
+
+      // day-part (initial = all)
+      activeDayPart:    'all',
+      setActiveDayPart: (part) => set({ activeDayPart: part }),
     }),
     {
       name:    'taproot-ui-prefs',
       storage: createJSONStorage(() => localStorage),
-      // Only persist the sidebar preference — pos view always resets to 'categories'
+      // Only persist the sidebar preference.
+      // posViewMode and activeDayPart always reset on page load.
       partialize: (state) => ({ sidebarCollapsed: state.sidebarCollapsed }),
     },
   ),

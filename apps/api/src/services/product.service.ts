@@ -11,6 +11,10 @@ import type {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+/** Valid meal-period values for day-part filtering. */
+export const VALID_DAY_PARTS = ['breakfast', 'brunch', 'lunch', 'dinner'] as const;
+export type DayPart = typeof VALID_DAY_PARTS[number];
+
 export interface CreateProductData {
   name: string;
   description?: string;
@@ -24,6 +28,8 @@ export interface CreateProductData {
   trackInventory?: boolean;
   isActive?: boolean;
   tags?: string[];
+  /** Restrict visibility to specific meal periods. null/[] = always visible. */
+  dayParts?: string[];
 }
 
 export interface UpdateProductData {
@@ -39,6 +45,8 @@ export interface UpdateProductData {
   trackInventory?: boolean;
   isActive?: boolean;
   tags?: string[];
+  /** Restrict visibility to specific meal periods. null/[] = always visible. */
+  dayParts?: string[] | null;
 }
 
 export interface ListProductsFilters {
@@ -52,6 +60,12 @@ export interface ListProductsFilters {
   limit?: number;
   sortBy?: 'name' | 'created_at' | 'updated_at' | 'cost_price';
   sortOrder?: 'ASC' | 'DESC';
+  /**
+   * Additive day-part filter.
+   * 'all' or undefined → no filter (all products returned).
+   * Specific value → only products with matching day_parts or no day_parts assigned.
+   */
+  dayPart?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -234,6 +248,10 @@ export async function updateProduct(
   if (data.trackInventory !== undefined) add('track_inventory', data.trackInventory);
   if (data.isActive !== undefined) add('is_active', data.isActive);
   if (data.tags !== undefined) add('tags', data.tags ? `{${data.tags.map(t => `"${t}"`).join(',')}}` : null);
+  // day_parts: null / empty array → visible in all day parts
+  if ('dayParts' in data) {
+    add('day_parts', data.dayParts && data.dayParts.length > 0 ? `{${data.dayParts.join(',')}}` : null);
+  }
 
   if (sets.length === 0) return buildProductWithRelations(productId);
 
@@ -329,6 +347,12 @@ export async function listProducts(
       SELECT 1 FROM inventory_levels il WHERE il.product_id = p.id AND il.location_id = $${p++}
     ))`);
     params.push(filters.locationId);
+  }
+  // Additive day-part filter: products with no assignment are always visible.
+  // Only restrict when a specific (non-'all') day part is requested.
+  if (filters.dayPart && filters.dayPart !== 'all') {
+    conditions.push(`(p.day_parts IS NULL OR p.day_parts = '{}' OR $${p++} = ANY(p.day_parts))`);
+    params.push(filters.dayPart);
   }
 
   const validSortCols = { name: 'p.name', created_at: 'p.created_at', updated_at: 'p.updated_at', cost_price: 'p.cost_price' } as const;

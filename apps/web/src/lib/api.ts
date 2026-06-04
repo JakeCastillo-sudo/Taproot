@@ -240,6 +240,8 @@ export const products = {
     isActive?: boolean;
     page?: number;
     perPage?: number;
+    /** Additive day-part filter. Omit or 'all' to show everything. */
+    dayPart?: string;
   }) => {
     const q = new URLSearchParams();
     if (params?.categoryId) q.set('categoryId', params.categoryId);
@@ -247,6 +249,7 @@ export const products = {
     if (params?.isActive !== undefined) q.set('isActive', String(params.isActive));
     if (params?.page)    q.set('page',    String(params.page));
     if (params?.perPage) q.set('perPage', String(params.perPage));
+    if (params?.dayPart && params.dayPart !== 'all') q.set('dayPart', params.dayPart);
     const qs = q.toString();
 
     // API returns prices[] per product; extract the lowest as defaultPrice (cents)
@@ -278,7 +281,14 @@ export const products = {
     ),
 
   get: (id: string) =>
-    apiFetch<Product & { variants?: ProductVariant[] }>(`/products/${id}`),
+    apiFetch<Product & { variants?: ProductVariant[]; day_parts?: string[] | null }>(`/products/${id}`),
+
+  /** Update a product's day-part assignment (and optionally other fields). */
+  update: (id: string, body: { dayParts?: string[] | null; [key: string]: unknown }) =>
+    apiFetch<Product>(`/products/${id}`, {
+      method: 'PATCH',
+      body:   JSON.stringify(body),
+    }),
 };
 
 // ─── Categories ───────────────────────────────────────────────────────────────
