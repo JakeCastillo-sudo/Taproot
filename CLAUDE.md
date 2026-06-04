@@ -700,5 +700,45 @@ could serve stale error state from previous session.
 
 **Typecheck:** 0 errors (both apps).
 
+### Prompt 24 — Customer receipt and kitchen ticket printing ✅
+
+**Goal:** After every payment, navigate to a full receipt page with browser-print
+for both customer receipt and kitchen prep ticket.
+
+**State management fix first:**
+- `pos.store.ts`: Added `LastCompletedOrder` type + `lastCompletedOrder` field
+  (NOT persisted — excluded from partialize); `setLastCompletedOrder` /
+  `clearLastCompletedOrder` actions
+- `api.ts`: Added `ReceiptData`, `ReceiptLineItemData`, `ReceiptPaymentData`
+  interfaces; `orders.getReceipt(orderId)` calls `GET /orders/:id/receipt`
+
+**Payment flow change:**
+- `PaymentSheet.tsx`: On success (real and DEV-demo), builds `LastCompletedOrder`
+  snapshot from current cart + payment state, calls `setLastCompletedOrder`,
+  clears cart, navigates to `/receipt` instead of showing the success step.
+  Employee/org/location names read from localStorage (`taproot_org_name`,
+  `taproot_location_name`) with sensible defaults.
+
+**New files:**
+- `apps/web/src/styles/print.css` — `@media print` rules; hides everything
+  except `.receipt-content`; `.no-print { display:none }` for action buttons
+- `apps/web/src/lib/print.ts` — `printReceipt()` calls `window.print()`;
+  `printKitchenTicket()` opens a popup window with thermal-style HTML and
+  triggers print then closes
+- `apps/web/src/pages/ReceiptPage.tsx` — full-screen receipt (no sidebar);
+  reads `lastCompletedOrder` from store, redirects to `/` if null; fetches
+  enriched data from `GET /orders/:id/receipt` (org/location names) in bg;
+  stores real names to localStorage for future instant receipts; action bar:
+  Print Receipt, Email (coming soon toast), Kitchen Ticket, New Order
+- `apps/web/src/main.tsx`: imports `print.css`
+- `apps/web/src/App.tsx`: `/receipt` route (RequireAuth, no POSLayout)
+
+**Backend:**
+- `order.routes.ts`: Added `GET /api/v1/orders/:orderId/receipt` calling
+  `ReceiptSvc.buildReceipt(orgId, orderId)` — returns full `Receipt` with
+  org name, location name, line items, payments
+
+**Typecheck:** 0 errors (both apps).
+
 ## Next Prompt
-Prompt 24 — Settings page: location settings, employee management, tax rates UI, printer config
+Prompt 25 — Settings page: location settings, employee management, tax rates UI, printer config

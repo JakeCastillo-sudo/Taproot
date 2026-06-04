@@ -7,16 +7,17 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X, CreditCard, Banknote, Gift, SplitSquareHorizontal,
   Wallet, CheckCircle, AlertCircle, RotateCcw, Printer,
   Mail, MessageSquare, ChevronRight, FlaskConical,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { usePOSStore } from '../../store/pos.store';
+import { usePOSStore, type LastCompletedOrder } from '../../store/pos.store';
 import { orders as ordersApi, payments as paymentsApi } from '../../lib/api';
 import { showToast } from '../ui/Toast';
-import { TOKEN_KEY } from '../../lib/api';
+import { TOKEN_KEY, USER_KEY } from '../../lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,7 +31,6 @@ function fmt(cents: number): string {
 }
 
 function getLocationId(): string {
-  // Extract locationId from JWT payload
   try {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) return '';
@@ -38,6 +38,21 @@ function getLocationId(): string {
     return (payload as { locationIds?: string[] }).locationIds?.[0] ?? '';
   } catch {
     return '';
+  }
+}
+
+/** Read employee/org display names from localStorage for the receipt. */
+function getUserInfo(): { employeeName: string; locationName: string; orgName: string } {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    const u   = raw ? JSON.parse(raw) as { firstName?: string; lastName?: string } : null;
+    return {
+      employeeName: u ? `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() : 'Staff',
+      locationName: localStorage.getItem('taproot_location_name') ?? 'Main Location',
+      orgName:      localStorage.getItem('taproot_org_name')      ?? 'Taproot POS',
+    };
+  } catch {
+    return { employeeName: 'Staff', locationName: 'Main Location', orgName: 'Taproot POS' };
   }
 }
 
@@ -203,8 +218,9 @@ function CashKeypad({ total, onTendered }: { total: number; onTendered: (v: numb
 interface Props { onClose: () => void }
 
 export function PaymentSheet({ onClose }: Props) {
+  const navigate = useNavigate();
   const { cart, subtotal, taxTotal, total, itemCount, clearCart, setPaymentSheetOpen,
-          customerId, orderNotes } = usePOSStore();
+          customerId, orderNotes, setLastCompletedOrder } = usePOSStore();
 
   const [step,       setStep]       = useState<Step>('tip');
   const [tip,        setTip]        = useState(0);
@@ -235,6 +251,37 @@ export function PaymentSheet({ onClose }: Props) {
     return () => window.removeEventListener('keydown', h);
   }, [step, close, clearCart]);
 
+  /** Build the in-memory receipt snapshot from current cart + payment state. */
+  const buildReceiptSnapshot = useCallback(
+    (ordId: string, orderNum: string, method: string, tendered: number): LastCompletedOrder => {
+      const ui = getUserInfo();
+      return {
+        orderId:       ordId,
+        orderNumber:   orderNum,
+        items:         cart.map((c) => ({
+          name:      c.name,
+          quantity:  c.quantity,
+          unitPrice: c.unitPrice,
+          modifiers: c.modifiers.map((m) => m.name),
+          total:     c.lineTotal,
+        })),
+        subtotal:      sub,
+        taxTotal:      tax,
+        tipTotal:      tip,
+        total:         ttl,
+        amountPaid:    method === 'cash' && tendered > 0 ? tendered : ttl,
+        changeDue:     method === 'cash' && tendered > 0 ? Math.max(0, tendered - ttl) : 0,
+        paymentMethod: method,
+        employeeName:  ui.employeeName,
+        locationName:  ui.locationName,
+        orgName:       ui.orgName,
+        orderType:     'in_store',
+        completedAt:   new Date().toISOString(),
+      };
+    },
+    [cart, sub, tax, tip, ttl],
+  );
+
   // Process payment
   const processPayment = useCallback(async (selectedMethod: Method) => {
     setMethod(selectedMethod);
@@ -243,12 +290,16 @@ export function PaymentSheet({ onClose }: Props) {
 
     // ── Dev / demo mode for card payments ────────────────────────────────────
     // In development there is no Stripe Terminal reader, so we simulate a
-    // 2-second card tap and jump straight to the success screen.
+    // 2-second card tap and navigate straight to the receipt screen.
     // Production flows through the real Stripe Terminal integration.
     if (selectedMethod === 'card' && import.meta.env.DEV) {
       await new Promise<void>((resolve) => setTimeout(resolve, 2000));
-      setOrderNum(`DEMO-${Date.now().toString().slice(-6)}`);
-      setStep('success');
+      const demoNum = `DEMO-${Date.now().toString().slice(-6)}`;
+      const snapshot = buildReceiptSnapshot(`demo-${Date.now()}`, demoNum, 'card', 0);
+      setLastCompletedOrder(snapshot);
+      clearCart();
+      close();
+      navigate('/receipt', { replace: true });
       return;
     }
 
@@ -267,8 +318,9 @@ export function PaymentSheet({ onClose }: Props) {
         notes: orderNotes || undefined,
       });
 
+      const orderNum = order.order_number?.toString() ?? order.id.slice(-6).toUpperCase();
       setOrderId(order.id);
-      setOrderNum(order.order_number?.toString() ?? order.id.slice(-6).toUpperCase());
+      setOrderNum(orderNum);
 
       // 2. Process payment
       await paymentsApi.process(locationId, order.id, {
@@ -278,13 +330,24 @@ export function PaymentSheet({ onClose }: Props) {
         cashTendered:  selectedMethod === 'cash' && cashTender > 0 ? cashTender : undefined,
       });
 
-      setStep('success');
+      // 3. Store receipt snapshot and navigate — EDIT CHAIN: data flows to /receipt
+      const snapshot = buildReceiptSnapshot(
+        order.id,
+        orderNum,
+        selectedMethod,
+        selectedMethod === 'cash' ? cashTender : 0,
+      );
+      setLastCompletedOrder(snapshot);
+      clearCart();
+      close();
+      navigate('/receipt', { replace: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Payment failed. Please try again.';
       setErrorMsg(msg);
       setStep('error');
     }
-  }, [cart, customerId, locationId, orderNotes, ttl, tip, cashTender]);
+  }, [cart, customerId, locationId, orderNotes, ttl, tip, cashTender,
+      buildReceiptSnapshot, setLastCompletedOrder, clearCart, close, navigate]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 

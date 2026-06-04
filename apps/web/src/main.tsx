@@ -7,6 +7,7 @@ import './index.css';
 import './styles/design-system.css';
 import './styles/ios.css';
 import './styles/animations.css';
+import './styles/print.css';
 
 // ── Sentry error monitoring (production only) ────────────────────────────────
 if (import.meta.env.VITE_SENTRY_DSN) {

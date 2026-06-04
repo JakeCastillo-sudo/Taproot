@@ -31,6 +31,36 @@ export interface CartItem {
 
 export type ActiveView = 'checkout' | 'payment' | 'receipt' | 'orders' | 'inventory';
 
+// ─── Receipt state (NOT persisted — in-memory only) ───────────────────────────
+
+export interface LastCompletedOrderItem {
+  name:      string;
+  quantity:  number;
+  unitPrice: number;   // cents (before modifiers)
+  modifiers: string[]; // modifier display names
+  total:     number;   // line total in cents
+}
+
+export interface LastCompletedOrder {
+  orderId:       string;
+  orderNumber:   string;
+  items:         LastCompletedOrderItem[];
+  subtotal:      number;   // cents
+  taxTotal:      number;   // cents
+  tipTotal:      number;   // cents
+  total:         number;   // cents
+  amountPaid:    number;   // cents
+  changeDue:     number;   // cents
+  paymentMethod: string;
+  cardLast4?:    string;
+  cardBrand?:    string;
+  employeeName:  string;
+  locationName:  string;
+  orgName:       string;
+  orderType:     string;
+  completedAt:   string;   // ISO timestamp
+}
+
 export interface POSStore {
   // ── Cart ──────────────────────────────────────────────────────────────────
   cart:                CartItem[];
@@ -63,6 +93,11 @@ export interface POSStore {
   setOrderNotes:   (notes: string) => void;
   applyDiscount:   (discountId: string) => void;
   removeDiscount:  (discountId: string) => void;
+
+  // ── Receipt (not persisted) ───────────────────────────────────────────────
+  lastCompletedOrder:     LastCompletedOrder | null;
+  setLastCompletedOrder:  (order: LastCompletedOrder) => void;
+  clearLastCompletedOrder:() => void;
 
   // ── UI actions ────────────────────────────────────────────────────────────
   setView:                (view: ActiveView) => void;
@@ -108,6 +143,7 @@ export const usePOSStore = create<POSStore>()(
       isModifierSheetOpen: false,
       isPaymentSheetOpen:  false,
       undoStack:           [],
+      lastCompletedOrder:  null,
 
       // ── Cart actions ────────────────────────────────────────────────────
 
@@ -205,6 +241,14 @@ export const usePOSStore = create<POSStore>()(
         set((s) => {
           s.appliedDiscountIds = s.appliedDiscountIds.filter((id) => id !== discountId);
         }),
+
+      // ── Receipt (not persisted) ─────────────────────────────────────────
+
+      setLastCompletedOrder: (order) =>
+        set((s) => { s.lastCompletedOrder = order; }),
+
+      clearLastCompletedOrder: () =>
+        set((s) => { s.lastCompletedOrder = null; }),
 
       // ── UI actions ──────────────────────────────────────────────────────
 

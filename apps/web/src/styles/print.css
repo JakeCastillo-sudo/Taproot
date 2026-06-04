@@ -1,0 +1,63 @@
+/**
+ * Print styles — receipt and kitchen ticket.
+ *
+ * window.print() triggers these rules. All screen UI is hidden; only the
+ * element with class="receipt-content" (or .kitchen-ticket) is visible.
+ */
+
+@media print {
+  /* ── Hide everything ──────────────────────────────────────────────── */
+  body * {
+    visibility: hidden;
+  }
+
+  /* ── Customer receipt ─────────────────────────────────────────────── */
+  .receipt-content,
+  .receipt-content * {
+    visibility: visible;
+  }
+
+  .receipt-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    max-width: 400px;
+    margin: 0 auto;
+    color: #000;
+  }
+
+  /* ── Kitchen ticket ───────────────────────────────────────────────── */
+  .kitchen-ticket,
+  .kitchen-ticket * {
+    visibility: visible;
+  }
+
+  .kitchen-ticket {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    color: #000;
+  }
+
+  /* ── Never print action buttons / nav ────────────────────────────── */
+  .no-print {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* ── Page setup ───────────────────────────────────────────────────── */
+  @page {
+    margin: 8mm;
+    size: auto;
+  }
+
+  .page-break {
+    page-break-after: always;
+  }
+}

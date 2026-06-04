@@ -341,4 +341,18 @@ export default async function orderRoutes(fastify: FastifyInstance): Promise<voi
       return reply.send(po);
     },
   );
+
+  // ── GET /api/v1/orders/:orderId/receipt ───────────────────────────────────
+  // Returns structured receipt data for the receipt page.
+  // Falls back gracefully when the order does not yet have completed payments.
+  fastify.get(
+    '/api/v1/orders/:orderId/receipt',
+    { preHandler: [requirePermissions(Permission.ORDER_VIEW)] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user }   = req as AuthedRequest;
+      const { orderId } = req.params as { orderId: string };
+      const receipt = await ReceiptSvc.buildReceipt(user.orgId, orderId);
+      return reply.send(receipt);
+    },
+  );
 }

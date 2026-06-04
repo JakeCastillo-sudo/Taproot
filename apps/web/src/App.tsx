@@ -18,6 +18,7 @@ import { LandingPage } from './pages/LandingPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { OnboardingPage } from './pages/OnboardingPage';
+import { ReceiptPage } from './pages/ReceiptPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -196,6 +197,16 @@ export default function App() {
             element={
               <RequireAuth>
                 <OnboardingPage />
+              </RequireAuth>
+            }
+          />
+
+          {/* ── Receipt (full-screen, no sidebar) ─────────────────────────── */}
+          <Route
+            path="/receipt"
+            element={
+              <RequireAuth>
+                <ReceiptPage />
               </RequireAuth>
             }
           />

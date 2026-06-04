@@ -280,6 +280,56 @@ export const categories = {
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
+export interface ReceiptLineItemData {
+  name:           string;
+  sku:            string | null;
+  quantity:       number;
+  unitPrice:      number;
+  modifiers:      Array<{ name: string; priceDelta: number }>;
+  discountAmount: number;
+  taxAmount:      number;
+  total:          number;
+  voided:         boolean;
+}
+
+export interface ReceiptPaymentData {
+  method:    string;
+  amount:    number;
+  tipAmount: number;
+  last4:     string | null;
+  brand:     string | null;
+}
+
+/** Structured receipt returned by GET /api/v1/orders/:orderId/receipt */
+export interface ReceiptData {
+  receiptNumber:    string;
+  orderId:          string;
+  orderNumber:      string;
+  orderType:        string;
+  locationName:     string;
+  locationAddress:  string | null;
+  locationPhone:    string | null;
+  orgName:          string;
+  orgCurrency:      string;
+  employeeName:     string;
+  customerName:     string | null;
+  lineItems:        ReceiptLineItemData[];
+  payments:         ReceiptPaymentData[];
+  subtotal:         number;
+  discountTotal:    number;
+  taxTotal:         number;
+  tipTotal:         number;
+  total:            number;
+  amountPaid:       number;
+  changeDue:        number;
+  notes:            string | null;
+  printedAt:        string;
+  createdAt:        string;
+  footerText:       string | null;
+  headerText:       string | null;
+  showTaxBreakdown: boolean;
+}
+
 export const orders = {
   create: (locationId: string, body: Omit<OrderCreateBody, 'locationId'>) =>
     apiFetch<Order>(`/locations/${locationId}/orders`, {
@@ -319,6 +369,10 @@ export const orders = {
     apiFetch<Order>(`/locations/${locationId}/orders/${orderId}/resume`, {
       method: 'POST',
     }),
+
+  /** Structured receipt data — includes org/location name from DB. */
+  getReceipt: (orderId: string) =>
+    apiFetch<ReceiptData>(`/orders/${orderId}/receipt`),
 };
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
