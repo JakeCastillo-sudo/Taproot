@@ -135,7 +135,7 @@ export function OnboardingPage() {
     const { jobId } = store.menuUpload;
     const locationId = user.locationIds?.[0] ?? '';
     if (jobId && jobId !== 'manual' && jobId !== 'demo' && locationId) {
-      importsApi.confirm(jobId, locationId).catch(() => { /* non-blocking */ });
+      importsApi.confirm(jobId, { locationId }).catch(() => { /* non-blocking */ });
     }
 
     goForward('recipe_setup');

@@ -91,6 +91,19 @@ export interface ImportResult {
   errors:  string[];
 }
 
+/**
+ * A single menu item as submitted by the user after inline editing.
+ * EDIT CHAIN: this type carries user corrections from the UI all the way
+ * to applyMenuImport — ensuring edited prices/names reach the database.
+ */
+export interface ConfirmedItem {
+  name:         string;
+  price:        number;  // cents
+  category?:    string;
+  description?: string;
+  include:      boolean; // false = skip this item entirely
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Fuzzy-ish product match by name (case-insensitive ILIKE) */
@@ -363,6 +376,8 @@ export async function confirmImportJob(
   employeeId:        string,
   locationId:        string,
   confirmedMapping?: ColumnMapping,
+  // EDIT CHAIN: confirmedItems flows from UI through here
+  confirmedItems?:   ConfirmedItem[],
 ): Promise<ImportJob> {
   const { rows: [job] } = await query<ImportJob>(
     `SELECT * FROM import_jobs WHERE id = $1 AND organization_id = $2`,
@@ -384,24 +399,53 @@ export async function confirmImportJob(
 
   let result: ImportResult;
   try {
-    switch (job.import_type) {
-      case 'document_menu':
-        result = await applyMenuImport(orgId, locationId, stored.parsed as ParsedMenu, employeeId);
-        break;
-      case 'document_invoice':
-        result = await applyInvoiceImport(orgId, locationId, stored.parsed as ParsedInvoice, employeeId);
-        break;
-      case 'document_goods_receipt':
-        result = await applyGoodsReceiptImport(orgId, locationId, stored.parsed as ParsedGoodsReceipt, employeeId);
-        break;
-      case 'document_inventory':
-        result = await applyInventoryListImport(orgId, locationId, stored.parsed as ParsedInventoryList, employeeId);
-        break;
-      case 'document_recipe':
-        result = await applyRecipeSheetImport(orgId, stored.parsed as ParsedRecipeSheet, employeeId);
-        break;
-      default:
-        throw new ValidationError(`Unsupported import type: ${job.import_type}`);
+    // EDIT CHAIN: if the UI sent confirmedItems for a menu import, build a
+    // synthetic ParsedMenu from the user-corrected data so that edited
+    // prices, names and categories reach applyMenuImport — not the raw AI data.
+    if (confirmedItems !== undefined && job.import_type === 'document_menu') {
+      const includedItems = confirmedItems.filter((ci) => ci.include);
+
+      // Persist confirmed items back to preview_data for auditability
+      await query(
+        `UPDATE import_jobs SET preview_data = $2::jsonb, updated_at = now() WHERE id = $1`,
+        [jobId, JSON.stringify(includedItems)],
+      );
+
+      const syntheticParsed: ParsedMenu = {
+        items: includedItems.map((ci) => ({
+          name:        ci.name,
+          price:       ci.price,
+          category:    ci.category || undefined,
+          description: ci.description || undefined,
+        })),
+        categories: [...new Set(
+          includedItems.flatMap((ci) => (ci.category ? [ci.category] : [])),
+        )],
+        confidence: 1.0,
+        rawText:    '',
+      };
+      // EDIT CHAIN: applyMenuImport receives user-corrected items here
+      result = await applyMenuImport(orgId, locationId, syntheticParsed, employeeId);
+    } else {
+      switch (job.import_type) {
+        case 'document_menu':
+          result = await applyMenuImport(orgId, locationId, stored.parsed as ParsedMenu, employeeId);
+          break;
+        case 'document_invoice':
+          result = await applyInvoiceImport(orgId, locationId, stored.parsed as ParsedInvoice, employeeId);
+          break;
+        case 'document_goods_receipt':
+          result = await applyGoodsReceiptImport(orgId, locationId, stored.parsed as ParsedGoodsReceipt, employeeId);
+          break;
+        case 'document_inventory':
+          result = await applyInventoryListImport(orgId, locationId, stored.parsed as ParsedInventoryList, employeeId);
+          break;
+        case 'document_recipe':
+          result = await applyRecipeSheetImport(orgId, stored.parsed as ParsedRecipeSheet, employeeId);
+          break;
+        default:
+          throw new ValidationError(`Unsupported import type: ${job.import_type}`);
+      }
     }
 
     const finalStatus = result.failed > 0 && result.created + result.updated === 0

@@ -793,6 +793,23 @@ export interface ColumnMapping {
   confidence:      number;
 }
 
+/** A single menu item as submitted by the user after inline editing. */
+export interface ConfirmedMenuItem {
+  name:         string;
+  price:        number; // cents
+  category?:    string;
+  description?: string;
+  include:      boolean;
+}
+
+/** Body sent to POST /imports/:jobId/confirm */
+export interface ConfirmImportPayload {
+  locationId:        string;
+  confirmedMapping?: ColumnMapping;
+  /** EDIT CHAIN: user-edited items; if present, overrides AI-parsed data */
+  confirmedItems?:   ConfirmedMenuItem[];
+}
+
 export const importsApi = {
   /** Upload a file and create an import job. Returns { jobId, status }. */
   upload: (file: File): Promise<{ jobId: string; status: ImportStatus }> => {
@@ -818,10 +835,11 @@ export const importsApi = {
   get: (jobId: string) =>
     apiFetch<{ job: ImportJob }>(`/imports/${jobId}`).then((r) => r.job),
 
-  confirm: (jobId: string, locationId: string, confirmedMapping?: ColumnMapping) =>
+  // EDIT CHAIN: payload.confirmedItems carries user edits to the backend
+  confirm: (jobId: string, payload: ConfirmImportPayload) =>
     apiFetch<{ job: ImportJob }>(`/imports/${jobId}/confirm`, {
       method: 'POST',
-      body:   JSON.stringify({ locationId, confirmedMapping }),
+      body:   JSON.stringify(payload),
     }).then((r) => r.job),
 
   list: (params?: { status?: string; importType?: string; limit?: number; offset?: number }) => {

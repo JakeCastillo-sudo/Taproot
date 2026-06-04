@@ -182,8 +182,10 @@ export default async function importRoutes(fastify: FastifyInstance): Promise<vo
       const { user } = req as AuthedRequest;
       const { jobId }  = req.params  as { jobId: string };
       const body       = req.body    as {
-        locationId:       string;
+        locationId:        string;
         confirmedMapping?: import('../services/documentParser.service').ColumnMapping;
+        // EDIT CHAIN: confirmedItems flows from UI through here
+        confirmedItems?:   import('../services/importJob.service').ConfirmedItem[];
       };
 
       if (!body.locationId) throw new ValidationError('locationId is required');
@@ -194,6 +196,7 @@ export default async function importRoutes(fastify: FastifyInstance): Promise<vo
         user.sub,
         body.locationId,
         body.confirmedMapping,
+        body.confirmedItems,   // EDIT CHAIN: pass user edits to service
       );
 
       return reply.send({ job });

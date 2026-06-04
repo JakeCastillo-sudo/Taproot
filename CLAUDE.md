@@ -683,5 +683,22 @@ could serve stale error state from previous session.
 
 **Typecheck:** 0 errors (apps/web). CLAUDE.md updated.
 
+### Prompt 23 — Import Review Edit Screen ✅
+
+**Goal:** Allow owners to fix AI-parsed prices, names, and categories before products enter the database (e.g. Haven Health Bar menu with $0.00 prices).
+
+**Edit chain:** UI inline edit → `confirmedItems[]` in POST body → `confirmImportJob` → synthetic `ParsedMenu` → `applyMenuImport` → products with correct data.
+
+**Backend changes:**
+- `importJob.service.ts`: Added `ConfirmedItem` export interface; updated `confirmImportJob` to accept `confirmedItems?`; if provided for menu imports, filters by `include:true`, builds synthetic `ParsedMenu`, persists confirmed items to `preview_data` for auditability, calls `applyMenuImport` with user-corrected data
+- `import.routes.ts`: Route body now accepts `confirmedItems?: ConfirmedItem[]` and passes it through
+
+**Frontend changes:**
+- `api.ts`: Added `ConfirmedMenuItem`, `ConfirmImportPayload` types; changed `importsApi.confirm` from `(jobId, locationId, mapping?)` to `(jobId, payload: ConfirmImportPayload)`
+- `ImportReview.tsx`: Complete rewrite — `document_menu` jobs show a fully editable table of ALL items (from `mapping_config.parsed.items`); inline editing for name, price, category; checkbox to include/exclude items; filter tabs (All/Needs Review/Skipped); search; bulk price/category/skip actions; zero-price warning dialog; success screen with counts. Non-menu jobs use the existing read-only preview flow (renamed `GenericImportReview`).
+- `OnboardingPage.tsx`: Updated `importsApi.confirm(jobId, locationId)` → `importsApi.confirm(jobId, { locationId })`
+
+**Typecheck:** 0 errors (both apps).
+
 ## Next Prompt
-Prompt 23 — Settings page: location settings, employee management, tax rates UI, printer config
+Prompt 24 — Settings page: location settings, employee management, tax rates UI, printer config
