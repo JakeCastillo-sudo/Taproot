@@ -32,7 +32,7 @@ import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
 import { usePOSStore, type CartItem } from '../../store/pos.store';
 import { useUIStore } from '../../store/ui.store';
-import { products as productsApi, categories as categoriesApi } from '../../lib/api';
+import { products as productsApi, categories as categoriesApi, type ProductWithModifiers } from '../../lib/api';
 import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
 import { CategoryTileGrid } from '../pos/CategoryTileGrid';
@@ -151,10 +151,19 @@ function CartLine({ item }: { item: CartItem }) {
     <div className="flex items-start gap-2 py-3 border-b border-gray-50 last:border-0 group">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
-        {item.modifiers.length > 0 && (
-          <p className="text-xs text-gray-400 truncate mt-0.5">
-            {item.modifiers.map((m) => m.name).join(', ')}
-          </p>
+        {(item.modifiers ?? []).length > 0 && (
+          <div className="mt-0.5 space-y-0.5">
+            {(item.modifiers ?? []).map((m, i) => (
+              <div key={i} className="flex items-center justify-between text-xs text-gray-400">
+                <span className="truncate">+ {m.name}</span>
+                {m.priceDelta !== 0 && (
+                  <span className={m.priceDelta > 0 ? 'text-gray-400 ml-1 shrink-0' : 'text-green-500 ml-1 shrink-0'}>
+                    {m.priceDelta > 0 ? '+' : ''}{(m.priceDelta / 100).toFixed(2)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         )}
         {item.notes && (
           <p className="text-xs text-gray-400 italic truncate">{item.notes}</p>
@@ -456,33 +465,61 @@ export function POSLayout({ user }: POSLayoutProps) {
 
   // ── Product interaction ────────────────────────────────────────────────────
 
-  const handleProductTap = useCallback((product: Product & { defaultPrice?: number }) => {
-    const defaultVariant = (product as Product & { variants?: Array<{ id: string }> }).variants?.[0];
-    usePOSStore.getState().addToCart({
-      productId: product.id,
-      variantId: defaultVariant?.id ?? null,
-      name:      product.name,
-      sku:       product.sku ?? '',
-      quantity:  1,
-      unitPrice: product.defaultPrice ?? 0,
-      modifiers: [],
-      notes:     '',
-    });
-    showToast.success(`Added: ${product.name}`, { duration: 1200 });
-  }, []);
-
-  const handleProductLongPress = useCallback((product: Product & { defaultPrice?: number }) => {
+  /** Open the modifier sheet for a product (always, so notes can be added). */
+  const openModifierSheet = useCallback((product: ProductWithModifiers) => {
     const pSheet: ModifierSheetProduct = {
       id:             product.id,
-      variantId:      (product as Product & { variants?: Array<{ id: string }> }).variants?.[0]?.id ?? null,
+      variantId:      product.variants?.[0]?.id ?? null,
       name:           product.name,
       sku:            product.sku ?? '',
       basePrice:      product.defaultPrice ?? 0,
-      modifierGroups: [],
+      modifierGroups: (product.modifierGroups ?? []).map((g) => ({
+        id:            g.id,
+        name:          g.name,
+        selectionType: g.selectionType,
+        minSelections: g.minSelections,
+        maxSelections: g.maxSelections,
+        sortOrder:     g.sortOrder,
+        modifiers:     g.modifiers.map((m) => ({
+          id:         m.id,
+          name:       m.name,
+          priceDelta: m.priceDelta,
+          isDefault:  m.isDefault,
+          sortOrder:  m.sortOrder,
+        })),
+      })),
     };
     setModifierProduct(pSheet);
     setModifierSheetOpen(true);
   }, [setModifierSheetOpen]);
+
+  const handleProductTap = useCallback((product: Product & { defaultPrice?: number }) => {
+    const p = product as ProductWithModifiers;
+    const groups = p.modifierGroups ?? [];
+
+    if (groups.length > 0) {
+      // Has modifier groups — open sheet before adding to cart
+      openModifierSheet(p);
+    } else {
+      // No modifiers — add directly (fast path)
+      usePOSStore.getState().addToCart({
+        productId: product.id,
+        variantId: p.variants?.[0]?.id ?? null,
+        name:      product.name,
+        sku:       product.sku ?? '',
+        quantity:  1,
+        unitPrice: product.defaultPrice ?? 0,
+        modifiers: [],
+        notes:     '',
+      });
+      showToast.success(`Added: ${product.name}`, { duration: 1200 });
+    }
+  }, [openModifierSheet]);
+
+  const handleProductLongPress = useCallback((product: Product & { defaultPrice?: number }) => {
+    // Long-press always opens sheet (even without modifiers — for notes / qty)
+    openModifierSheet(product as ProductWithModifiers);
+  }, [openModifierSheet]);
 
   const sub  = subtotal();
   const disc = discountTotal();

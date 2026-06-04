@@ -151,8 +151,35 @@ export interface LoginResponse {
   };
 }
 
+/** A single modifier option as returned by the products API. */
+export interface ModifierOptionData {
+  id:         string;
+  name:       string;
+  priceDelta: number;  // cents, may be negative
+  isDefault:  boolean;
+  sortOrder:  number;
+}
+
+/** A modifier group attached to a product. */
+export interface ModifierGroupData {
+  id:            string;
+  name:          string;
+  selectionType: 'single' | 'multiple' | 'required_single' | 'required_multiple';
+  minSelections: number;
+  maxSelections: number | null;
+  sortOrder:     number;
+  modifiers:     ModifierOptionData[];
+}
+
+/** Product as returned by GET /api/v1/products — includes modifier groups. */
+export type ProductWithModifiers = Product & {
+  variants?:       ProductVariant[];
+  defaultPrice?:   number;
+  modifierGroups:  ModifierGroupData[];
+};
+
 export interface ProductListResponse {
-  products: (Product & { variants?: ProductVariant[]; defaultPrice?: number })[];
+  products: ProductWithModifiers[];
   total: number;
   page: number;
   perPage: number;
@@ -255,8 +282,9 @@ export const products = {
     // API returns prices[] per product; extract the lowest as defaultPrice (cents)
     const raw = await apiFetch<{
       products: (Product & {
-        variants?: ProductVariant[];
-        prices?: Array<{ price: number }>;
+        variants?:      ProductVariant[];
+        prices?:        Array<{ price: number }>;
+        modifierGroups: ModifierGroupData[];
       })[];
       total: number;
       page: number;
@@ -265,9 +293,10 @@ export const products = {
     return {
       products: raw.products.map((p) => ({
         ...p,
-        defaultPrice: p.prices?.length
+        defaultPrice:   p.prices?.length
           ? Math.min(...p.prices.map((pp) => Number(pp.price)))
           : 0,
+        modifierGroups: p.modifierGroups ?? [],
       })),
       total:   raw.total,
       page:    raw.page,

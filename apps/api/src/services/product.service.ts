@@ -13,6 +13,31 @@ import type {
 
 /** Valid meal-period values for day-part filtering. */
 export const VALID_DAY_PARTS = ['breakfast', 'brunch', 'lunch', 'dinner'] as const;
+
+/** A single modifier option within a group. */
+export interface ModifierOptionData {
+  id:         string;
+  name:       string;
+  priceDelta: number;  // cents, may be negative
+  isDefault:  boolean;
+  sortOrder:  number;
+}
+
+/** A modifier group attached to a product. */
+export interface ModifierGroupData {
+  id:            string;
+  name:          string;
+  selectionType: 'single' | 'multiple' | 'required_single' | 'required_multiple';
+  minSelections: number;
+  maxSelections: number | null;
+  sortOrder:     number;
+  modifiers:     ModifierOptionData[];
+}
+
+/** ProductWithRelations extended with POS-facing modifier groups. */
+export type ProductWithModifiers = ProductWithRelations & {
+  modifierGroups: ModifierGroupData[];
+};
 export type DayPart = typeof VALID_DAY_PARTS[number];
 
 export interface CreateProductData {
@@ -85,8 +110,8 @@ async function ensureUniqueSku(orgId: string, sku: string): Promise<void> {
   if (rows.length) throw new ConflictError(`SKU "${sku}" already exists in this organization`);
 }
 
-async function buildProductWithRelations(productId: string): Promise<ProductWithRelations> {
-  const [{ rows: [product] }, { rows: variants }, { rows: prices }, { rows: recipeRows }, { rows: lineRows }] =
+async function buildProductWithRelations(productId: string): Promise<ProductWithModifiers> {
+  const [{ rows: [product] }, { rows: variants }, { rows: prices }, { rows: recipeRows }, { rows: lineRows }, { rows: modGroupRows }] =
     await Promise.all([
       query<Product>(`SELECT * FROM products WHERE id = $1 AND deleted_at IS NULL`, [productId]),
       query<ProductVariant>(`SELECT * FROM product_variants WHERE product_id = $1 AND deleted_at IS NULL ORDER BY sort_order`, [productId]),
@@ -98,12 +123,54 @@ async function buildProductWithRelations(productId: string): Promise<ProductWith
       query<RecipeLine>(`SELECT rl.* FROM recipe_lines rl
         JOIN recipes r ON r.id = rl.recipe_id
         WHERE r.product_id = $1 AND r.is_active = true AND r.deleted_at IS NULL`, [productId]),
+      // Modifier groups with their options, aggregated per group
+      query<{
+        id: string; name: string; selection_type: string;
+        min_selections: number; max_selections: number | null;
+        sort_order: number;
+        modifiers: ModifierOptionData[] | null;
+      }>(`
+        SELECT
+          mg.id, mg.name, mg.selection_type, mg.min_selections, mg.max_selections,
+          pmg.sort_order,
+          COALESCE(
+            JSON_AGG(
+              JSON_BUILD_OBJECT(
+                'id',         mo.id,
+                'name',       mo.name,
+                'priceDelta', mo.price_delta,
+                'isDefault',  mo.is_default,
+                'sortOrder',  mo.sort_order
+              ) ORDER BY mo.sort_order ASC
+            ) FILTER (WHERE mo.id IS NOT NULL),
+            '[]'::json
+          ) AS modifiers
+        FROM product_modifier_groups pmg
+        JOIN modifier_groups mg ON mg.id = pmg.modifier_group_id
+          AND mg.deleted_at IS NULL AND mg.is_active = true
+        LEFT JOIN modifiers mo ON mo.group_id = mg.id
+          AND mo.deleted_at IS NULL AND mo.is_active = true
+        WHERE pmg.product_id = $1
+        GROUP BY mg.id, mg.name, mg.selection_type, mg.min_selections, mg.max_selections, pmg.sort_order
+        ORDER BY pmg.sort_order ASC, mg.sort_order ASC`,
+      [productId]),
     ]);
 
   if (!product) throw new ProductNotFoundError(productId);
 
   const recipe = recipeRows[0] ? { ...recipeRows[0], lines: lineRows } : null;
-  return { ...product, variants, prices, recipe };
+
+  const modifierGroups: ModifierGroupData[] = modGroupRows.map((g) => ({
+    id:            g.id,
+    name:          g.name,
+    selectionType: g.selection_type as ModifierGroupData['selectionType'],
+    minSelections: g.min_selections,
+    maxSelections: g.max_selections,
+    sortOrder:     g.sort_order,
+    modifiers:     g.modifiers ?? [],
+  }));
+
+  return { ...product, variants, prices, recipe, modifierGroups };
 }
 
 // ─── createProduct ────────────────────────────────────────────────────────────
@@ -113,7 +180,7 @@ export async function createProduct(
   _locationId: string,
   data: CreateProductData,
   employeeId: string,
-): Promise<ProductWithRelations> {
+): Promise<ProductWithModifiers> {
   if (!data.name?.trim()) throw new ValidationError('Product name is required');
 
   // Validate category belongs to org
@@ -213,7 +280,7 @@ export async function updateProduct(
   productId: string,
   data: UpdateProductData,
   employeeId: string,
-): Promise<ProductWithRelations> {
+): Promise<ProductWithModifiers> {
   const { rows: [before] } = await query<Product>(
     `SELECT * FROM products WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
     [productId, orgId],
@@ -307,7 +374,7 @@ export async function deleteProduct(
 
 // ─── getProduct ───────────────────────────────────────────────────────────────
 
-export async function getProduct(orgId: string, productId: string): Promise<ProductWithRelations> {
+export async function getProduct(orgId: string, productId: string): Promise<ProductWithModifiers> {
   const { rows: [exists] } = await query(
     `SELECT id FROM products WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
     [productId, orgId],
@@ -321,7 +388,7 @@ export async function getProduct(orgId: string, productId: string): Promise<Prod
 export async function listProducts(
   orgId: string,
   filters: ListProductsFilters = {},
-): Promise<{ products: ProductWithRelations[]; total: number; page: number }> {
+): Promise<{ products: ProductWithModifiers[]; total: number; page: number }> {
   const {
     page = 1, limit: rawLimit = 50,
     sortBy = 'name', sortOrder = 'ASC',
@@ -377,7 +444,7 @@ export async function listProducts(
 export async function searchByBarcode(
   orgId: string,
   barcode: string,
-): Promise<ProductWithRelations | null> {
+): Promise<ProductWithModifiers | null> {
   // Check products first, then variants
   const { rows: [productRow] } = await query<{ id: string }>(
     `SELECT id FROM products WHERE organization_id = $1 AND barcode = $2 AND deleted_at IS NULL LIMIT 1`,

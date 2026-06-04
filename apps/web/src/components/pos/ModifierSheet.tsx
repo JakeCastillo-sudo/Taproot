@@ -14,6 +14,9 @@ export interface ModifierGroupDef {
   id:             string;
   name:           string;
   selectionType:  'single' | 'multiple' | 'required_single' | 'required_multiple';
+  minSelections:  number;
+  maxSelections:  number | null;
+  sortOrder:      number;
   modifiers:      ModifierDef[];
 }
 
@@ -21,6 +24,8 @@ export interface ModifierDef {
   id:         string;
   name:       string;
   priceDelta: number; // cents
+  isDefault:  boolean;
+  sortOrder:  number;
 }
 
 export interface ModifierSheetProduct {
@@ -66,13 +71,11 @@ export function ModifierSheet({ product, cartItemId, onClose }: Props) {
   const [qty,        setQty]        = useState(1);
   const [notes,      setNotes]      = useState('');
 
-  // initialise required defaults
+  // Initialise: pre-select any modifiers flagged isDefault
   useEffect(() => {
     const init: Record<string, Set<string>> = {};
     for (const g of product.modifierGroups) {
-      const defaults = g.modifiers.filter((m) => false /* no default flag in this spec */);
-      void defaults;
-      init[g.id] = new Set<string>();
+      init[g.id] = new Set(g.modifiers.filter((m) => m.isDefault).map((m) => m.id));
     }
     setSelections(init);
   }, [product.modifierGroups]);
@@ -246,7 +249,7 @@ export function ModifierSheet({ product, cartItemId, onClose }: Props) {
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed',
               )}
             >
-              {cartItemId ? 'Update item' : 'Add to cart'}
+              {cartItemId ? 'Update item' : 'Add to Order'}
               <span className="opacity-80 font-medium">
                 — ${(linePrice / 100).toFixed(2)}
               </span>

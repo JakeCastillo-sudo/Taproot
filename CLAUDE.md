@@ -20,7 +20,7 @@ Auto-deploy: push to `main` → Railway (API) + Vercel (frontend) redeploy autom
 
 | Bug ID | Symptom | File | Status |
 |---|---|---|---|
-| **BUG-PAY-001** | "Cannot read properties of undefined (reading 'length')" after clicking Charge | `PaymentSheet.tsx` — `buildReceiptSnapshot()`, `item.modifiers ?? []` and `items?.map(...) ?? []` safe fallbacks needed; also check `CartItem.modifiers` defaults in `pos.store.ts` | OPEN |
+| **BUG-PAY-001** | "Cannot read properties of undefined (reading 'length')" after clicking Charge | `PaymentSheet.tsx` — `buildReceiptSnapshot()`, `item.modifiers ?? []` and `items?.map(...) ?? []` safe fallbacks needed; also check `CartItem.modifiers` defaults in `pos.store.ts` | ✅ RESOLVED (Prompt 27) |
 
 ### P1 — Degrades experience
 
@@ -55,9 +55,16 @@ Migrations 001–010 have already been applied on Railway.
 
 ## 🗺️ Next Prompts Queue (27–30)
 
-### Prompt 27 — Fix P0/P1 bugs
-Fix BUG-PAY-001 first (blocks all payments), then import bugs BUG-IMP-001 through 004.
-- BUG-PAY-001: add `item.modifiers ?? []` and `items?.map(...) ?? []` in PaymentSheet.tsx
+### Prompt 27 — Item modifier sheet ✅ COMPLETE
+- **BUG-PAY-001 RESOLVED**: `(c.modifiers ?? []).map(...)` in both receipt snapshot builder and order create body in PaymentSheet.tsx
+- Backend: `buildProductWithRelations` in `product.service.ts` now fetches modifier groups + options via single SQL query with `JSON_AGG`; new types `ModifierGroupData`, `ModifierOptionData`, `ProductWithModifiers`
+- Frontend `api.ts`: `ProductWithModifiers` type; `products.list()` includes `modifierGroups` from API; `ProductListResponse` updated
+- `ModifierSheet.tsx`: added `minSelections`, `maxSelections`, `sortOrder`, `isDefault` to types; pre-selects default modifiers; "Add to Order" label
+- `POSLayout.tsx`: `handleProductTap` checks `modifierGroups.length > 0`; if yes → opens ModifierSheet; if no → fast path direct add; `handleProductLongPress` always opens sheet; cart display shows modifiers as indented sub-lines with price deltas
+- **Demo**: Tap "Classic Burger" → modifier sheet opens; tap "Draft Beer" → adds instantly
+
+### Prompt 28 — Fix import bugs (P1 backlog)
+Fix BUG-IMP-001 through 004.
 - BUG-IMP-003: fix ImportReview.tsx height/scroll so buttons are reachable without zoom
 - BUG-IMP-004: verify confirm flow end-to-end; test with real CSV/PDF upload
 - BUG-IMP-001/002: diagnose CSV parser path and PDF price extraction

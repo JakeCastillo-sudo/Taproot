@@ -262,7 +262,8 @@ export function PaymentSheet({ onClose }: Props) {
           name:      c.name,
           quantity:  c.quantity,
           unitPrice: c.unitPrice,
-          modifiers: c.modifiers.map((m) => m.name),
+          // BUG-PAY-001: modifiers may be undefined on deserialized cart items
+          modifiers: (c.modifiers ?? []).map((m) => m.name),
           total:     c.lineTotal,
         })),
         subtotal:      sub,
@@ -313,7 +314,7 @@ export function PaymentSheet({ onClose }: Props) {
           quantity:  c.quantity,
           unitPrice: c.unitPrice,
           notes:     c.notes || undefined,
-          modifiers: c.modifiers.map((m) => ({ modifierId: m.modifierId, priceDelta: m.priceDelta })),
+          modifiers: (c.modifiers ?? []).map((m) => ({ modifierId: m.modifierId, priceDelta: m.priceDelta })),
         })),
         notes: orderNotes || undefined,
       });
