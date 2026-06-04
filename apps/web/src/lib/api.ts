@@ -158,8 +158,17 @@ export interface ProductListResponse {
   perPage: number;
 }
 
+/** Category enriched with active product count (from GET /categories). */
+export interface CategoryWithCount {
+  id:            string;
+  name:          string;
+  color:         string | null;
+  sort_order:    number;
+  product_count: number;
+}
+
 export interface CategoryListResponse {
-  categories: Category[];
+  categories: CategoryWithCount[];
 }
 
 export interface OrderCreateBody {

@@ -22,11 +22,17 @@ export default async function inventoryRoutes(fastify: FastifyInstance): Promise
     const { user } = req as AuthedRequest;
     const { rows } = await (await import('../db/client')).query<{
       id: string; name: string; color: string | null; sort_order: number;
+      product_count: number;
     }>(
-      `SELECT id, name, color, sort_order
-         FROM categories
-        WHERE organization_id = $1 AND deleted_at IS NULL
-        ORDER BY sort_order ASC, name ASC`,
+      `SELECT c.id, c.name, c.color, c.sort_order,
+              COUNT(p.id) FILTER (
+                WHERE p.deleted_at IS NULL AND p.is_active = true
+              )::int AS product_count
+         FROM categories c
+         LEFT JOIN products p ON p.category_id = c.id AND p.organization_id = c.organization_id
+        WHERE c.organization_id = $1 AND c.deleted_at IS NULL
+        GROUP BY c.id
+        ORDER BY c.sort_order ASC, c.name ASC`,
       [user.orgId],
     );
     return reply.send({ categories: rows });

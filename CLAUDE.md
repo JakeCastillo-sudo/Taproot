@@ -740,5 +740,29 @@ for both customer receipt and kitchen prep ticket.
 
 **Typecheck:** 0 errors (both apps).
 
+### Prompt 25 — Collapsible sidebar and category tile navigation ✅
+
+**Problem solved:** POS was a flat product list; no category browsing; sidebar always full-width.
+
+**New files:**
+- `apps/web/src/store/ui.store.ts` — `sidebarCollapsed` (persisted to localStorage), `posViewMode`/`selectedCategoryId`/`selectedCategoryName` (NOT persisted — always starts as 'categories' on load)
+- `apps/web/src/lib/categoryColors.ts` — `getCategoryColor(name)` deterministic hash → color; `resolveColor(name, dbColor)` prefers DB color
+- `apps/web/src/components/pos/CategoryTileGrid.tsx` — responsive tile grid (2-4 col); "All Items" always first; large colorful tiles with category name + product count badge; loading skeleton
+
+**Modified files:**
+- `apps/api/src/routes/inventory.routes.ts` — categories query adds LEFT JOIN products + `COUNT(p.id) FILTER (WHERE deleted_at IS NULL AND is_active)::int AS product_count`
+- `apps/web/src/lib/api.ts` — added `CategoryWithCount` type (`id, name, color, sort_order, product_count`); updated `CategoryListResponse` to use it
+- `apps/web/src/components/layout/POSLayout.tsx` — complete rewrite:
+  - Collapsible sidebar (lg+): `w-48` expanded / `w-14` collapsed; icons + labels → icons only; toggle button (ChevronLeft/Right) at bottom; `transition-all duration-200`; state from `ui.store.sidebarCollapsed`
+  - Category tile view as default center content when `posViewMode === 'categories'` and no search
+  - Item view (product grid) when `posViewMode === 'items'` — shows breadcrumb "← Categories / {name}" with back button that calls `resetPosView()`
+  - Search auto-switches to item view (`setPosViewItems(null, null)`); clearing search returns to category view via `resetPosView()`
+  - Overlay sidebar for tablet (md-lg) unchanged
+  - Mobile bottom nav unchanged
+  - Removed `CategoryNav` from sidebar (category selection now in center zone only)
+  - Products query uses `selectedCategoryId` from ui.store; `enabled` only when in items mode or searching
+
+**Typecheck:** 0 errors (both apps).
+
 ## Next Prompt
-Prompt 25 — Settings page: location settings, employee management, tax rates UI, printer config
+Prompt 26 — Settings page: location settings, employee management, tax rates UI, printer config

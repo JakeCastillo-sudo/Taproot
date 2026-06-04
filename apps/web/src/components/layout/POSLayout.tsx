@@ -3,27 +3,39 @@
  *
  * ──────────────────────────────────────────────────────────────────────────
  * BREAKPOINTS
- * < 768px   (iPhone)         : 2-col grid, bottom nav, floating MobileCart
- * 768-1023px (iPad portrait)  : hamburger + overlay sidebar, 3-col grid,
- *                               MobileCart bottom sheet for cart
- * ≥ 1024px  (iPad landscape+): full 3-column layout (200px / flex / 320px)
+ * < 768px   (iPhone)         : 2-col product grid, bottom nav, floating cart
+ * 768-1023px (iPad portrait)  : hamburger + overlay sidebar, center zone,
+ *                               floating cart button
+ * ≥ 1024px  (iPad landscape+): 3-column layout (sidebar | center | cart)
+ *
+ * SIDEBAR STATES (lg+ only)
+ * Expanded (200px): icon + text label for every nav item
+ * Collapsed (56px): icon only, tooltip on hover; toggle at bottom
+ *
+ * CENTER ZONE MODES
+ * categories: CategoryTileGrid — large colorful tiles, default landing
+ * items:      ProductGrid — filtered by selected category + breadcrumb
+ * Search text always switches to 'items' and searches across all products.
  * ──────────────────────────────────────────────────────────────────────────
  */
 
 import { useState, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search, X, LogOut, ShoppingCart, Package,
-  ChevronRight, Plus, Minus, Trash2, Tag,
+  ChevronRight, ChevronLeft, Plus, Minus, Trash2, Tag,
   FileText, AlertTriangle, User, Layers, BarChart3,
-  Upload, ArrowRightLeft, Menu, Terminal,
+  Upload, ArrowRightLeft, Menu, Terminal, Settings,
+  LayoutGrid,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
 import { usePOSStore, type CartItem } from '../../store/pos.store';
+import { useUIStore } from '../../store/ui.store';
 import { products as productsApi, categories as categoriesApi } from '../../lib/api';
 import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
+import { CategoryTileGrid } from '../pos/CategoryTileGrid';
 import { ModifierSheet, type ModifierSheetProduct } from '../pos/ModifierSheet';
 import { PaymentSheet } from '../pos/PaymentSheet';
 import { MobileCart } from '../pos/MobileCart';
@@ -116,7 +128,6 @@ function ProductTile({ product, onTap, onLongPress, index }: ProductTileProps) {
       className="bg-white rounded-lg border border-gray-100 p-3 flex flex-col gap-2 hover:border-primary/30 hover:shadow-sm active:scale-[0.97] transition-all cursor-pointer text-left focus-ring"
       aria-label={`Add ${product.name} — ${fmt(price)}`}
     >
-      {/* Image / avatar */}
       <div className={clsx('w-full aspect-square rounded-md flex items-center justify-center text-lg font-bold', colorClass)}>
         {initials}
       </div>
@@ -180,67 +191,36 @@ function CartLine({ item }: { item: CartItem }) {
   );
 }
 
-// ─── Category nav ─────────────────────────────────────────────────────────────
+// ─── Nav items ────────────────────────────────────────────────────────────────
 
-interface Category { id: string; name: string; color: string | null }
-
-function CategoryNav({ categories, selected, onSelect, onClose }: {
-  categories: Category[];
-  selected:   string | null;
-  onSelect:   (id: string | null) => void;
-  onClose?:   () => void;
-}) {
-  const handleSelect = (id: string | null) => {
-    onSelect(id);
-    onClose?.(); // close drawer on mobile after selection
-  };
-  return (
-    <nav className="flex flex-col gap-0.5">
-      <button
-        onClick={() => handleSelect(null)}
-        className={clsx(
-          'flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium transition-colors min-h-[44px] text-left',
-          selected === null
-            ? 'bg-primary text-white'
-            : 'text-gray-600 hover:bg-gray-100',
-        )}
-      >
-        <Package size={15} className="shrink-0" />
-        All Items
-      </button>
-      {categories.map((cat) => (
-        <button
-          key={cat.id}
-          onClick={() => handleSelect(cat.id)}
-          className={clsx(
-            'flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium transition-colors min-h-[44px] text-left',
-            selected === cat.id
-              ? 'bg-primary text-white'
-              : 'text-gray-600 hover:bg-gray-100',
-          )}
-        >
-          <span
-            className="w-2.5 h-2.5 rounded-full shrink-0"
-            style={{ background: cat.color ?? '#94A3B8' }}
-          />
-          <span className="truncate">{cat.name}</span>
-        </button>
-      ))}
-    </nav>
-  );
+interface NavItem {
+  id:    string;
+  icon:  React.ReactNode;
+  label: string;
+  path:  string;
 }
 
-// ─── Sidebar content (shared between inline and overlay) ──────────────────────
+const NAV_ITEMS: NavItem[] = [
+  { id: 'pos',       icon: <ShoppingCart size={18} />, label: 'Register',  path: '/' },
+  { id: 'inventory', icon: <Package size={18} />,      label: 'Inventory', path: '/inventory' },
+  { id: 'reports',   icon: <BarChart3 size={18} />,    label: 'Reports',   path: '/reports' },
+  { id: 'import',    icon: <Upload size={18} />,       label: 'Import',    path: '/import' },
+  { id: 'migrate',   icon: <ArrowRightLeft size={18}/>,label: 'Migrate',   path: '/migrate' },
+  { id: 'settings',  icon: <Settings size={18} />,     label: 'Settings',  path: '/settings' },
+];
 
-function SidebarContent({ user, allCats, selectedCategory, setCategory, onClose, productCount }: {
-  user:              POSUser;
-  allCats:           Category[];
-  selectedCategory:  string | null;
-  setCategory:       (id: string | null) => void;
-  onClose?:          () => void;
-  productCount:      number;
-}) {
-  const navigate = useNavigate();
+// ─── Collapsible Sidebar (desktop lg+) ───────────────────────────────────────
+
+interface SidebarProps {
+  user:      POSUser;
+  collapsed: boolean;
+  onToggle:  () => void;
+  onClose?:  () => void;         // overlay mode only
+}
+
+function Sidebar({ user, collapsed, onToggle, onClose }: SidebarProps) {
+  const navigate  = useNavigate();
+  const location  = useLocation();
 
   const handleLogout = () => {
     clearTokens();
@@ -248,97 +228,125 @@ function SidebarContent({ user, allCats, selectedCategory, setCategory, onClose,
   };
 
   return (
-    <>
-      {/* Logo */}
-      <div className="px-4 py-4 border-b border-gray-100 shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-white text-sm font-bold">T</span>
-            </div>
-            <div>
-              <p className="text-sm font-bold text-gray-900">Taproot POS</p>
+    <div className="flex flex-col h-full">
+      {/* Logo / brand */}
+      <div className={clsx(
+        'px-3 py-3 border-b border-gray-100 shrink-0 flex items-center',
+        collapsed ? 'justify-center' : 'justify-between gap-2',
+      )}>
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+            <span className="text-white text-sm font-bold">T</span>
+          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-gray-900 truncate">Taproot POS</p>
               <p className="text-[11px] text-gray-400">Location 1</p>
             </div>
-          </div>
-          {onClose && (
-            <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 transition-colors lg:hidden">
-              <X size={16} className="text-gray-500" />
-            </button>
           )}
         </div>
-      </div>
-
-      {/* Sync status */}
-      <div className="px-3 py-2 border-b border-gray-50 shrink-0">
-        <SyncStatus />
-      </div>
-
-      {/* Category list */}
-      <div className="flex-1 overflow-y-auto px-3 py-3">
-        <CategoryNav
-          categories={allCats}
-          selected={selectedCategory}
-          onSelect={setCategory}
-          onClose={onClose}
-        />
-      </div>
-
-      {/* Nav links */}
-      <div className="px-3 py-2 border-t border-gray-50 space-y-0.5 shrink-0">
-        <button
-          onClick={() => navigate('/inventory')}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
-        >
-          <Layers size={15} className="shrink-0 text-gray-400" />
-          Inventory
-        </button>
-        <button
-          onClick={() => navigate('/reports')}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
-        >
-          <BarChart3 size={15} className="shrink-0 text-gray-400" />
-          Reports
-        </button>
-        <button
-          onClick={() => navigate('/import')}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
-        >
-          <Upload size={15} className="shrink-0 text-gray-400" />
-          Import
-        </button>
-        {productCount < 10 && (
+        {onClose && (
           <button
-            onClick={() => navigate('/migrate')}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+            onClick={onClose}
+            className="p-1.5 rounded-full hover:bg-gray-100 transition-colors shrink-0 lg:hidden"
           >
-            <ArrowRightLeft size={15} className="shrink-0 text-gray-400" />
-            Migrate
+            <X size={16} className="text-gray-500" />
           </button>
         )}
       </div>
 
-      {/* Employee footer */}
-      <div className="px-3 py-3 border-t border-gray-100 shrink-0">
-        <div className="flex items-center gap-2.5 mb-2">
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <User size={14} className="text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-gray-800 truncate">
-              {user.firstName} {user.lastName}
-            </p>
-            <p className="text-[10px] text-gray-400 capitalize">{user.role}</p>
-          </div>
+      {/* Sync status (expanded only) */}
+      {!collapsed && (
+        <div className="px-3 py-2 border-b border-gray-50 shrink-0">
+          <SyncStatus />
         </div>
+      )}
+
+      {/* Nav items */}
+      <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
+        {NAV_ITEMS.map((item) => {
+          const isActive = item.path === '/'
+            ? location.pathname === '/'
+            : location.pathname.startsWith(item.path);
+          return (
+            <button
+              key={item.id}
+              title={collapsed ? item.label : undefined}
+              onClick={() => { navigate(item.path); onClose?.(); }}
+              className={clsx(
+                'w-full flex items-center rounded-md text-sm font-medium transition-colors min-h-[40px]',
+                collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-3 py-2.5',
+                isActive
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800',
+              )}
+            >
+              <span className={clsx('shrink-0', isActive && 'text-primary')}>
+                {item.icon}
+              </span>
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Sidebar collapse toggle (desktop only) */}
+      <div className={clsx(
+        'px-2 py-2 border-t border-gray-50 shrink-0',
+        collapsed ? 'flex justify-center' : '',
+      )}>
         <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+          onClick={onToggle}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className={clsx(
+            'flex items-center gap-2 rounded-md text-xs text-gray-400 hover:text-gray-600',
+            'hover:bg-gray-100 transition-colors min-h-[36px]',
+            collapsed ? 'justify-center px-2 py-2 w-full' : 'px-3 py-2 w-full',
+          )}
         >
-          <LogOut size={13} /> Sign out
+          {collapsed
+            ? <ChevronRight size={16} />
+            : <><ChevronLeft size={16} /><span>Collapse</span></>
+          }
         </button>
       </div>
-    </>
+
+      {/* Employee footer */}
+      <div className={clsx(
+        'px-2 py-3 border-t border-gray-100 shrink-0',
+        collapsed ? 'flex flex-col items-center gap-2' : '',
+      )}>
+        {collapsed ? (
+          <button
+            title={`${user.firstName} ${user.lastName} — Sign out`}
+            onClick={handleLogout}
+            className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center hover:bg-red-100 transition-colors"
+          >
+            <User size={14} className="text-primary" />
+          </button>
+        ) : (
+          <>
+            <div className="flex items-center gap-2.5 px-1 mb-1">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <User size={14} className="text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-gray-800 truncate">
+                  {user.firstName} {user.lastName}
+                </p>
+                <p className="text-[10px] text-gray-400 capitalize">{user.role}</p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+            >
+              <LogOut size={13} /> Sign out
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -348,13 +356,18 @@ export function POSLayout({ user }: POSLayoutProps) {
   const navigate = useNavigate();
 
   const {
-    cart, selectedCategory, searchQuery,
-    setCategory, setSearch,
+    cart, searchQuery, setSearch,
     setPaymentSheetOpen, isPaymentSheetOpen,
     setModifierSheetOpen,
     subtotal, taxTotal, total, discountTotal, itemCount,
     clearCart,
   } = usePOSStore();
+
+  const {
+    sidebarCollapsed, toggleSidebar,
+    posViewMode, selectedCategoryId, selectedCategoryName,
+    setPosViewItems, resetPosView,
+  } = useUIStore();
 
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -367,7 +380,86 @@ export function POSLayout({ user }: POSLayoutProps) {
 
   useBarcode();
 
-  // ── Command palette actions ────────────────────────────────────────────────
+  // ── Data fetching ──────────────────────────────────────────────────────────
+
+  const { data: categoriesData, isLoading: loadingCats } = useQuery({
+    queryKey: QK.categories(),
+    queryFn:  () => categoriesApi.list(),
+    staleTime: 5 * 60_000,
+  });
+  const allCats = categoriesData?.categories ?? [];
+  const totalProductCount = allCats.reduce((s, c) => s + c.product_count, 0);
+
+  const { data: productsData, isLoading: loadingProducts } = useQuery({
+    queryKey: QK.products({ categoryId: selectedCategoryId, search: searchQuery }),
+    queryFn:  () => productsApi.list({
+      categoryId: selectedCategoryId ?? undefined,
+      search: searchQuery || undefined,
+      isActive: true,
+      perPage: 100,
+    }),
+    staleTime: 30_000,
+    // Only fetch when in items view or searching
+    enabled: posViewMode === 'items' || !!searchQuery,
+  });
+  const productList = productsData?.products ?? [];
+
+  // ── Search handler: auto-switch to item view ───────────────────────────────
+
+  const handleSearch = useCallback((value: string) => {
+    setSearch(value);
+    if (value) {
+      // Switch to item view for search results (across all categories)
+      setPosViewItems(null, null);
+    } else if (posViewMode === 'items' && !selectedCategoryId) {
+      // Clearing search while in "all items" view → back to categories
+      resetPosView();
+    }
+  }, [setSearch, setPosViewItems, resetPosView, posViewMode, selectedCategoryId]);
+
+  const clearSearch = useCallback(() => {
+    setSearch('');
+    resetPosView();
+  }, [setSearch, resetPosView]);
+
+  // ── Product interaction ────────────────────────────────────────────────────
+
+  const handleProductTap = useCallback((product: Product & { defaultPrice?: number }) => {
+    const defaultVariant = (product as Product & { variants?: Array<{ id: string }> }).variants?.[0];
+    usePOSStore.getState().addToCart({
+      productId: product.id,
+      variantId: defaultVariant?.id ?? null,
+      name:      product.name,
+      sku:       product.sku ?? '',
+      quantity:  1,
+      unitPrice: product.defaultPrice ?? 0,
+      modifiers: [],
+      notes:     '',
+    });
+    showToast.success(`Added: ${product.name}`, { duration: 1200 });
+  }, []);
+
+  const handleProductLongPress = useCallback((product: Product & { defaultPrice?: number }) => {
+    const pSheet: ModifierSheetProduct = {
+      id:             product.id,
+      variantId:      (product as Product & { variants?: Array<{ id: string }> }).variants?.[0]?.id ?? null,
+      name:           product.name,
+      sku:            product.sku ?? '',
+      basePrice:      product.defaultPrice ?? 0,
+      modifierGroups: [],
+    };
+    setModifierProduct(pSheet);
+    setModifierSheetOpen(true);
+  }, [setModifierSheetOpen]);
+
+  const sub  = subtotal();
+  const disc = discountTotal();
+  const tax  = taxTotal();
+  const ttl  = total();
+  const cnt  = itemCount();
+
+  // ── Command palette ────────────────────────────────────────────────────────
+
   const cmdActions: CommandAction[] = [
     {
       id: 'nav-register',   group: 'Navigate',
@@ -408,6 +500,12 @@ export function POSLayout({ user }: POSLayoutProps) {
       onSelect: () => { if (cart.length > 0 && window.confirm('Clear cart?')) clearCart(); },
     },
     {
+      id: 'view-categories', group: 'View',
+      icon: <LayoutGrid size={15} />,
+      label: 'Browse categories',
+      onSelect: () => { setSearch(''); resetPosView(); },
+    },
+    {
       id: 'focus-search',   group: 'Search',
       icon: <Search size={15} />,
       label: 'Search products',
@@ -430,71 +528,33 @@ export function POSLayout({ user }: POSLayoutProps) {
     onOpenCommandPalette: () => setCmdOpen(true),
   });
 
-  const { data: productsData, isLoading: loadingProducts } = useQuery({
-    queryKey: QK.products({ categoryId: selectedCategory, search: searchQuery }),
-    queryFn:  () => productsApi.list({ categoryId: selectedCategory ?? undefined, search: searchQuery || undefined, isActive: true, perPage: 100 }),
-    staleTime: 30_000,
-  });
-  const productList = productsData?.products ?? [];
+  // ── Breadcrumb label ───────────────────────────────────────────────────────
 
-  const { data: categoriesData } = useQuery({
-    queryKey: QK.categories(),
-    queryFn:  () => categoriesApi.list(),
-    staleTime: 5 * 60_000,
-  });
-  const allCats: Category[] = categoriesData?.categories ?? [];
-
-  const handleProductTap = useCallback((product: Product & { defaultPrice?: number }) => {
-    const defaultVariant = (product as Product & { variants?: Array<{ id: string }> }).variants?.[0];
-    usePOSStore.getState().addToCart({
-      productId: product.id,
-      variantId: defaultVariant?.id ?? null,
-      name:      product.name,
-      sku:       product.sku ?? '',
-      quantity:  1,
-      unitPrice: product.defaultPrice ?? 0,
-      modifiers: [],
-      notes:     '',
-    });
-    showToast.success(`Added: ${product.name}`, { duration: 1200 });
-  }, []);
-
-  const handleProductLongPress = useCallback((product: Product & { defaultPrice?: number }) => {
-    const pSheet: ModifierSheetProduct = {
-      id:             product.id,
-      variantId:      (product as Product & { variants?: Array<{ id: string }> }).variants?.[0]?.id ?? null,
-      name:           product.name,
-      sku:            product.sku ?? '',
-      basePrice:      product.defaultPrice ?? 0,
-      modifierGroups: [],
-    };
-    setModifierProduct(pSheet);
-    setModifierSheetOpen(true);
-  }, [setModifierSheetOpen]);
-
-  const sub  = subtotal();
-  const disc = discountTotal();
-  const tax  = taxTotal();
-  const ttl  = total();
-  const cnt  = itemCount();
+  const breadcrumbLabel = searchQuery
+    ? `Search: "${searchQuery}"`
+    : selectedCategoryName ?? 'All Items';
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="h-screen flex overflow-hidden bg-surface-2">
 
-      {/* ── INLINE SIDEBAR — iPad landscape + desktop (lg+) ───────────────── */}
-      <aside className="hidden lg:flex flex-col w-48 xl:w-56 shrink-0 bg-white border-r border-gray-100 overflow-hidden">
-        <SidebarContent
+      {/* ── INLINE SIDEBAR — desktop + iPad landscape (lg+) ───────────────── */}
+      <aside
+        className={clsx(
+          'hidden lg:flex flex-col shrink-0 bg-white border-r border-gray-100',
+          'overflow-hidden transition-all duration-200',
+          sidebarCollapsed ? 'w-14' : 'w-48 xl:w-56',
+        )}
+      >
+        <Sidebar
           user={user}
-          allCats={allCats}
-          selectedCategory={selectedCategory}
-          setCategory={setCategory}
-          productCount={productList.length}
+          collapsed={sidebarCollapsed}
+          onToggle={toggleSidebar}
         />
       </aside>
 
-      {/* ── OVERLAY SIDEBAR — iPad portrait (md, not lg) ──────────────────── */}
+      {/* ── OVERLAY SIDEBAR — tablet portrait (md to lg) ──────────────────── */}
       {sidebarOpen && (
         <div
           className="lg:hidden fixed inset-0 z-40 bg-black/30"
@@ -504,25 +564,22 @@ export function POSLayout({ user }: POSLayoutProps) {
             className="absolute inset-y-0 left-0 w-64 bg-white shadow-xl flex flex-col overflow-hidden animate-slide-in-left"
             onClick={(e) => e.stopPropagation()}
           >
-            <SidebarContent
+            <Sidebar
               user={user}
-              allCats={allCats}
-              selectedCategory={selectedCategory}
-              setCategory={setCategory}
+              collapsed={false}
+              onToggle={() => {}}
               onClose={() => setSidebarOpen(false)}
-              productCount={productList.length}
             />
           </aside>
         </div>
       )}
 
-      {/* ── CENTER: Product grid ───────────────────────────────────────────── */}
+      {/* ── CENTER ZONE ───────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col overflow-hidden min-w-0">
 
         {/* Search / top bar */}
         <div className="px-3 md:px-4 py-3 bg-white border-b border-gray-100 shrink-0 flex items-center gap-2">
-
-          {/* Hamburger — visible on md (iPad portrait) and smaller */}
+          {/* Hamburger — visible on tablet (md) and smaller */}
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden p-2 rounded-md hover:bg-gray-100 transition-colors shrink-0"
@@ -531,7 +588,7 @@ export function POSLayout({ user }: POSLayoutProps) {
             <Menu size={18} className="text-gray-600" />
           </button>
 
-          {/* Search box */}
+          {/* Search */}
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
@@ -539,14 +596,14 @@ export function POSLayout({ user }: POSLayoutProps) {
               ref={searchRef}
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
               placeholder={isTablet ? 'Search products… (/)' : 'Search…'}
               className="w-full pl-9 pr-9 py-2.5 bg-gray-50 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors"
               autoComplete="off"
             />
             {searchQuery && (
               <button
-                onClick={() => setSearch('')}
+                onClick={clearSearch}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-200 transition-colors"
               >
                 <X size={13} className="text-gray-400" />
@@ -554,7 +611,7 @@ export function POSLayout({ user }: POSLayoutProps) {
             )}
           </div>
 
-          {/* ⌘K command palette hint — desktop only */}
+          {/* ⌘K hint — desktop */}
           <button
             onClick={() => setCmdOpen(true)}
             className="hidden lg:flex items-center gap-1.5 px-2.5 py-2 rounded-md border border-gray-200 bg-gray-50 text-xs text-gray-400 hover:bg-gray-100 transition-colors shrink-0"
@@ -565,35 +622,70 @@ export function POSLayout({ user }: POSLayoutProps) {
           </button>
         </div>
 
-        {/* Product grid */}
-        <div className="flex-1 overflow-y-auto p-3 md:p-4">
-          {loadingProducts ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 md:gap-3">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="aspect-[3/4] rounded-lg bg-gray-100 animate-shimmer" />
-              ))}
-            </div>
-          ) : productList.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-center">
-              <Package size={32} className="text-gray-200 mb-3" />
-              <p className="text-sm font-medium text-gray-400">No products found</p>
-              {searchQuery && (
-                <button onClick={() => setSearch('')} className="mt-2 text-xs text-primary hover:underline">
-                  Clear search
-                </button>
-              )}
-            </div>
+        {/* Breadcrumb — only visible in items mode */}
+        {posViewMode === 'items' && (
+          <div className="px-3 md:px-4 py-2 bg-white border-b border-gray-50 shrink-0 flex items-center gap-2">
+            <button
+              onClick={() => { setSearch(''); resetPosView(); }}
+              className="flex items-center gap-1 text-sm text-primary hover:text-primary-dark font-medium transition-colors min-h-[36px]"
+            >
+              <ChevronLeft size={16} />
+              <span className="hidden sm:inline">Categories</span>
+            </button>
+            <span className="text-gray-300">/</span>
+            <span className="text-sm text-gray-700 font-medium truncate">{breadcrumbLabel}</span>
+          </div>
+        )}
+
+        {/* Content area */}
+        <div className="flex-1 overflow-y-auto">
+          {posViewMode === 'categories' && !searchQuery ? (
+            /* ── CATEGORY TILE VIEW ────────────────────────────────────── */
+            <CategoryTileGrid
+              categories={allCats}
+              totalProductCount={totalProductCount}
+              loading={loadingCats}
+              onSelectAll={() => setPosViewItems(null, 'All Items')}
+              onSelectCategory={(id, name) => setPosViewItems(id, name)}
+            />
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5 md:gap-3">
-              {productList.map((product, i) => (
-                <ProductTile
-                  key={product.id}
-                  product={product}
-                  onTap={handleProductTap}
-                  onLongPress={handleProductLongPress}
-                  index={i}
-                />
-              ))}
+            /* ── PRODUCT GRID ──────────────────────────────────────────── */
+            <div className="p-3 md:p-4">
+              {loadingProducts ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 md:gap-3">
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <div key={i} className="aspect-[3/4] rounded-lg bg-gray-100 animate-shimmer" />
+                  ))}
+                </div>
+              ) : productList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-center">
+                  <Package size={32} className="text-gray-200 mb-3" />
+                  <p className="text-sm font-medium text-gray-400">
+                    {searchQuery ? `No items match "${searchQuery}"` : 'No products in this category'}
+                  </p>
+                  {searchQuery ? (
+                    <button onClick={clearSearch} className="mt-2 text-xs text-primary hover:underline">
+                      Clear search
+                    </button>
+                  ) : (
+                    <button onClick={() => { setSearch(''); resetPosView(); }} className="mt-2 text-xs text-primary hover:underline">
+                      ← Back to categories
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5 md:gap-3">
+                  {productList.map((product, i) => (
+                    <ProductTile
+                      key={product.id}
+                      product={product}
+                      onTap={handleProductTap}
+                      onLongPress={handleProductLongPress}
+                      index={i}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -626,7 +718,7 @@ export function POSLayout({ user }: POSLayoutProps) {
         </nav>
       </main>
 
-      {/* ── RIGHT: Order panel — iPad landscape + desktop (lg+) ───────────── */}
+      {/* ── RIGHT: Cart panel — desktop + iPad landscape (lg+) ───────────── */}
       <aside className="hidden lg:flex flex-col w-80 xl:w-96 shrink-0 bg-white border-l border-gray-100 overflow-hidden">
         {/* Header */}
         <div className="px-4 py-3 border-b border-gray-100 shrink-0">
@@ -712,14 +804,14 @@ export function POSLayout({ user }: POSLayoutProps) {
         )}
       </aside>
 
-      {/* ── MOBILE cart — shown on < lg (iPhone + iPad portrait) ──────────── */}
+      {/* ── MOBILE cart ────────────────────────────────────────────────────── */}
       <MobileCart
         open={mobileCartOpen}
         onOpen={() => setMobileCartOpen(true)}
         onClose={() => setMobileCartOpen(false)}
       />
 
-      {/* ── TABLET (md, not lg): floating cart button for iPad portrait ────── */}
+      {/* ── Tablet floating cart button ────────────────────────────────────── */}
       {cnt > 0 && (
         <button
           className="hidden md:flex lg:hidden fixed bottom-6 right-6 z-40 items-center gap-2 bg-primary text-white px-5 py-3 rounded-full shadow-lg active:scale-95 transition-all"
