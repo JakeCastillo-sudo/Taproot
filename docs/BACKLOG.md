@@ -2,6 +2,20 @@
 
 ## P0 — Critical (blocks production)
 
+### BUG-PAY-001: Payment crashes with undefined length error
+- Symptom: "Cannot read properties of undefined (reading 'length')" error modal
+  after clicking Charge button
+- Location: apps/web/src/components/pos/PaymentSheet.tsx — in the
+  `buildReceiptSnapshot()` / `setLastCompletedOrder()` snapshot builder;
+  `item.modifiers` or the `items` array may be undefined at access time
+- Fix needed:
+  - Add safe fallbacks: `item.modifiers ?? []` and `items?.map(...) ?? []`
+  - Check pos.store.ts `CartItem` type — ensure `modifiers` field defaults to `[]`
+    so it is never undefined when snapshot is built
+- Impact: blocks all payment processing and receipt printing
+- Priority: P0
+- Status: OPEN
+
 ### BUG-001: Anthropic API key not loading in document parser ✅ RESOLVED
 - Symptom: 401 authentication_error from Anthropic API on file upload
 - Route: POST /api/v1/imports/upload
