@@ -61,6 +61,7 @@ openssl rand -hex 32
 | `SENTRY_DSN` | If unset, Sentry is disabled (errors still log to Railway console) |
 | `UPLOADS_DIR` | Defaults to `uploads/` — Railway ephemeral filesystem is fine for demo |
 | `S3_BUCKET` / `S3_REGION` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Only needed if you want file imports persisted to S3 |
+| `CLAUDE_MODEL` | `claude-sonnet-4-6` (default) — Claude model ID for document parsing and NL analytics. Override to use a different model (e.g. `claude-opus-4-6`) without redeploying. |
 
 ---
 

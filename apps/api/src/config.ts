@@ -156,6 +156,15 @@ export const config = {
    */
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
 
+  /**
+   * Claude model ID to use for document parsing and NL analytics.
+   * Override via CLAUDE_MODEL env var — useful when a newer model is available
+   * without requiring a code redeploy.
+   * @default claude-sonnet-4-6
+   * @example CLAUDE_MODEL=claude-opus-4-6
+   */
+  CLAUDE_MODEL: process.env.CLAUDE_MODEL ?? 'claude-sonnet-4-6',
+
   // ─── File storage ─────────────────────────────────────────────────────────────
 
   /**

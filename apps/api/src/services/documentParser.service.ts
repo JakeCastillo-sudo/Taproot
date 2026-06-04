@@ -1,9 +1,9 @@
 /**
  * Document Parser Service — AI-powered document intelligence.
  *
- * Uses Claude claude-3-5-sonnet-20241022 to classify and extract structured data
- * from menu PDFs, supplier invoices, goods receipts, inventory lists,
- * and recipe sheets.
+ * Uses Claude (model controlled by config.CLAUDE_MODEL, default claude-sonnet-4-6)
+ * to classify and extract structured data from menu PDFs, supplier invoices,
+ * goods receipts, inventory lists, and recipe sheets.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -20,7 +20,7 @@ function getAnthropic(): Anthropic {
   return _anthropic;
 }
 
-const MODEL = 'claude-3-5-sonnet-20241022';
+const MODEL = config.CLAUDE_MODEL;
 
 // ─── Shared helpers ────────────────────────────────────────────────────────────
 
