@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
   CardElement,
@@ -8,15 +7,12 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import {
-  CheckCircle, ArrowLeft, Loader2, Shield, X,
+  CheckCircle, ArrowLeft, Loader2, Shield, X, CreditCard,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { apiFetch } from '../lib/api';
 import { analytics } from '../lib/analytics';
-
-// ─── Stripe setup ─────────────────────────────────────────────────────────────
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? '');
+import { stripePromise, hasStripe } from '../lib/stripe';
 
 const CARD_ELEMENT_OPTIONS = {
   style: {
@@ -53,6 +49,23 @@ function UpgradeForm() {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Demo mode — no Stripe publishable key configured
+  if (!hasStripe) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 text-center gap-3">
+        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+          <CreditCard size={20} className="text-gray-400" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-gray-700">Demo mode — payments disabled</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Add <code className="font-mono bg-gray-100 px-1 rounded">VITE_STRIPE_PUBLISHABLE_KEY</code> to enable billing.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
