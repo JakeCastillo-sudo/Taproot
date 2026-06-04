@@ -14,7 +14,7 @@ import { query } from '../db/client';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
 
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-3-5-sonnet-20241022';
 
 export default async function aiRoutes(fastify: FastifyInstance): Promise<void> {
 
