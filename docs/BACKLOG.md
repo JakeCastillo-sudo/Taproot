@@ -132,6 +132,37 @@
 
 ---
 
+## Import Feature — P1 Bugs
+
+### BUG-IMP-001: CSV import parses file but does not extract menu items
+- Symptom: CSV file uploads successfully but review screen shows no items or empty list
+- Expected: CSV with columns (name, price, category, description) should parse into editable item list
+- File: apps/api/src/services/importJob.service.ts (CSV parsing path in processImportJob)
+- Priority: P1
+- Status: OPEN
+
+### BUG-IMP-002: PDF menu parser does not extract prices
+- Symptom: All items imported from PDF show $0.00 price
+- Expected: AI parser should extract prices from menu PDF
+- Likely cause: Claude model prompt not returning prices in cents format, or price extraction failing on PDF text
+- File: apps/api/src/services/documentParser.service.ts (parseMenu function and prompt)
+- Priority: P1
+- Status: OPEN
+
+### BUG-IMP-003: Import review screen overflows viewport
+- Symptom: Initial review screen does not fit browser window. User must zoom out (Cmd −) to see action buttons. No scroll available to reach buttons at bottom.
+- Expected: Screen should be scrollable, buttons always accessible without zooming
+- File: apps/web/src/components/imports/ImportReview.tsx (layout/height CSS)
+- Priority: P1
+- Status: OPEN
+
+### BUG-IMP-004: Import workflow stops at review step
+- Symptom: Full workflow upload → review → edit → approve → push to menu stops at review. Confirm/import button does not complete the flow and push items to the POS menu.
+- Expected: After editing and clicking Import, products should appear in POS product grid immediately
+- Files: apps/web/src/components/imports/ImportReview.tsx + apps/api/src/services/importJob.service.ts (confirm flow and applyMenuImport)
+- Priority: P1 — blocks core import feature value
+- Status: OPEN
+
 ## Prompt 22 Auth Bug Fixes ✅ RESOLVED
 
 ### BUG-AUTH-001: Registration email field triggers redirect to /login ✅ RESOLVED
