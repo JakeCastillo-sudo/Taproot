@@ -96,12 +96,12 @@ export function LandingPage() {
           14-day free trial · No credit card required
         </span>
         <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 leading-tight mb-5 tracking-tight">
-          The POS built for<br className="hidden sm:block" />
-          <span className="text-primary"> independent operators</span>
+          The POS that reads your menu<br className="hidden sm:block" />
+          <span className="text-primary"> and sets itself up</span>
         </h1>
         <p className="text-lg text-gray-500 max-w-xl mx-auto mb-8 leading-relaxed">
-          Taproot handles ordering, payments, inventory, and loyalty — all in one place.
-          Import your menu with AI, train staff in minutes, and go live today.
+          Upload your menu PDF. Taproot imports everything in 60 seconds.
+          No contract. No hardware. No surprises.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <button
@@ -117,6 +117,17 @@ export function LandingPage() {
           >
             Sign in to existing account
           </button>
+        </div>
+      </section>
+
+      {/* Social proof */}
+      <section className="border-y border-gray-100 bg-gray-50/60 py-5">
+        <div className="max-w-5xl mx-auto px-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm text-gray-500">
+          <span>★★★★★ <span className="text-gray-400">loved by independent operators</span></span>
+          <span className="hidden sm:inline text-gray-300">·</span>
+          <span>No credit card required</span>
+          <span className="hidden sm:inline text-gray-300">·</span>
+          <span>Live in under 10 minutes</span>
         </div>
       </section>
 
@@ -176,6 +187,53 @@ export function LandingPage() {
             <p className="text-xs text-gray-400 mt-3">
               No credit card required to start your trial
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Comparison */}
+      <section className="max-w-3xl mx-auto px-4 py-14">
+        <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">No contract, no surprises</h2>
+        <p className="text-gray-500 text-center mb-8">Cancel anytime. Your data is always yours.</p>
+        <div className="overflow-x-auto rounded-2xl border border-gray-100">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500">
+              <tr>
+                <th className="text-left font-medium px-4 py-3">&nbsp;</th>
+                <th className="font-medium px-4 py-3">Toast</th>
+                <th className="font-medium px-4 py-3">Square</th>
+                <th className="font-bold px-4 py-3 text-primary">Taproot</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              <tr><td className="px-4 py-3 text-gray-600">Monthly cost</td><td className="text-center text-gray-500">$400+/mo</td><td className="text-center text-gray-500">% per txn</td><td className="text-center font-semibold text-gray-900">$199 flat</td></tr>
+              <tr><td className="px-4 py-3 text-gray-600">Proprietary hardware</td><td className="text-center text-gray-500">Required</td><td className="text-center text-gray-500">Pushed</td><td className="text-center font-semibold text-primary">None</td></tr>
+              <tr><td className="px-4 py-3 text-gray-600">Contract</td><td className="text-center text-gray-500">Multi-year</td><td className="text-center text-gray-500">Varies</td><td className="text-center font-semibold text-primary">Cancel anytime</td></tr>
+              <tr><td className="px-4 py-3 text-gray-600">AI menu setup</td><td className="text-center text-gray-300">—</td><td className="text-center text-gray-300">—</td><td className="text-center font-semibold text-primary">60 seconds</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="text-center text-sm text-gray-500 mt-6">
+          The average restaurant spends <strong>8 hours</strong> setting up a new POS. Taproot takes <strong>10 minutes</strong>.
+        </p>
+      </section>
+
+      {/* FAQ */}
+      <section className="bg-gray-50 border-t border-gray-100 py-14">
+        <div className="max-w-2xl mx-auto px-4">
+          <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Frequently asked</h2>
+          <div className="space-y-4">
+            {[
+              ['Do I need new hardware?', 'No. Taproot runs on any phone, tablet, or computer you already own — it\'s a web app.'],
+              ['Can I import from Toast or Square?', 'Yes. Upload a menu export (PDF/CSV) or use the migration wizard and we\'ll bring your catalog over.'],
+              ['What happens to my data if I cancel?', 'You own it. Export anytime — orders, customers, products, and accounting CSVs are always available.'],
+              ['Is there a setup fee?', 'No setup fee, and no credit card required to start your 14-day trial.'],
+            ].map(([q, a]) => (
+              <div key={q} className="bg-white rounded-xl border border-gray-100 p-5">
+                <h3 className="font-semibold text-gray-900 mb-1">{q}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">{a}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>

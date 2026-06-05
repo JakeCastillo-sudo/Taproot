@@ -212,6 +212,11 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
   and `TaxSetupStep.tsx` (state→auto-fill rate, saves via settings.saveTax). OnboardingPage rewired
   (labels, numbered steps, handlers). Progress/resume/skip retained.
 
+### S7-04 — Landing Page ✅ COMPLETE
+- `LandingPage.tsx`: V1.0 hero ("reads your menu and sets itself up"), social-proof bar,
+  feature grid (kept), **Toast/Square/Taproot comparison table**, "8 hours vs 10 minutes" line,
+  **FAQ** (hardware/import/data/setup fee), pricing + footer retained.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |
