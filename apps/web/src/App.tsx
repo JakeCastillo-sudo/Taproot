@@ -2,10 +2,9 @@ import React, { type ReactNode, useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { ClipboardList, Download, X } from 'lucide-react';
+import { Download, X } from 'lucide-react';
 import { queryClient } from './lib/queryClient';
 import { LoginPage } from './pages/LoginPage';
-import { PlaceholderPage } from './pages/PlaceholderPage';
 import { POSLayout } from './components/layout/POSLayout';
 import { InventoryPage } from './pages/InventoryPage';
 import { ReportsPage } from './pages/ReportsPage';
@@ -27,6 +26,7 @@ import { ModifiersSettingsPage } from './pages/ModifiersSettingsPage';
 import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
 import { EmployeesSettingsPage } from './pages/EmployeesSettingsPage';
 import { PaymentsSettingsPage } from './pages/PaymentsSettingsPage';
+import { OrderHistoryPage } from './pages/OrderHistoryPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -224,7 +224,7 @@ export default function App() {
             path="/orders"
             element={
               <RequireAuth>
-                <PlaceholderPage title="Orders" icon={<ClipboardList size={28} />} />
+                <OrderHistoryPage />
               </RequireAuth>
             }
           />

@@ -132,6 +132,19 @@ business/tax/receipt/payments settings endpoints, `/auth/pin-login`, `/api/v1/lo
 Live-verified S1-08: product create (default variant+price), tax round-trip, all routes 401-gated,
 employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrades gracefully.
 
+## 🚧 Sprint 2 — Beta 1.2: Transaction Management (in progress)
+
+### S2-01 — Order History Screen ✅ COMPLETE
+- `order.service.ts`: `listOrderHistory()` — org-wide enriched list (employee + customer name,
+  payment methods via STRING_AGG, line-item count); `OrderHistoryFilter`/`OrderHistoryRow`.
+- `order.routes.ts`: `GET /api/v1/orders` (ORDER_VIEW; cashiers restricted to own orders).
+- `api.ts`: `orders.history()` + `OrderHistoryRow`.
+- `OrderHistoryPage.tsx` (new, route `/orders`): date-preset/status/employee/payment/search
+  filters, CSV export, table, right detail drawer (line items, payments, totals) via existing
+  receipt endpoint; drawer body is `.receipt-content` so Print works.
+- `App.tsx`: `/orders` → OrderHistoryPage (replaced placeholder). `POSLayout`: Orders nav item.
+- NOTE: void/refund buttons added in S2-02.
+
 ## Sprint 1 Queue — Beta 1.1: Settings & Admin
 See full roadmap at docs/ROADMAP.md
 

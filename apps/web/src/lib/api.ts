@@ -781,7 +781,33 @@ export const orders = {
   /** Structured receipt data — includes org/location name from DB. */
   getReceipt: (orderId: string) =>
     apiFetch<ReceiptData>(`/orders/${orderId}/receipt`),
+
+  /** Org-wide enriched order history (Order History screen). */
+  history: (params?: {
+    status?: string; employeeId?: string; paymentMethod?: string;
+    from?: string; to?: string; search?: string; page?: number; limit?: number;
+  }) => {
+    const q = new URLSearchParams();
+    Object.entries(params ?? {}).forEach(([k, v]) => { if (v !== undefined && v !== '' && v !== 'all') q.set(k, String(v)); });
+    const qs = q.toString();
+    return apiFetch<{ orders: OrderHistoryRow[]; total: number }>(`/orders${qs ? `?${qs}` : ''}`);
+  },
 };
+
+export interface OrderHistoryRow {
+  id:              string;
+  order_number:    string;
+  status:          string;
+  order_type:      string;
+  total:           number;
+  amount_paid:     number;
+  tip_total:       number;
+  created_at:      string;
+  employee_name:   string;
+  customer_name:   string | null;
+  item_count:      number;
+  payment_methods: string | null;
+}
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
 

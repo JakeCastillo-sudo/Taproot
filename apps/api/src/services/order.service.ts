@@ -697,6 +697,93 @@ export async function listOrders(
   return { orders, total: parseInt(countRow.count, 10) };
 }
 
+// ─── listOrderHistory ───────────────────────────────────────────────────────
+// Org-wide enriched order list for the Order History screen. Joins employee +
+// customer names, payment methods, and line-item counts.
+
+export interface OrderHistoryFilter {
+  status?:        string;   // 'all' | order status
+  employeeId?:    string;
+  paymentMethod?: string;
+  from?:          string;   // ISO
+  to?:            string;   // ISO
+  search?:        string;   // order number or customer name
+  locationId?:    string;
+  page?:          number;
+  limit?:         number;
+  restrictToEmployeeId?: string;
+}
+
+export interface OrderHistoryRow {
+  id:              string;
+  order_number:    string;
+  status:          string;
+  order_type:      string;
+  total:           number;
+  amount_paid:     number;
+  tip_total:       number;
+  created_at:      string;
+  employee_name:   string;
+  customer_name:   string | null;
+  item_count:      number;
+  payment_methods: string | null;
+}
+
+export async function listOrderHistory(
+  orgId: string,
+  filter: OrderHistoryFilter = {},
+): Promise<{ orders: OrderHistoryRow[]; total: number }> {
+  const conds = [`o.organization_id = $1`];
+  const params: unknown[] = [orgId];
+  const add = (cond: string, value: unknown) => { params.push(value); conds.push(cond.replace('?', `$${params.length}`)); };
+
+  if (filter.locationId)  add(`o.location_id = ?`, filter.locationId);
+  if (filter.status && filter.status !== 'all') {
+    if (filter.status === 'refunded') conds.push(`o.status IN ('refunded','partially_refunded')`);
+    else add(`o.status = ?`, filter.status);
+  }
+  if (filter.employeeId)  add(`o.employee_id = ?`, filter.employeeId);
+  if (filter.restrictToEmployeeId) add(`o.employee_id = ?`, filter.restrictToEmployeeId);
+  if (filter.from)        add(`o.created_at >= ?`, filter.from);
+  if (filter.to)          add(`o.created_at <= ?`, filter.to);
+  if (filter.paymentMethod) {
+    add(`EXISTS (SELECT 1 FROM payments p WHERE p.order_id = o.id AND p.payment_method = ?)`, filter.paymentMethod);
+  }
+  if (filter.search) {
+    params.push(`%${filter.search}%`);
+    const i = params.length;
+    conds.push(`(o.order_number ILIKE $${i} OR (c.first_name || ' ' || c.last_name) ILIKE $${i})`);
+  }
+
+  const where = conds.join(' AND ');
+  const limit  = Math.min(filter.limit ?? 50, 200);
+  const offset = ((filter.page ?? 1) - 1) * limit;
+
+  const selectBody = `
+    FROM orders o
+    JOIN employees e ON e.id = o.employee_id
+    LEFT JOIN customers c ON c.id = o.customer_id
+    WHERE ${where}`;
+
+  const [{ rows }, { rows: [countRow] }] = await Promise.all([
+    query<OrderHistoryRow>(
+      `SELECT o.id, o.order_number, o.status, o.order_type, o.total, o.amount_paid,
+              o.tip_total, o.created_at,
+              e.first_name || ' ' || e.last_name AS employee_name,
+              NULLIF(TRIM(COALESCE(c.first_name,'') || ' ' || COALESCE(c.last_name,'')), '') AS customer_name,
+              (SELECT COUNT(*)::int FROM order_line_items oli WHERE oli.order_id = o.id AND oli.voided_at IS NULL) AS item_count,
+              (SELECT STRING_AGG(DISTINCT p.payment_method, ',') FROM payments p
+                 WHERE p.order_id = o.id AND p.status IN ('completed','refunded','partially_refunded')) AS payment_methods
+       ${selectBody}
+       ORDER BY o.created_at DESC LIMIT ${limit} OFFSET ${offset}`,
+      params,
+    ),
+    query<{ count: string }>(`SELECT COUNT(*) AS count ${selectBody}`, params),
+  ]);
+
+  return { orders: rows, total: parseInt(countRow?.count ?? '0', 10) };
+}
+
 // ─── updateOrder ──────────────────────────────────────────────────────────────
 
 export async function updateOrder(

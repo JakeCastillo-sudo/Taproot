@@ -21,6 +21,33 @@ export default async function orderRoutes(fastify: FastifyInstance): Promise<voi
 
   // ── Orders ────────────────────────────────────────────────────────────────
 
+  // GET /api/v1/orders — org-wide enriched order history (Order History screen)
+  fastify.get(
+    '/api/v1/orders',
+    { preHandler: [requirePermissions(Permission.ORDER_VIEW)] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user } = req as AuthedRequest;
+      const q = req.query as Record<string, string>;
+      const filter: OrderSvc.OrderHistoryFilter = {
+        status:        q.status,
+        employeeId:    q.employeeId,
+        paymentMethod: q.paymentMethod,
+        from:          q.from,
+        to:            q.to,
+        search:        q.search,
+        locationId:    q.locationId,
+        page:          q.page  ? parseInt(q.page, 10)  : undefined,
+        limit:         q.limit ? parseInt(q.limit, 10) : undefined,
+      };
+      // Cashiers without ORDER_VIEW_ALL only see their own orders
+      if (isCashierOnly(user) && !user.permissions.includes(Permission.ORDER_VIEW_ALL)) {
+        filter.restrictToEmployeeId = user.sub;
+      }
+      const result = await OrderSvc.listOrderHistory(user.orgId, filter);
+      return reply.send(result);
+    },
+  );
+
   // GET /api/v1/locations/:locationId/orders
   fastify.get(
     '/api/v1/locations/:locationId/orders',
