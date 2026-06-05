@@ -1,5 +1,12 @@
 # Taproot POS — Claude Project State
 
+> ⚠️ **MIGRATION NEEDED** (run in Railway console before relying on new columns):
+> `npx node-pg-migrate up --migrations-dir migrations`
+> Pending: **014_employee_hourly_rate** (S1-05) — adds `employees.hourly_rate`.
+> Until run, Employee Management create/list will error in production.
+> (Also still pending per prior notes: 011 day_parts, 012 product_archive, 013 org_settings —
+> verify these are applied; the live POS working implies 011/012 likely already ran.)
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |
@@ -133,7 +140,7 @@ Full product create/edit/delete at /settings/products.
   restore/delete actions.
 - `App.tsx`: nested `/settings` → SettingsLayout with `/settings/products` child; index → products.
 
-### Prompt 35 (S1-05) — Employee Management + PIN Login ✅ COMPLETE
+### Prompt 36 (S1-06) — Settings Shell + Navigation ✅ COMPLETE
 /settings/categories — create/edit/delete, drag-to-reorder, color/icon picker, product count.
 - `category.service.ts` (new): createCategory, updateCategory, deleteCategory (detaches products
   → category_id NULL, then soft-delete), reorderCategories.
@@ -145,7 +152,7 @@ Full product create/edit/delete at /settings/products.
   icon picker + "use initials", product counts; reorder persists + invalidates layout store.
 - `App.tsx`: `/settings/categories` route.
 
-### Prompt 35 (S1-05) — Employee Management + PIN Login ✅ COMPLETE
+### Prompt 36 (S1-06) — Settings Shell + Navigation ✅ COMPLETE
 /settings/modifiers — full CRUD groups + options + product assignment.
 - `modifier.service.ts` (new): listModifierGroups (groups + modifiers[] + productIds via JSON_AGG),
   create/update/delete group (soft-delete cascades modifiers + clears assignments), add/update/
@@ -158,7 +165,7 @@ Full product create/edit/delete at /settings/products.
 - `App.tsx`: `/settings/modifiers` route.
 - NOTE: modifier reorder uses ↑/↓ buttons (persists sort_order) rather than drag.
 
-### Prompt 35 (S1-05) — Employee Management + PIN Login ✅ COMPLETE
+### Prompt 36 (S1-06) — Settings Shell + Navigation ✅ COMPLETE
 /settings/business — General | Tax | Receipt | Hours tabs. **Resolves BUG-QA-013.**
 - TAX: server-side `calculateTax` already read `locations.tax_config` (BUG-QA-005); the 8.5%
   was only a frontend cart-preview estimate in `pos.store.ts`. Now configurable.
@@ -178,11 +185,26 @@ Full product create/edit/delete at /settings/products.
 - `App.tsx`: `/settings/business` route.
 - NOTE: Hours tab is a placeholder; no business-hours backend yet (logged for a later prompt).
 
-### Prompt 35 (S1-05) — Employee Management + PIN Login
-/settings/employees — add/edit/deactivate employees, set PIN, assign locations.
-POS login update: employee selection screen → PIN → logged in as that employee.
-Track which employee processes each transaction.
-Backend: PATCH/DELETE /api/v1/employees/:id, POST /api/v1/employees/:id/reset-pin.
+### Prompt 36 (S1-06) — Settings Shell + Navigation ✅ COMPLETE
+/settings/employees — add/edit/deactivate, PIN, location assignment, hourly rate.
+- `migrations/014_employee_hourly_rate.js` ⚠️ NEEDS RAILWAY MIGRATION.
+- `employee.service.ts` (new): list/create/update/delete (soft, revokes tokens, blocks last
+  owner + self-deactivate)/resetPin/listSelectableEmployees. New staff get a random unusable
+  password_hash (PIN-only). PIN 4–6 digits, bcrypt-hashed.
+- `employee.routes.ts` (new): /employees CRUD (owner/manager guard) + /:id/reset-pin +
+  /employees/selectable (any authed session, minimal fields for lock screen).
+- `auth/routes.ts`: new `POST /auth/pin-login` — device-session PIN switch (terminal already
+  authenticated → select employee + PIN → fresh full session). Reuses completeLogin.
+- `settings.routes.ts`: `GET /api/v1/locations` (org locations for pickers).
+- `api.ts`: `employees.*`, `locations.list`, `auth.pinLogin`, types.
+- `EmployeesSettingsPage.tsx` (new): list + add/edit modal (role, PIN show/hide, hourly rate,
+  location chips), reset-PIN, deactivate.
+- `EmployeeSelect.tsx` (new): full-screen lock screen — employee avatar grid → PIN pad
+  (keyboard + touch), shake on wrong PIN, 3-attempt lock, "use password instead"; on success
+  stores new tokens+user and reloads. Wired into POSLayout via "Switch user" + 5-min idle.
+- `animations.css`: `animate-shake`.
+- Transaction employee attribution is server-side via JWT (order.service uses user.sub).
+- NOTE: order attribution already correct via JWT; pos.store loggedInEmployeeId not needed.
 
 ### Prompt 36 (S1-06 + S1-07) — Settings Shell + Payments Settings
 /settings root with left nav (Products|Categories|Modifiers|Employees|Business|Payments|Billing).
@@ -193,7 +215,7 @@ Payments: Stripe Connect status, payment methods toggle, fee display.
 Full walkthrough all settings screens, fix bugs, tag v0.2.0-beta-1.1.
 
 ## NEXT PROMPT
-Prompt 35 (S1-05) — Employee Management + PIN Login
+Prompt 36 (S1-06) — Settings Shell + Navigation
 
 ## IMPORTANT: Pending Railway Migrations
 Migrations 011, 012, 013 committed but NOT yet run on Railway.

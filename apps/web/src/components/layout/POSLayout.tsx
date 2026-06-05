@@ -19,14 +19,14 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search, X, LogOut, ShoppingCart, Package,
   ChevronRight, ChevronLeft, Plus, Minus, Trash2, Tag,
   FileText, AlertTriangle, User, Layers, BarChart3,
   Upload, ArrowRightLeft, Menu, Terminal, Settings,
-  LayoutGrid,
+  LayoutGrid, UserCog,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
@@ -40,6 +40,7 @@ import { CustomerSearch } from '../pos/CustomerSearch';
 import { CategoryTileGrid } from '../pos/CategoryTileGrid';
 import { DayPartToggle } from '../pos/DayPartToggle';
 import { ModifierSheet, type ModifierSheetProduct } from '../pos/ModifierSheet';
+import { EmployeeSelect } from '../pos/EmployeeSelect';
 import { PaymentSheet } from '../pos/PaymentSheet';
 import { MobileCart } from '../pos/MobileCart';
 import { SyncStatus } from '../ui/SyncStatus';
@@ -225,13 +226,14 @@ const NAV_ITEMS: NavItem[] = [
 // ─── Collapsible Sidebar (desktop lg+) ───────────────────────────────────────
 
 interface SidebarProps {
-  user:      POSUser;
-  collapsed: boolean;
-  onToggle:  () => void;
-  onClose?:  () => void;         // overlay mode only
+  user:          POSUser;
+  collapsed:     boolean;
+  onToggle:      () => void;
+  onClose?:      () => void;     // overlay mode only
+  onSwitchUser?: () => void;
 }
 
-function Sidebar({ user, collapsed, onToggle, onClose }: SidebarProps) {
+function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarProps) {
   const navigate  = useNavigate();
   const location  = useLocation();
 
@@ -350,6 +352,14 @@ function Sidebar({ user, collapsed, onToggle, onClose }: SidebarProps) {
                 <p className="text-[10px] text-gray-400 capitalize">{user.role}</p>
               </div>
             </div>
+            {onSwitchUser && (
+              <button
+                onClick={onSwitchUser}
+                className="w-full flex items-center gap-2 px-3 py-2 mb-1 rounded-md text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+              >
+                <UserCog size={13} /> Switch user
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
@@ -389,7 +399,21 @@ export function POSLayout({ user }: POSLayoutProps) {
   const [modifierProduct, setModifierProduct] = useState<ModifierSheetProduct | null>(null);
   const [showShortcuts,  setShowShortcuts]  = useState(false);
   const [cmdOpen,        setCmdOpen]        = useState(false);
+  const [showEmployeeSelect, setShowEmployeeSelect] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // 5-minute idle → open the employee lock screen so the next person PINs in.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setShowEmployeeSelect(true), 5 * 60_000);
+    };
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => { clearTimeout(timer); events.forEach((e) => window.removeEventListener(e, reset)); };
+  }, []);
 
   const { isTablet } = useOrientation();
 
@@ -651,6 +675,7 @@ export function POSLayout({ user }: POSLayoutProps) {
           user={user}
           collapsed={sidebarCollapsed}
           onToggle={toggleSidebar}
+          onSwitchUser={() => setShowEmployeeSelect(true)}
         />
       </aside>
 
@@ -669,6 +694,7 @@ export function POSLayout({ user }: POSLayoutProps) {
               collapsed={false}
               onToggle={() => {}}
               onClose={() => setSidebarOpen(false)}
+              onSwitchUser={() => { setSidebarOpen(false); setShowEmployeeSelect(true); }}
             />
           </aside>
         </div>
@@ -956,6 +982,9 @@ export function POSLayout({ user }: POSLayoutProps) {
 
       {/* ── Keyboard shortcuts overlay ──────────────────────────────────────── */}
       {showShortcuts && <ShortcutsOverlay onClose={() => setShowShortcuts(false)} />}
+
+      {/* ── Employee PIN lock screen ────────────────────────────────────────── */}
+      {showEmployeeSelect && <EmployeeSelect onClose={() => setShowEmployeeSelect(false)} />}
     </div>
   );
 }

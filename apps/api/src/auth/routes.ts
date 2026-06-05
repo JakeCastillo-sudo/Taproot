@@ -468,6 +468,49 @@ export async function registerAuthRoutes(fastify: FastifyInstance): Promise<void
     });
   });
 
+  // ── POST /pin-login ───────────────────────────────────────────────────────────
+  // Device-session PIN switch: the terminal is already authenticated (global auth
+  // hook). A cashier selects themselves and enters their PIN to take over the
+  // session. Returns a fresh full session for the selected employee.
+  fastify.post('/pin-login', {
+    preHandler: [authenticate],
+    config: rl(10, 5 * 60 * 1000),
+  }, async (request, reply) => {
+    const device = (request as FastifyRequest & { user: AccessTokenPayload }).user;
+    const body = request.body as { employeeId?: string; pin?: string; locationId?: string };
+
+    if (!body.employeeId || !body.pin) {
+      return reply.code(400).send({ code: 'VALIDATION_ERROR', message: 'employeeId and pin are required' });
+    }
+
+    const employee = await findEmployeeById(body.employeeId);
+    if (!employee || !employee.pin_hash || employee.organization_id !== device.orgId) {
+      await dummyPasswordDelay();
+      return reply.code(401).send(AUTH_ERROR);
+    }
+
+    const pinValid = await verifyPin(body.pin, employee.pin_hash);
+    if (!pinValid) {
+      return reply.code(401).send(AUTH_ERROR);
+    }
+
+    const org = await query<OrgRow>(
+      `SELECT id, name, slug, deleted_at FROM organizations WHERE id = $1 LIMIT 1`,
+      [employee.organization_id],
+    ).then((r) => r.rows[0]);
+    if (!org || org.deleted_at) {
+      return reply.code(401).send(AUTH_ERROR);
+    }
+
+    return completeLogin({
+      employee,
+      org,
+      request,
+      reply,
+      locationId: body.locationId,
+    });
+  });
+
   // ── POST /refresh ───────────────────────────────────────────────────────────
   fastify.post('/refresh', {
     config: rl(20, 60 * 1000),

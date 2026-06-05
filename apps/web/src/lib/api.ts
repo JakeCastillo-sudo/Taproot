@@ -277,6 +277,77 @@ export const auth = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
+
+  /** Switch the active employee on this device via PIN (device already authenticated). */
+  pinLogin: (employeeId: string, pin: string, locationId?: string) =>
+    apiFetch<LoginResponse>('/auth/pin-login', {
+      method: 'POST',
+      body: JSON.stringify({ employeeId, pin, locationId }),
+    }),
+};
+
+// ─── Employees & locations ────────────────────────────────────────────────────
+
+export interface EmployeeListRow {
+  id:            string;
+  first_name:    string;
+  last_name:     string;
+  email:         string;
+  role:          string;
+  location_ids:  string[] | null;
+  hourly_rate:   number | null;
+  has_pin:       boolean;
+  last_login_at: string | null;
+  created_at:    string;
+}
+
+export interface EmployeeInput {
+  firstName:    string;
+  lastName:     string;
+  email:        string;
+  role:         string;
+  pin?:         string;
+  locationIds?: string[];
+  hourlyRate?:  number | null;
+}
+
+export interface SelectableEmployee {
+  id:         string;
+  first_name: string;
+  last_name:  string;
+  role:       string;
+}
+
+export const employees = {
+  list: () => apiFetch<{ employees: EmployeeListRow[] }>('/employees').then((r) => r.employees),
+
+  /** Minimal list for the PIN lock screen (PIN-enabled staff only). */
+  selectable: () => apiFetch<{ employees: SelectableEmployee[] }>('/employees/selectable').then((r) => r.employees),
+
+  create: (body: EmployeeInput) =>
+    apiFetch<{ id: string }>('/employees', { method: 'POST', body: JSON.stringify(body) }),
+
+  update: (id: string, body: Partial<EmployeeInput>) =>
+    apiFetch<{ success: boolean }>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  remove: (id: string) =>
+    apiFetch<void>(`/employees/${id}`, { method: 'DELETE' }),
+
+  resetPin: (id: string, newPin: string) =>
+    apiFetch<{ success: boolean }>(`/employees/${id}/reset-pin`, {
+      method: 'POST', body: JSON.stringify({ newPin }),
+    }),
+};
+
+export interface LocationRow {
+  id:       string;
+  name:     string;
+  timezone: string;
+  currency: string;
+}
+
+export const locations = {
+  list: () => apiFetch<{ locations: LocationRow[] }>('/locations').then((r) => r.locations),
 };
 
 // ─── Products ─────────────────────────────────────────────────────────────────

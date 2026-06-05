@@ -54,6 +54,18 @@ export default async function settingsRoutes(fastify: FastifyInstance): Promise<
     return reply.send({ success: true });
   });
 
+  // ── GET /api/v1/locations — list org locations (for pickers) ───────────────
+  fastify.get('/api/v1/locations', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { rows } = await query<{ id: string; name: string; timezone: string; currency: string }>(
+      `SELECT id, name, timezone, currency FROM locations
+        WHERE organization_id = $1 AND deleted_at IS NULL
+        ORDER BY created_at ASC`,
+      [user.orgId],
+    );
+    return reply.send({ locations: rows });
+  });
+
   // ── Helper: resolve the org's target location ──────────────────────────────
   async function resolveLocationId(orgId: string, requested?: string): Promise<string | null> {
     if (requested) {
