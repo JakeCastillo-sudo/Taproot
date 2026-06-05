@@ -268,3 +268,33 @@ Found during S7-07. 5 advisories, **no criticals**, all in build/transitive deps
 - `nodemailer` (high) — SMTP injection class; fix = nodemailer@8 (breaking). Audit before bumping.
 - `tar`, `uuid` (high/moderate) — transitive; revisit on next dep sweep.
 Action: schedule a dependency-bump pass with build verification. Not a launch blocker.
+
+## BUG-AUTH-002 — "Cannot login on live site" investigation — RESOLVED
+**Reported:** P0 — login/registration failing on taproot-pos.com.
+
+**Evidence gathered (all PASS at investigation time):**
+- `POST /api/v1/auth/login` (curl, with & without X-Organization-Slug) → 200 + accessToken.
+- `GET /api/health` → ok, v1.0.0, db/redis/stripe ok.
+- CORS preflight from `https://taproot-pos.com` → 204, `access-control-allow-origin` correct, credentials allowed.
+- `POST /register/check-email` → 200; `/register` OPTIONS → 204.
+- **Live deployed bundle** (`taproot-pos.com/assets/*.js`) targets the CORRECT backend host
+  `taproot-production-3d63.up.railway.app` → Vercel has a dashboard env override.
+
+**Root cause (latent landmine, cause E):** committed `apps/web/.env.production` had
+`VITE_API_URL=https://taproot-api.up.railway.app` — a host that 404s — wrong since the original
+deploy commit (a116e6d, Jun 2). Production has been saved only by a Vercel dashboard override of
+`VITE_API_URL`. Any build/deploy WITHOUT that override (new Vercel project, override removed, local
+prod build) posts auth to the dead host → "cannot login." 
+
+**Fix:**
+- `apps/web/.env.production` → correct host `taproot-production-3d63.up.railway.app`.
+- `apps/api/src/index.ts` CORS → hardcode `https://taproot-pos.com` + `https://www.taproot-pos.com`
+  (defense in depth; no longer depends solely on APP_URL/CORS_ORIGINS env).
+- Added auth check to `scripts/morning-check.sh` and a note in SESSION_GUIDELINES.
+
+**Status:** RESOLVED. Live auth verified healthy end-to-end; committed config now matches reality so a
+rebuild can't reintroduce the dead-host failure.
+
+**Note (separate, observed during diagnosis):** the demo owner's JWT `locationIds` contains a
+soft-deleted location (`40aef9d7…`, the S6-07 smoke-test loc). `deleteLocation` doesn't strip the id
+from `employees.location_ids`. Not auth-blocking, but can point the POS at a deleted location. → BUG-LOC-002.

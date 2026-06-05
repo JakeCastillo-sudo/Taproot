@@ -137,11 +137,15 @@ async function buildApp(): Promise<any> {
 
   // Explicit extra origins from env (comma-separated) — used for preview deployments, staging, etc.
   const corsOrigins = (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean);
+  // Production custom domains — hardcoded so CORS never depends solely on an env var (defense in depth).
+  const PROD_ORIGINS = ['https://taproot-pos.com', 'https://www.taproot-pos.com'];
 
   await fastify.register(cors, {
     origin: (origin, callback) => {
       // Server-to-server or same-origin requests have no Origin header — allow them.
       if (!origin) return callback(null, true);
+      // Production custom domains (always allowed)
+      if (PROD_ORIGINS.includes(origin)) return callback(null, true);
       // Explicitly listed origins (CORS_ORIGINS env var or APP_URL)
       if (corsOrigins.includes(origin)) return callback(null, true);
       if (origin === config.APP_URL) return callback(null, true);
