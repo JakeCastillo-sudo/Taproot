@@ -17,6 +17,7 @@ import type { LastCompletedOrder } from '../store/pos.store';
 import { orders as ordersApi, type ReceiptData } from '../lib/api';
 import { showToast } from '../components/ui/Toast';
 import { printReceipt, printKitchenTicket } from '../lib/print';
+import { printReceiptThermal, printKitchenThermal } from '../lib/thermalPrint';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -249,7 +250,7 @@ export function ReceiptPage() {
           {/* Primary row */}
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={printReceipt}
+              onClick={() => { void printReceiptThermal(order).then((sent) => { if (!sent) printReceipt(); }); }}
               className="flex items-center justify-center gap-2 py-2.5 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-700 active:scale-[0.98] transition-all"
             >
               <Printer size={15} /> Print Receipt
@@ -265,7 +266,7 @@ export function ReceiptPage() {
           {/* Secondary row */}
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => printKitchenTicket(order)}
+              onClick={() => { void printKitchenThermal(order).then((sent) => { if (!sent) printKitchenTicket(order); }); }}
               className="flex items-center justify-center gap-2 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
             >
               <UtensilsCrossed size={15} /> Kitchen Ticket

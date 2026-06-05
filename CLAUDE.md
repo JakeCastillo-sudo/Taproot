@@ -174,6 +174,16 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
 - PaymentSheet: when offline (cash/card) → enqueue + offline receipt snapshot (TEMP-xxxx), no API call.
 - NOTE: queued card orders sync only where Stripe is configured; cash syncs everywhere.
 
+### S6-03 — ESC/POS Printer Support ✅ COMPLETE
+- `apps/print-server/` (new, standalone Node, no deps): ESC/POS bridge — `/health`,
+  `/print/receipt`, `/print/kitchen`, `/drawer/open`; TCP:9100 to network printers or log mode.
+  `docs/PRINT_SERVER.md` setup guide.
+- `thermalPrint.ts` (new): detect server (configurable URL), `printReceiptThermal`/
+  `printKitchenThermal`/`openCashDrawer`/`checkPrintServer`. ReceiptPage tries thermal → falls back to browser.
+- `HardwareSettingsPage.tsx` (new, `/settings/hardware`): server status, URL, model, test print
+  (+ barcode toggle for S6-04). Nav item.
+- NOTE: print server runs on **3333** (prompt said 3001 = API port).
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

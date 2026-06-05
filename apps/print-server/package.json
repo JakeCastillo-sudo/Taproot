@@ -1,0 +1,10 @@
+{
+  "name": "@taproot/print-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local ESC/POS print bridge for Taproot POS thermal printers (Node built-ins only).",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  }
+}
