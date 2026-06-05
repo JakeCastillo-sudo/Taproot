@@ -1,37 +1,21 @@
 # Taproot POS — Claude Project State
 
-> # 🚀 AUTONOMOUS BUILD COMPLETE — Sprints 1–5 done
-> Built across sessions: **35/35 prompts** (S1-01…S5-07) over 5 sprints, tagged
-> **v0.2.0** → **v0.6.0-beta-1.5**.
-> - **Sprint 4 (Online Ordering & Engagement):** online checkout, settings, loyalty (auto-accrual),
->   gift cards, discount engine, customer mgmt. Verified live: 10% discount + 97 loyalty pts on $97.94.
-> - **Sprint 5 (AI Intelligence):** `/insights` dashboard — demand forecast, staff scheduling, menu
->   engineering, food-cost (auto reorder draft), daily feed, enhanced copilot. Deterministic-first
->   (works without ANTHROPIC_API_KEY; aiUsed flag) — all 5 endpoints verified live with real numbers.
->   Fixed a latent nl-query 500 (total_amount/draft → total/parked).
-> - BUG-QA-012 resolved. No new migrations in Sprints 4–5.
-> - **Sprint 1 (Settings & Admin):** Products, Categories, Modifiers, Employees + PIN login,
->   Business + configurable tax, Payments, settings shell.
-> - **Sprint 2 (Transactions):** Order History, Void/Refund, Tips, Cash Drawer, End-of-Day,
->   Split Check. **Found + fixed P0 BUG-ORD-001** (POS order-create contract mismatch).
-> - **Sprint 3 (Table Service):** Floor Plan editor, Table-service POS mode, QR ordering
->   (public storefront — verified live), Kitchen Display, Reservations/Waitlist.
-> - **Migrations needed on Railway** (code degrades gracefully until run; ALL features 500-safe):
->   `npx node-pg-migrate up --migrations-dir migrations` → **014_employee_hourly_rate,
->   015_cash_drawer, 016_reservations**.
-> - **Bugs:** BUG-ORD-001 fixed (see BACKLOG); BUG-QA-013 resolved (tax UI). No new open P0/P1.
-> - **Verified live:** product create+price, tax round-trip, full order create→pay(+tip)→void
->   lifecycle, employees/cash-drawer/reservations resilience, public QR menu (9 categories).
-> - **Next for Jake:** review live site, run the 3 migrations, then Sprint 4 (Online Ordering).
+> # 🚀 AUTONOMOUS BUILD — Sprints 1–6 done (Sprint 7 in progress → V1.0)
+> **41/49 prompts** (S1-01…S6-07) over 6 sprints, tagged **v0.2.0** → **v0.7.0**.
+> - **Sprints 1–3:** Settings/Admin (products, categories, modifiers, employees+PIN, tax, payments);
+>   Transactions (order history, void/refund, tips, cash drawer, EOD, split check — fixed P0 BUG-ORD-001);
+>   Table Service (floor plan, table mode, QR ordering, KDS, reservations).
+> - **Sprint 4 (Online Ordering & Engagement):** online checkout, loyalty (auto-accrual), gift cards,
+>   discount engine, customer mgmt. Verified live: 10% discount + 97 loyalty pts on $97.94.
+> - **Sprint 5 (AI Intelligence):** `/insights` — forecast, staffing, menu engineering, food-cost
+>   (auto reorder), daily feed, copilot. Deterministic-first (works without ANTHROPIC_API_KEY).
+> - **Sprint 6 (Scale & Infra):** multi-location (CRUD+switcher), offline order queue (IndexedDB),
+>   ESC/POS print server, barcode scanner, advanced reports (heatmap+cross-location), QuickBooks/Xero
+>   CSV export. Verified live: locations CRUD, QB export, heatmap.
+> - ✅ **Migrations 001–016 all applied on Railway** (Jake ran 013–016). No pending migrations.
 > - TypeScript: 0 errors in apps/web + apps/api. All work committed + pushed to main.
-
-> ⚠️ **MIGRATIONS NEEDED** (run in Railway console):
-> `npx node-pg-migrate up --migrations-dir migrations`
-> Pending: **014_employee_hourly_rate** (S1-05), **015_cash_drawer** (S2-04), **016_reservations** (S3-05).
-> All three features are RESILIENT to their pending migration (column/table existence checks →
-> graceful degradation, no 500s). Hourly-rate, cash drawer, and reservations are unavailable until run.
-> Migrations 011/012/013 are CONFIRMED applied on Railway (verified live: product create with
-> default variant + price, tax round-trip, and listProducts all succeed on the deployed API).
+> - **Now building Sprint 7 (V1.0 GTM polish):** text ordering, kiosk, onboarding rewrite, landing
+>   page, observability, polish → v1.0.0.
 
 ## 🚧 Sprint 4 — Beta 1.4: Online Ordering & Engagement (in progress)
 

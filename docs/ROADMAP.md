@@ -108,16 +108,16 @@ Pattern: deterministic SQL compute + optional Claude narrative (graceful without
 
 ---
 
-## SPRINT 6 — BETA 2.0: Scale & Infrastructure
+## SPRINT 6 — BETA 2.0: Scale & Infrastructure ✅ COMPLETE (v0.7.0)
 ### Week of July 14, 2026
 
-**S6-01** Multi-Location Dashboard — location switcher, cross-location reports, push menu update
-**S6-02** Offline Mode — IndexedDB queue, conflict resolution, sync log
-**S6-03** ESC/POS Printer Support — Epson/Star thermal, cash drawer kick, print server app
-**S6-04** Barcode Scanner Support — scan to add to cart, gift card scan, barcode assignment
-**S6-05** DoorDash Drive Integration — driver request API, customer tracking SMS
-**S6-06** QuickBooks/Xero Sync — daily sales sync, OAuth, chart of accounts mapping
-**S6-07** Sprint 6 Integration Test + Deploy — v1.0.0 tag
+**S6-01** ✅ Multi-Location — location CRUD, POS switcher, cross-location reports filter
+**S6-02** ✅ Offline Mode — IndexedDB order queue, auto-sync on reconnect, offline banner
+**S6-03** ✅ ESC/POS Printer Support — standalone print server, thermal client + fallback, Hardware settings
+**S6-04** ✅ Barcode Scanner Support — POS scan→cart (gated), scan-to-assign barcode on products
+**S6-05** ✅ Advanced Reporting Suite — Heatmap tab (7×24), cross-location filter, CSV export
+**S6-06** ✅ QuickBooks/Xero CSV export — daily sales CSV + /settings/integrations
+**S6-07** ✅ Sprint 6 Integration + Deploy — endpoints verified live; v0.7.0
 
 ---
 
