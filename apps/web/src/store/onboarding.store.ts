@@ -15,16 +15,18 @@ export type OnboardingStep =
   | 'welcome'
   | 'menu_upload'
   | 'menu_review'
-  | 'recipe_setup'
+  | 'team_setup'
   | 'stripe_connect'
+  | 'tax_setup'
   | 'complete';
 
 export const STEP_ORDER: OnboardingStep[] = [
   'welcome',
   'menu_upload',
   'menu_review',
-  'recipe_setup',
+  'team_setup',
   'stripe_connect',
+  'tax_setup',
   'complete',
 ];
 

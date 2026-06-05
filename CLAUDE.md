@@ -205,6 +205,13 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
   prompt, 90s idle auto-reset (30s warning), 3-tap top-right + manager PIN (default 1234) to exit.
 - HardwareSettingsPage: "Open Kiosk Mode" launcher. Uses authenticated product/order API.
 
+### S7-03 — Onboarding Wizard Rewrite ✅ COMPLETE
+- 7-step flow (was 6): Welcome → Menu Upload → Menu Review → **Add Team** → Connect Payments →
+  **Tax Rate** → Complete. Replaced recipe step with team + tax.
+- `onboarding.store.ts`: STEP_ORDER updated. New `TeamSetupStep.tsx` (add employees + PIN, skippable)
+  and `TaxSetupStep.tsx` (state→auto-fill rate, saves via settings.saveTax). OnboardingPage rewired
+  (labels, numbered steps, handlers). Progress/resume/skip retained.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

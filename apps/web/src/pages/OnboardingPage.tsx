@@ -18,7 +18,8 @@ import { analytics } from '../lib/analytics';
 import { WelcomeStep }      from '../components/onboarding/WelcomeStep';
 import { MenuUploadStep }   from '../components/onboarding/MenuUploadStep';
 import { MenuReviewStep }   from '../components/onboarding/MenuReviewStep';
-import { RecipeSetupStep }  from '../components/onboarding/RecipeSetupStep';
+import { TeamSetupStep }    from '../components/onboarding/TeamSetupStep';
+import { TaxSetupStep }     from '../components/onboarding/TaxSetupStep';
 import { StripeConnectStep} from '../components/onboarding/StripeConnectStep';
 import { CompleteStep }     from '../components/onboarding/CompleteStep';
 
@@ -27,13 +28,14 @@ import { CompleteStep }     from '../components/onboarding/CompleteStep';
 const STEP_LABELS: Partial<Record<OnboardingStep, string>> = {
   menu_upload:   'Upload menu',
   menu_review:   'Review menu',
-  recipe_setup:  'Recipes',
+  team_setup:    'Add team',
   stripe_connect:'Payments',
+  tax_setup:     'Tax rate',
 };
 
-// Steps that get a "Step X of 5" label (excludes welcome + complete)
+// Steps that get a "Step X of N" label (excludes welcome + complete)
 const NUMBERED_STEPS: OnboardingStep[] = [
-  'menu_upload', 'menu_review', 'recipe_setup', 'stripe_connect',
+  'menu_upload', 'menu_review', 'team_setup', 'stripe_connect', 'tax_setup',
 ];
 
 // ─── User info from localStorage ─────────────────────────────────────────────
@@ -138,31 +140,25 @@ export function OnboardingPage() {
       importsApi.confirm(jobId, { locationId }).catch(() => { /* non-blocking */ });
     }
 
-    goForward('recipe_setup');
+    goForward('team_setup');
   };
 
-  const handleRecipeComplete = (recipeCount: number) => {
-    store.updateRecipeSetup({ status: 'applied', recipeCount });
-    analytics.recipeSetupCompleted(recipeCount);
-    goForward('stripe_connect');
-  };
-
-  const handleRecipeSkip = () => {
-    store.updateRecipeSetup({ status: 'skipped' });
-    analytics.recipeSetupSkipped();
-    store.skipStep('recipe_setup');
-  };
+  const handleTeamNext = () => { goForward('stripe_connect'); };
+  const handleTeamSkip = () => { store.skipStep('team_setup'); };
 
   const handleStripeComplete = () => {
     store.updateStripeConnect({ status: 'connected' });
     analytics.stripeConnected();
-    store.completeOnboarding();
+    goForward('tax_setup');
   };
 
   const handleStripeSkip = () => {
     store.updateStripeConnect({ status: 'skipped' });
-    store.completeOnboarding();
+    goForward('tax_setup');
   };
+
+  const handleTaxNext = () => { store.completeOnboarding(); };
+  const handleTaxSkip = () => { store.skipStep('tax_setup'); store.completeOnboarding(); };
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const progress         = stepProgress(store.currentStep);
@@ -287,11 +283,8 @@ export function OnboardingPage() {
             />
           )}
 
-          {displayStep === 'recipe_setup' && (
-            <RecipeSetupStep
-              onComplete={handleRecipeComplete}
-              onSkip={handleRecipeSkip}
-            />
+          {displayStep === 'team_setup' && (
+            <TeamSetupStep onNext={handleTeamNext} onSkip={handleTeamSkip} />
           )}
 
           {displayStep === 'stripe_connect' && (
@@ -299,6 +292,10 @@ export function OnboardingPage() {
               onComplete={handleStripeComplete}
               onSkip={handleStripeSkip}
             />
+          )}
+
+          {displayStep === 'tax_setup' && (
+            <TaxSetupStep onNext={handleTaxNext} onSkip={handleTaxSkip} />
           )}
 
           {displayStep === 'complete' && (
