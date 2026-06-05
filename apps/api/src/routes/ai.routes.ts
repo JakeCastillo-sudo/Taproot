@@ -31,6 +31,7 @@ export default async function aiRoutes(fastify: FastifyInstance): Promise<void> 
       const body = req.body as {
         query:      string;
         locationId: string;
+        history?:   Array<{ role: 'user' | 'assistant'; content: string }>;
       };
 
       if (!body.query?.trim()) throw new ValidationError('query is required');
@@ -59,17 +60,28 @@ export default async function aiRoutes(fastify: FastifyInstance): Promise<void> 
         }>(
           `SELECT
              COUNT(*)                                             AS total_orders,
-             COALESCE(SUM(total_amount), 0)                      AS total_revenue,
-             COALESCE(AVG(total_amount), 0)                      AS avg_order,
+             COALESCE(SUM(total), 0)                              AS total_revenue,
+             COALESCE(AVG(total), 0)                              AS avg_order,
              COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE)  AS orders_today,
-             COALESCE(SUM(total_amount) FILTER (WHERE created_at >= CURRENT_DATE), 0) AS revenue_today
+             COALESCE(SUM(total) FILTER (WHERE created_at >= CURRENT_DATE), 0) AS revenue_today
            FROM orders
            WHERE organization_id = $1
              AND location_id = $2
-             AND status NOT IN ('voided','draft')`,
+             AND status NOT IN ('voided','parked')`,
           [user.orgId, body.locationId],
         ),
       ]);
+
+      // Top products (last 30 days) for richer answers
+      const { rows: topProducts } = await query<{ name: string; units: string; revenue: string }>(
+        `SELECT li.name, SUM(li.quantity) AS units, SUM(li.total) AS revenue
+           FROM order_line_items li
+           JOIN orders o ON o.id = li.order_id AND o.status NOT IN ('voided','parked')
+          WHERE o.organization_id = $1 AND o.location_id = $2 AND li.voided_at IS NULL
+            AND o.created_at >= now() - interval '30 days'
+          GROUP BY li.name ORDER BY revenue DESC LIMIT 8`,
+        [user.orgId, body.locationId],
+      );
 
       const summary = summaryRows[0];
       const context = [
@@ -80,23 +92,30 @@ export default async function aiRoutes(fastify: FastifyInstance): Promise<void> 
         `Average order value: $${((Number(summary?.avg_order) || 0) / 100).toFixed(2)}`,
         `Orders today: ${summary?.orders_today ?? 0}`,
         `Revenue today: $${((Number(summary?.revenue_today) || 0) / 100).toFixed(2)}`,
+        `Top products (30d): ${topProducts.map((p) => `${p.name} (${p.units} sold, $${(Number(p.revenue) / 100).toFixed(0)})`).join('; ') || 'none'}`,
       ].join('\n');
 
-      const systemPrompt = `You are a business analytics assistant for a restaurant/retail POS system called Taproot.
-You have access to summary sales data. Answer questions about the business in plain English.
-If you can provide a data table, include it as a JSON array in your response.
+      const systemPrompt = `You are an AI copilot for a restaurant/retail POS called Taproot.
+You have summary sales data and top products. Answer the owner's question in plain English using the data.
+When a comparison or breakdown is useful, include a small data table. Suggest 3 short, relevant follow-up questions.
 Respond ONLY with JSON in this exact format:
 {
   "answer": "plain English answer",
   "data": [{ "column": "value" }] or null,
-  "chartType": "bar" | "line" | "donut" | null
+  "chartType": "bar" | "line" | "pie" | null,
+  "suggestedQuestions": ["...", "...", "..."]
 }`;
 
       const userMessage = `Business context:\n${context}\n\nQuestion: ${body.query.trim()}`;
+      const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+        ...(body.history ?? []).slice(-6),
+        { role: 'user', content: userMessage },
+      ];
 
       let answer = '';
       let data: Record<string, unknown>[] | null = null;
       let chartType: string | null = null;
+      let suggestedQuestions: string[] = [];
 
       try {
         // Lazy-initialize per call so dotenv is guaranteed loaded (BUG-001 prevention)
@@ -105,7 +124,7 @@ Respond ONLY with JSON in this exact format:
           model: MODEL,
           max_tokens: 1024,
           system: systemPrompt,
-          messages: [{ role: 'user', content: userMessage }],
+          messages,
         });
 
         const block = msg.content[0];
@@ -118,20 +137,23 @@ Respond ONLY with JSON in this exact format:
             answer: string;
             data?: Record<string, unknown>[] | null;
             chartType?: string | null;
+            suggestedQuestions?: string[];
           };
           answer    = parsed.answer ?? '';
           data      = parsed.data   ?? null;
           chartType = parsed.chartType ?? null;
+          suggestedQuestions = Array.isArray(parsed.suggestedQuestions) ? parsed.suggestedQuestions.slice(0, 3) : [];
         }
       } catch (err: unknown) {
         // Return a graceful fallback if AI is unavailable
-        answer = `I'm currently unable to process that query. Here's what I can tell you from the data: ${context}`;
+        answer = `I'm currently unable to process that query. Here's a quick snapshot:\n${context}`;
         if (err instanceof Error && err.message.includes('API key')) {
           answer = 'AI features require a valid Anthropic API key. Please configure ANTHROPIC_API_KEY.';
         }
+        suggestedQuestions = ['What were my top sellers this week?', 'How do sales compare to last week?', 'Which days are busiest?'];
       }
 
-      return reply.send({ answer, data, chartType });
+      return reply.send({ answer, data, chartType, suggestedQuestions });
     },
   );
 }

@@ -14,15 +14,18 @@ import { useMutation } from '@tanstack/react-query';
 import { showToast } from '../components/ui/Toast';
 import type { MenuClass } from '../lib/api';
 import { clsx } from 'clsx';
-import { intelligence } from '../lib/api';
+import { intelligence, ai as aiApi, type NLQueryResponse } from '../lib/api';
+import { getLocationId } from '../lib/session';
+import { MessageSquare, Send } from 'lucide-react';
 import { SalesBarChart } from '../components/charts/SalesBarChart';
 import { fmtShortCurrency } from '../lib/dateRanges';
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
-type TabId = 'feed' | 'forecast' | 'staffing' | 'menu' | 'foodcost';
+type TabId = 'feed' | 'copilot' | 'forecast' | 'staffing' | 'menu' | 'foodcost';
 const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ size?: number; className?: string }> }> = [
   { id: 'feed', label: 'Daily Feed', icon: Newspaper },
+  { id: 'copilot', label: 'Copilot', icon: MessageSquare },
   { id: 'forecast', label: 'Forecast', icon: TrendingUp },
   { id: 'staffing', label: 'Staffing', icon: Users },
   { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
@@ -70,6 +73,7 @@ export function InsightsPage() {
       <main className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
           {tab === 'feed' && <FeedTab />}
+          {tab === 'copilot' && <CopilotTab />}
           {tab === 'forecast' && <ForecastTab />}
           {tab === 'staffing' && <StaffingTab />}
           {tab === 'menu' && <MenuTab />}
@@ -131,6 +135,88 @@ const MENU_ACTION_HINT: Record<MenuClass, string> = {
   star: 'Feature & protect quality.', plowhorse: 'Raise price or cut cost.',
   puzzle: 'Promote / reposition.', dog: 'Rework or remove.',
 };
+
+interface ChatMsg { role: 'user' | 'assistant'; content: string; data?: Array<Record<string, unknown>> | null; chartType?: string | null }
+
+const STARTER_QS = ['What were my top sellers in the last 30 days?', 'How is revenue trending?', 'What was my average order value?'];
+
+function CopilotTab() {
+  const locationId = getLocationId();
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [suggested, setSuggested] = useState<string[]>(STARTER_QS);
+
+  const ask = async (q: string) => {
+    if (!q.trim() || busy) return;
+    const history = messages.map((m) => ({ role: m.role, content: m.content }));
+    setMessages((m) => [...m, { role: 'user', content: q }]);
+    setInput(''); setBusy(true); setSuggested([]);
+    let res: NLQueryResponse;
+    try { res = await aiApi.nlQuery(q, locationId, history); }
+    catch { res = { answer: 'Something went wrong.', suggestedQuestions: [] }; }
+    setMessages((m) => [...m, { role: 'assistant', content: res.answer, data: res.data, chartType: res.chartType }]);
+    setSuggested(res.suggestedQuestions ?? []);
+    setBusy(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-5 min-h-[320px] flex flex-col">
+        {messages.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400">
+            <MessageSquare size={32} className="mb-2 text-gray-200" />
+            <p className="text-sm">Ask anything about your business.</p>
+          </div>
+        ) : (
+          <div className="flex-1 space-y-3">
+            {messages.map((m, i) => (
+              <div key={i} className={clsx('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
+                <div className={clsx('max-w-[85%] rounded-2xl px-4 py-2.5 text-sm', m.role === 'user' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-800')}>
+                  <p className="whitespace-pre-wrap">{m.content}</p>
+                  {m.role === 'assistant' && m.data && m.data.length > 0 && <DataBlock data={m.data} chartType={m.chartType} />}
+                </div>
+              </div>
+            ))}
+            {busy && <div className="flex justify-start"><div className="bg-gray-100 rounded-2xl px-4 py-2.5 text-sm text-gray-400">Thinking…</div></div>}
+          </div>
+        )}
+      </div>
+
+      {suggested.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {suggested.map((q, i) => (
+            <button key={i} onClick={() => void ask(q)} className="px-3 py-1.5 rounded-full border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 hover:border-primary/40">{q}</button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void ask(input)}
+          placeholder="Ask the copilot…" className="flex-1 px-4 py-2.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+        <button onClick={() => void ask(input)} disabled={busy || !input.trim()} className="px-4 py-2.5 bg-primary text-white rounded-md hover:bg-primary-dark disabled:opacity-50"><Send size={16} /></button>
+      </div>
+    </div>
+  );
+}
+
+function DataBlock({ data, chartType }: { data: Array<Record<string, unknown>>; chartType?: string | null }) {
+  const cols = Object.keys(data[0] ?? {});
+  const numericKey = cols.find((c) => data.every((r) => !isNaN(Number(r[c]))));
+  const labelKey = cols.find((c) => c !== numericKey) ?? cols[0];
+  if (chartType === 'bar' && numericKey && labelKey) {
+    const chart = data.slice(0, 12).map((r) => ({ name: String(r[labelKey]), value: Number(r[numericKey]) }));
+    return <div className="mt-2 bg-white rounded-md p-2"><SalesBarChart data={chart} xKey="name" bars={[{ key: 'value', color: '#8B5CF6', label: String(numericKey) }]} height={160} showLegend={false} /></div>;
+  }
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <table className="text-xs">
+        <thead><tr>{cols.map((c) => <th key={c} className="text-left pr-3 pb-1 font-medium opacity-70">{c}</th>)}</tr></thead>
+        <tbody>{data.slice(0, 10).map((r, i) => <tr key={i}>{cols.map((c) => <td key={c} className="pr-3 py-0.5">{String(r[c])}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
 
 const SEV_META: Record<string, { cls: string; Icon: React.FC<{ size?: number; className?: string }> }> = {
   info: { cls: 'bg-blue-50 text-blue-700 border-blue-200', Icon: Info },

@@ -141,6 +141,14 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
 - `api.ts`: `intelligence.feed/sendFeed` + `DailyFeed`. InsightsPage Daily Feed tab (default; briefing
   + yesterday cards + alerts, polls 5m, Send button).
 
+### S5-06 — Enhanced AI Copilot ✅ COMPLETE
+- `ai.routes.ts` nl-query: **fixed a latent bug** (queried non-existent `total_amount` / status
+  `draft` → would 500). Now uses `total` / `parked`, adds top-products context, accepts conversation
+  `history` (multi-turn), and returns `suggestedQuestions`.
+- `api.ts`: `ai.nlQuery(query, locationId, history)` + `suggestedQuestions` on NLQueryResponse.
+- InsightsPage Copilot tab: chat UI (history bubbles), suggested-question chips, data tables + bar
+  charts from responses.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

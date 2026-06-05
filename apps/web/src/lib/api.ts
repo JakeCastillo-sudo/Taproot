@@ -1574,17 +1574,23 @@ export interface NLQueryResponse {
   answer:    string;
   data?:     Array<Record<string, unknown>>;
   chartType?: 'bar' | 'line' | 'pie' | null;
+  suggestedQuestions?: string[];
 }
 
 export const ai = {
-  nlQuery: (query: string, locationId?: string): Promise<NLQueryResponse> => {
+  nlQuery: (
+    query: string,
+    locationId?: string,
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>,
+  ): Promise<NLQueryResponse> => {
     return apiFetch<NLQueryResponse>('/ai/nl-query', {
       method: 'POST',
-      body:   JSON.stringify({ query, locationId }),
+      body:   JSON.stringify({ query, locationId, history }),
     }).catch(() => ({
       answer:    "I couldn't process that query. The AI analytics feature isn't connected yet.",
       data:      undefined,
       chartType: null,
+      suggestedQuestions: [],
     }));
   },
 };
