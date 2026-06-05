@@ -224,6 +224,13 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
 - Already present: `/api/health` (status/version/uptime/checks/timestamp), Plausible analytics
   (index.html + analytics.ts track→window.plausible), Sentry init.
 
+### S7-06 — Performance + Polish Pass ✅ COMPLETE
+- Audit: favicon (🌿 green SVG) + PWA manifest ("Taproot POS", theme #1D9E75, all 8 icons present)
+  verified; production `vite build` green (PWA SW + 16 precache entries).
+- New Sprint 4–7 pages confirmed to follow patterns: loading skeletons, empty states (Customers/
+  Discounts/Locations/Insights/Gift Cards), `h-screen overflow-hidden` + `flex-1 overflow-y-auto
+  min-h-0` scroll, ErrorBoundary now catches render errors app-wide.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |
