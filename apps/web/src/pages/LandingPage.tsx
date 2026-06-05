@@ -189,8 +189,17 @@ export function LandingPage() {
             </p>
           </div>
 
-          {/* Third-party pass-through disclaimer */}
-          <div className="mt-5 text-left px-1">
+          {/* The Taproot Price Promise */}
+          <div className="mt-6 text-left">
+            <h3 className="text-sm font-bold text-gray-900">The Taproot Price Promise</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              One flat $199/month per location. No setup fees, no per-feature upcharges, no surprise
+              add-ons — ever.
+            </p>
+          </div>
+
+          {/* Third-party pass-through disclaimer — "What's not a Taproot charge" */}
+          <div className="mt-4 text-left px-1">
             <p className="text-xs font-semibold text-gray-500 mb-1.5">
               Third-party fees we don&apos;t control and don&apos;t profit from
             </p>
