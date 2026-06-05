@@ -26,7 +26,7 @@ import {
   ChevronRight, ChevronLeft, Plus, Minus, Trash2, Tag,
   FileText, AlertTriangle, User, Layers, BarChart3,
   Upload, ArrowRightLeft, Menu, Terminal, Settings,
-  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock,
+  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
@@ -222,6 +222,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'orders',    icon: <FileText size={18} />,     label: 'Orders',    path: '/orders' },
   { id: 'inventory', icon: <Package size={18} />,      label: 'Inventory', path: '/inventory' },
   { id: 'reports',   icon: <BarChart3 size={18} />,    label: 'Reports',   path: '/reports' },
+  { id: 'insights',  icon: <Sparkles size={18} />,     label: 'Insights',  path: '/insights' },
   { id: 'kitchen',   icon: <Utensils size={18} />,     label: 'Kitchen',   path: '/kitchen' },
   { id: 'reserve',   icon: <CalendarClock size={18} />,label: 'Reservations', path: '/reservations' },
   { id: 'customers', icon: <User size={18} />,         label: 'Customers', path: '/customers' },

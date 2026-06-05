@@ -1504,6 +1504,25 @@ export interface TipsReportData {
   byPaymentMethod: Array<{ method: string; tips: number }>;
 }
 
+// ─── Intelligence (AI layer, Sprint 5) ────────────────────────────────────────
+
+export interface DemandForecast {
+  history: Array<{ day: string; sales: number; orders: number }>;
+  forecast: Array<{ date: string; dow: string; predictedSales: number; predictedOrders: number; confidence: 'high' | 'medium' | 'low' }>;
+  narrative: string;
+  aiUsed: boolean;
+  generatedAt: string;
+}
+
+export const intelligence = {
+  forecast: (timezone?: string) => {
+    const q = new URLSearchParams();
+    if (timezone) q.set('timezone', timezone);
+    const qs = q.toString();
+    return apiFetch<DemandForecast>(`/intelligence/forecast${qs ? `?${qs}` : ''}`);
+  },
+};
+
 // ─── AI / NL Query ────────────────────────────────────────────────────────────
 
 export interface NLQueryResponse {

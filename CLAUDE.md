@@ -101,6 +101,20 @@
 - `CustomerSearch.tsx`: **BUG-QA-012 resolved** — "Create new customer" now creates inline from the
   query (email/phone/name heuristic) and attaches to the cart.
 
+## 🚧 Sprint 5 — Beta 1.5: AI Intelligence Layer (in progress)
+
+Pattern: every feature computes deterministic numbers from SQL, then layers an optional Claude
+narrative (`aiUsed` flag). `ai.service.ts` (new): `askClaudeJSON`/`askClaudeText` (graceful null on
+no-key/parse/API failure, mirrors ai.routes pattern — `new Anthropic`, `config.CLAUDE_MODEL`) +
+Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API_KEY.
+
+### S5-01 — Demand Forecasting Engine ✅ COMPLETE
+- `intelligence.service.ts` (new): `getDemandForecast` — 56-day history → day-of-week averaged
+  7-day forecast (confidence by sample size) + Claude narrative; **cached 4h in Redis**.
+- `intelligence.routes.ts` (new, registered): `GET /intelligence/forecast` (REPORTS_VIEW).
+- `api.ts`: `intelligence.forecast` + `DemandForecast`. `InsightsPage.tsx` (new, `/insights`):
+  tabbed AI dashboard, Forecast tab (narrative + bar chart + detail table). Insights nav item.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

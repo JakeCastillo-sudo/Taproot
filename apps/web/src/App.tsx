@@ -38,6 +38,7 @@ import { DiscountsSettingsPage } from './pages/DiscountsSettingsPage';
 import { KitchenDisplayPage } from './pages/KitchenDisplayPage';
 import { ReservationsPage } from './pages/ReservationsPage';
 import { CustomersPage } from './pages/CustomersPage';
+import { InsightsPage } from './pages/InsightsPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -267,6 +268,15 @@ export default function App() {
             element={
               <RequireAuth>
                 <CustomersPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/insights"
+            element={
+              <RequireAuth>
+                <InsightsPage />
               </RequireAuth>
             }
           />
