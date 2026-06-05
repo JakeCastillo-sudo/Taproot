@@ -154,3 +154,60 @@ Live at taproot-pos.com as of June 4, 2026.
 | Sprint 8 | Enterprise | July 28-Aug 1 | V1.1 |
 
 **Target V1.0 launch: July 25, 2026 (8 weeks)**
+
+---
+
+## DAILY SCHEDULE TEMPLATE
+
+### Dedicated Build Day (Mon/Tue/Fri)
+```
+09:00  Health check + git log + tsc checks (10 min)
+09:10  Read CLAUDE.md — confirm current state
+09:20  Begin Prompt 1 of the day
+11:00  Break
+11:15  Begin Prompt 2 of the day
+13:00  Lunch
+14:00  Begin Prompt 3 (if dedicated day)
+16:00  Commit, push, verify Railway deploy
+16:30  Update BACKLOG.md with any new issues found
+16:45  Note next day's prompts in CLAUDE.md
+17:00  Done
+```
+
+### Casual Build Day (Wed/Thu)
+```
+Open laptop at any point during day
+Run lookback checklist (5 min)
+Complete 1-2 prompts
+Commit, push, done
+```
+
+### Session Start Checklist (every day)
+1. curl https://taproot-production-3d63.up.railway.app/api/health
+2. git log --oneline -5
+3. npx tsc --noEmit in apps/web → 0 errors
+4. npx tsc --noEmit in apps/api → 0 errors
+5. Read CLAUDE.md — note current prompt number
+6. Check BACKLOG.md — any P0 bugs? Fix first.
+
+### Session End Checklist
+1. All changes committed and pushed
+2. Railway deploy successful (check health endpoint)
+3. CLAUDE.md updated with prompts completed
+4. BACKLOG.md updated with any new issues
+5. Next session's prompts noted
+
+---
+
+## PRINCIPLES FOR BUILDING WITH AI
+
+1. **Read before writing** — always read every file you'll change before changing it
+2. **TypeScript is your test suite** — 0 errors before every commit
+3. **Commit often** — one feature per commit, descriptive messages
+4. **Safe defaults everywhere** — missing config should never crash the app
+5. **Mobile first** — test at 1366x768 and on iPhone viewport
+6. **The edit chain must be unbroken** — when data flows UI→API→DB, trace every link
+7. **Migrations are one-way** — always write both up() and down()
+8. **Never hardcode values** — tax rate, model name, URLs all belong in config/DB
+9. **The POS is sacred** — payment flow must NEVER crash; add null guards everywhere
+10. **Read CLAUDE.md first** — it is the single source of truth for project state

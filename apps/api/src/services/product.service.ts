@@ -69,6 +69,12 @@ export interface CreateProductData {
   tags?: string[];
   /** Restrict visibility to specific meal periods. null/[] = always visible. */
   dayParts?: string[];
+  /**
+   * Selling price in CENTS for the auto-created default variant. When provided
+   * (> 0), createProduct also inserts a "Default" variant + active price row so
+   * the product is immediately sellable and shows a price on the POS register.
+   */
+  price?: number;
 }
 
 export interface UpdateProductData {
@@ -86,6 +92,11 @@ export interface UpdateProductData {
   tags?: string[];
   /** Restrict visibility to specific meal periods. null/[] = always visible. */
   dayParts?: string[] | null;
+  /**
+   * New selling price in CENTS. When provided (> 0), updateProduct expires the
+   * active price on the product's default variant and inserts a new one.
+   */
+  price?: number;
 }
 
 export interface ListProductsFilters {
@@ -240,8 +251,8 @@ export async function createProduct(
       `INSERT INTO products
          (organization_id, category_id, supplier_id, name, description,
           sku, barcode, product_type, unit_of_measure, cost_price,
-          track_inventory, is_active, tags, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          track_inventory, is_active, tags, day_parts, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        RETURNING id`,
       [
         orgId, data.categoryId ?? null, data.supplierId ?? null,
@@ -250,9 +261,28 @@ export async function createProduct(
         data.costPrice ?? 0, data.trackInventory ?? true,
         data.isActive ?? true,
         data.tags ? `{${data.tags.map(t => `"${t}"`).join(',')}}` : null,
+        // day_parts: null / empty array → always visible (additive filter)
+        data.dayParts && data.dayParts.length > 0 ? `{${data.dayParts.join(',')}}` : null,
         employeeId,
       ],
     );
+
+    // Default variant + active price so the product is immediately sellable.
+    // Price is stored in CENTS (integer); POS reads prices[] via buildProductWithRelations.
+    const { rows: [variant] } = await client.query<{ id: string }>(
+      `INSERT INTO product_variants
+         (product_id, organization_id, name, cost_price, is_active, sort_order)
+       VALUES ($1, $2, 'Default', $3, true, 0)
+       RETURNING id`,
+      [prod.id, orgId, data.costPrice ?? 0],
+    );
+    if (data.price !== undefined && data.price > 0) {
+      await client.query(
+        `INSERT INTO product_prices (variant_id, location_id, price, currency, effective_from)
+         VALUES ($1, NULL, $2, 'USD', now())`,
+        [variant.id, data.price],
+      );
+    }
 
     // If recipe product, create empty recipe record
     if (productType === 'recipe') {
@@ -332,6 +362,45 @@ export async function updateProduct(
   // day_parts: null / empty array → visible in all day parts
   if ('dayParts' in data) {
     add('day_parts', data.dayParts && data.dayParts.length > 0 ? `{${data.dayParts.join(',')}}` : null);
+  }
+
+  // Price update on the default variant (expire current active price, insert new)
+  if (data.price !== undefined && data.price > 0) {
+    const { rows: [variant] } = await query<{ id: string }>(
+      `SELECT id FROM product_variants
+        WHERE product_id = $1 AND deleted_at IS NULL
+        ORDER BY sort_order ASC, created_at ASC LIMIT 1`,
+      [productId],
+    );
+    if (variant) {
+      await withTransaction(async (client) => {
+        await client.query(
+          `UPDATE product_prices
+              SET effective_until = now(), updated_at = now(), is_active = false
+            WHERE variant_id = $1 AND location_id IS NULL AND currency = 'USD'
+              AND is_active = true
+              AND (effective_until IS NULL OR effective_until > now())`,
+          [variant.id],
+        );
+        await client.query(
+          `INSERT INTO product_prices (variant_id, location_id, price, currency, effective_from)
+           VALUES ($1, NULL, $2, 'USD', now())`,
+          [variant.id, data.price],
+        );
+      });
+    } else {
+      // No variant yet (legacy product) — create a default one with the price
+      const { rows: [v] } = await query<{ id: string }>(
+        `INSERT INTO product_variants (product_id, organization_id, name, is_active, sort_order)
+         VALUES ($1, $2, 'Default', true, 0) RETURNING id`,
+        [productId, orgId],
+      );
+      await query(
+        `INSERT INTO product_prices (variant_id, location_id, price, currency, effective_from)
+         VALUES ($1, NULL, $2, 'USD', now())`,
+        [v.id, data.price],
+      );
+    }
   }
 
   if (sets.length === 0) return buildProductWithRelations(productId);

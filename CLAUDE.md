@@ -118,11 +118,20 @@ All P0 + P1 bugs resolved (commit 2dbace5):
 ## Sprint 1 Queue — Beta 1.1: Settings & Admin
 See full roadmap at docs/ROADMAP.md
 
-### Prompt 31 (S1-01) — Product Management UI
+### Prompt 31 (S1-01) — Product Management UI ✅ COMPLETE
 Full product create/edit/delete at /settings/products.
-Inline edit name/description/price/category/SKU, create modal, search/filter/sort,
-bulk archive/delete, day-part checkboxes, image URL field.
-Backend: PATCH/POST/DELETE /api/v1/products already exist — audit + complete.
+- `product.service.ts`: `createProduct` now also creates a "Default" variant + active
+  `product_prices` row (price in cents) so new products are immediately sellable;
+  `CreateProductData.price` + `UpdateProductData.price` added; updateProduct expires/
+  re-inserts the default-variant price; createProduct now persists `day_parts`.
+- `api.ts`: `products.create()`, `products.remove()`, `CreateProductBody`, `day_parts` on
+  `ProductWithModifiers`.
+- `session.ts` (new): shared `getLocationId`/`getStoredUser`/`getCurrentRole`/`canAccessSettings`.
+- `SettingsLayout.tsx` (new): settings shell (sidebar + mobile tab bar + permission guard + Outlet).
+- `ProductsSettingsPage.tsx` (new): search/category/status filters, table w/ stock status from
+  inventory levels, create/edit modal (day-part chips, track-inventory/active toggles), archive/
+  restore/delete actions.
+- `App.tsx`: nested `/settings` → SettingsLayout with `/settings/products` child; index → products.
 
 ### Prompt 32 (S1-02) — Category Management UI
 /settings/categories — create/edit/delete, drag-to-reorder (dnd-kit already installed),
@@ -156,7 +165,7 @@ Payments: Stripe Connect status, payment methods toggle, fee display.
 Full walkthrough all settings screens, fix bugs, tag v0.2.0-beta-1.1.
 
 ## NEXT PROMPT
-Prompt 31 (S1-01) — Product Management UI
+Prompt 32 (S1-02) — Category Management UI
 
 ## IMPORTANT: Pending Railway Migrations
 Migrations 011, 012, 013 committed but NOT yet run on Railway.

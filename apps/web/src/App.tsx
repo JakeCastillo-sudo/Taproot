@@ -2,7 +2,7 @@ import React, { type ReactNode, useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { ClipboardList, Settings2, Download, X } from 'lucide-react';
+import { ClipboardList, Download, X } from 'lucide-react';
 import { queryClient } from './lib/queryClient';
 import { LoginPage } from './pages/LoginPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
@@ -20,6 +20,8 @@ import { TermsPage } from './pages/TermsPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { ReceiptPage } from './pages/ReceiptPage';
 import { DashboardEditorPage } from './pages/DashboardEditorPage';
+import { SettingsLayout } from './components/layout/SettingsLayout';
+import { ProductsSettingsPage } from './pages/ProductsSettingsPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -276,16 +278,20 @@ export default function App() {
             }
           />
 
+          {/* Settings shell with nested admin pages */}
           <Route
             path="/settings"
             element={
               <RequireAuth>
-                <PlaceholderPage title="Settings" icon={<Settings2 size={28} />} />
+                <SettingsLayout />
               </RequireAuth>
             }
-          />
+          >
+            <Route index element={<Navigate to="/settings/products" replace />} />
+            <Route path="products" element={<ProductsSettingsPage />} />
+          </Route>
 
-          {/* Dashboard layout editor — customize POS register tiles */}
+          {/* Dashboard layout editor — full-screen, customize POS register tiles */}
           <Route
             path="/settings/dashboard"
             element={

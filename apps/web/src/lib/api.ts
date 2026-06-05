@@ -175,8 +175,22 @@ export interface ModifierGroupData {
 export type ProductWithModifiers = Product & {
   variants?:       ProductVariant[];
   defaultPrice?:   number;
+  day_parts?:      string[] | null;
   modifierGroups:  ModifierGroupData[];
 };
+
+/** Body for creating a product via the Products settings page. */
+export interface CreateProductBody {
+  name:            string;
+  description?:    string;
+  categoryId?:     string | null;
+  price:           number;        // cents
+  sku?:            string;
+  trackInventory?: boolean;
+  isActive?:       boolean;
+  dayParts?:       string[] | null;
+  locationId:      string;
+}
 
 export interface ProductListResponse {
   products: ProductWithModifiers[];
@@ -312,12 +326,23 @@ export const products = {
   get: (id: string) =>
     apiFetch<Product & { variants?: ProductVariant[]; day_parts?: string[] | null }>(`/products/${id}`),
 
+  /** Create a product (Products settings page). Also creates a default variant + price. */
+  create: (body: CreateProductBody) =>
+    apiFetch<ProductWithModifiers>('/products', {
+      method: 'POST',
+      body:   JSON.stringify(body),
+    }),
+
   /** Update a product's day-part assignment (and optionally other fields). */
-  update: (id: string, body: { dayParts?: string[] | null; [key: string]: unknown }) =>
+  update: (id: string, body: { dayParts?: string[] | null; price?: number; [key: string]: unknown }) =>
     apiFetch<Product>(`/products/${id}`, {
       method: 'PATCH',
       body:   JSON.stringify(body),
     }),
+
+  /** Soft-delete a product. */
+  remove: (id: string) =>
+    apiFetch<void>(`/products/${id}`, { method: 'DELETE' }),
 
   /** Archive a product (hidden from POS until restored). */
   archive: (productId: string, reason?: string) =>
