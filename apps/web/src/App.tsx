@@ -37,6 +37,7 @@ import { GiftCardsSettingsPage } from './pages/GiftCardsSettingsPage';
 import { DiscountsSettingsPage } from './pages/DiscountsSettingsPage';
 import { KitchenDisplayPage } from './pages/KitchenDisplayPage';
 import { ReservationsPage } from './pages/ReservationsPage';
+import { CustomersPage } from './pages/CustomersPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -257,6 +258,15 @@ export default function App() {
             element={
               <RequireAuth>
                 <ReportsPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/customers"
+            element={
+              <RequireAuth>
+                <CustomersPage />
               </RequireAuth>
             }
           />

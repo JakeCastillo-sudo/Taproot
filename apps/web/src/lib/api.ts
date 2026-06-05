@@ -1063,11 +1063,35 @@ export const customers = {
     lastName?: string;
     email?: string;
     phone?: string;
+    tags?: string[];
+    notes?: string;
   }) =>
     apiFetch<Customer>('/customers', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  list: (params?: { search?: string; loyaltyTier?: string; page?: number; perPage?: number; orderBy?: string; orderDir?: 'asc' | 'desc' }) => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.loyaltyTier) q.set('loyalty_tier', params.loyaltyTier);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.perPage) q.set('per_page', String(params.perPage));
+    if (params?.orderBy) q.set('order_by', params.orderBy);
+    if (params?.orderDir) q.set('order_dir', params.orderDir);
+    const qs = q.toString();
+    return apiFetch<{ customers: Customer[]; total: number }>(`/customers${qs ? `?${qs}` : ''}`);
+  },
+
+  update: (id: string, body: { firstName?: string; lastName?: string; email?: string; phone?: string; tags?: string[]; notes?: string }) =>
+    apiFetch<Customer>(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  remove: (id: string) => apiFetch<void>(`/customers/${id}`, { method: 'DELETE' }),
+
+  orders: (id: string) => apiFetch<{ orders: Array<Record<string, unknown>>; total: number }>(`/customers/${id}/orders`),
+
+  adjustLoyalty: (id: string, delta: number, notes?: string) =>
+    apiFetch<unknown>(`/customers/${id}/loyalty/adjust`, { method: 'POST', body: JSON.stringify({ delta, notes }) }),
 };
 
 // ─── Inventory ────────────────────────────────────────────────────────────────

@@ -224,6 +224,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'reports',   icon: <BarChart3 size={18} />,    label: 'Reports',   path: '/reports' },
   { id: 'kitchen',   icon: <Utensils size={18} />,     label: 'Kitchen',   path: '/kitchen' },
   { id: 'reserve',   icon: <CalendarClock size={18} />,label: 'Reservations', path: '/reservations' },
+  { id: 'customers', icon: <User size={18} />,         label: 'Customers', path: '/customers' },
   { id: 'import',    icon: <Upload size={18} />,       label: 'Import',    path: '/import' },
   { id: 'migrate',   icon: <ArrowRightLeft size={18}/>,label: 'Migrate',   path: '/migrate' },
   { id: 'settings',  icon: <Settings size={18} />,     label: 'Settings',  path: '/settings' },

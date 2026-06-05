@@ -66,6 +66,26 @@ export function CustomerSearch() {
     setOpen(false);
   }, [setCustomer]);
 
+  // BUG-QA-012: create a new customer inline from the search query and select it.
+  const createCustomer = useCallback(async () => {
+    const text = query.trim();
+    if (!text) return;
+    const isEmail = text.includes('@');
+    const isPhone = /^[\d\s()+-]{7,}$/.test(text);
+    const [firstName, ...rest] = isEmail || isPhone ? [''] : text.split(' ');
+    try {
+      const c = await customersApi.create({
+        firstName: firstName || undefined,
+        lastName:  rest.join(' ') || undefined,
+        email:     isEmail ? text : undefined,
+        phone:     isPhone ? text : undefined,
+      });
+      setCustomer(c.id, `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() || (c.email ?? c.phone ?? 'New customer'));
+      setQuery('');
+      setOpen(false);
+    } catch { /* swallow — toast handled globally elsewhere */ }
+  }, [query, setCustomer]);
+
   // Close on outside click
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -175,10 +195,7 @@ export function CustomerSearch() {
           ))}
 
           <button
-            onMouseDown={() => {
-              setOpen(false);
-              // TODO: open create customer modal
-            }}
+            onMouseDown={() => { void createCustomer(); }}
             className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-primary font-medium border-t border-gray-100 hover:bg-primary-light transition-colors"
           >
             <User size={12} />

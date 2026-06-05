@@ -88,6 +88,15 @@
   min-order/usage-limit/active-until/stackable, redemption report column. Discounts nav item.
 - NOTE: bogo/free_item preview shows base value (computed precisely server-side at order creation).
 
+### S4-06 — Customer Management ✅ COMPLETE
+- Backend already complete (customer.service + routes: list/search/create/get/patch/delete/orders/
+  merge/credit + loyalty/adjust from S4-03). No backend change.
+- `api.ts`: `customers.list/update/remove/orders/adjustLoyalty` (+ create tags/notes).
+- `CustomersPage.tsx` (new, `/customers`): searchable list (name/contact/LTV/visits/points/tier/tags),
+  CSV export, profile drawer (stats, recent orders, edit, ±points), create/edit modal. Customers nav item.
+- `CustomerSearch.tsx`: **BUG-QA-012 resolved** — "Create new customer" now creates inline from the
+  query (email/phone/name heuristic) and attaches to the cart.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |
@@ -124,7 +133,7 @@ Auto-deploy: push to `main` → Railway (API) + Vercel (frontend) redeploy autom
 | Bug ID | Symptom | Status |
 |---|---|---|
 | BUG-QA-011 | MFA enforcement UI step missing (LoginPage.tsx TODO) | OPEN |
-| BUG-QA-012 | "+" in CustomerSearch doesn't open create modal | OPEN |
+| BUG-QA-012 | "+" in CustomerSearch doesn't open create modal | ✅ RESOLVED (S4-06) |
 | BUG-QA-013 | No UI to set tax rate (tax_config JSONB exists but no settings page) | ✅ RESOLVED (S1-04) |
 | BUG-QA-014 | Top customers report empty (seed orders have customer_id = NULL) | OPEN |
 
