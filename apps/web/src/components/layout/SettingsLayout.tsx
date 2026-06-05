@@ -12,7 +12,7 @@ import { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Package, FolderTree, SlidersHorizontal, Users, Building2,
-  CreditCard, LayoutGrid, ChevronLeft, LayoutDashboard, QrCode, Globe, Star, Gift, Tag, MapPin, Printer,
+  CreditCard, LayoutGrid, ChevronLeft, LayoutDashboard, QrCode, Globe, Star, Gift, Tag, MapPin, Printer, Plug,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { canAccessSettings } from '../../lib/session';
@@ -38,6 +38,7 @@ const NAV: SettingsNavItem[] = [
   { to: '/settings/online-ordering', label: 'Online Ordering', icon: <Globe size={17} /> },
   { to: '/settings/loyalty',    label: 'Loyalty',    icon: <Star size={17} /> },
   { to: '/settings/gift-cards', label: 'Gift Cards', icon: <Gift size={17} /> },
+  { to: '/settings/integrations', label: 'Integrations', icon: <Plug size={17} /> },
   { to: '/settings/discounts',  label: 'Discounts',  icon: <Tag size={17} /> },
   { to: '/settings/dashboard',  label: 'Dashboard',  icon: <LayoutGrid size={17} /> },
 ];

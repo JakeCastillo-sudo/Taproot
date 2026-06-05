@@ -200,6 +200,13 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
     ReportsPage header → `apiParams.locationId` (omitted = org-wide).
 - Menu engineering matrix lives in `/insights` (S5-03). CSV export present on Heatmap/EOD/Orders.
 
+### S6-06 — QuickBooks Integration ✅ COMPLETE
+- `integrations.routes.ts` (new, registered): `GET /integrations/export/:provider` (quickbooks|xero)
+  → daily-sales CSV (Date/Description/Amount/Account/Tax) download (REPORTS_VIEW).
+- `api.ts`: `integrations.exportCsv` (auth'd fetch → text). `IntegrationsSettingsPage.tsx` (new,
+  `/settings/integrations`): date range + QuickBooks/Xero download + Mailchimp/Gusto/OpenTable/
+  DoorDash "coming soon" stubs. Nav item.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

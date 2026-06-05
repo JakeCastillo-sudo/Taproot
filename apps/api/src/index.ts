@@ -37,6 +37,7 @@ import kitchenRoutes from './routes/kitchen.routes';
 import reservationRoutes from './routes/reservation.routes';
 import discountRoutes from './routes/discount.routes';
 import intelligenceRoutes from './routes/intelligence.routes';
+import integrationsRoutes from './routes/integrations.routes';
 import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
 import { checkSubscription } from './middleware/subscription';
@@ -241,6 +242,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(reservationRoutes);
   await fastify.register(discountRoutes);
   await fastify.register(intelligenceRoutes);
+  await fastify.register(integrationsRoutes);
 
   // ─── Dev-only utilities (never registered in production) ──────────────────────
   //

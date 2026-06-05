@@ -35,6 +35,7 @@ import { OnlineOrderingSettingsPage } from './pages/OnlineOrderingSettingsPage';
 import { LoyaltySettingsPage } from './pages/LoyaltySettingsPage';
 import { LocationsSettingsPage } from './pages/LocationsSettingsPage';
 import { HardwareSettingsPage } from './pages/HardwareSettingsPage';
+import { IntegrationsSettingsPage } from './pages/IntegrationsSettingsPage';
 import { GiftCardsSettingsPage } from './pages/GiftCardsSettingsPage';
 import { DiscountsSettingsPage } from './pages/DiscountsSettingsPage';
 import { KitchenDisplayPage } from './pages/KitchenDisplayPage';
@@ -364,6 +365,7 @@ export default function App() {
             <Route path="employees" element={<EmployeesSettingsPage />} />
             <Route path="payments" element={<PaymentsSettingsPage />} />
             <Route path="hardware" element={<HardwareSettingsPage />} />
+            <Route path="integrations" element={<IntegrationsSettingsPage />} />
             <Route path="floor-plan" element={<FloorPlanEditorPage />} />
             <Route path="qr-codes" element={<QrCodesSettingsPage />} />
             <Route path="online-ordering" element={<OnlineOrderingSettingsPage />} />

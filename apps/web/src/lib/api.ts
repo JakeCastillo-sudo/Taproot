@@ -379,6 +379,19 @@ export interface LocationInput {
   timezone?: string; currency?: string;
 }
 
+export const integrations = {
+  /** Fetch an accounting CSV (auth header) as text for client-side download. */
+  exportCsv: async (provider: 'quickbooks' | 'xero', from: string, to: string): Promise<string> => {
+    const token = getToken();
+    const q = new URLSearchParams({ from, to, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    const res = await fetch(`${BASE}/integrations/export/${provider}?${q.toString()}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new ApiError(res.status, 'EXPORT_ERROR', `Export failed (HTTP ${res.status})`);
+    return res.text();
+  },
+};
+
 export const locations = {
   list: () => apiFetch<{ locations: LocationRow[] }>('/locations').then((r) => r.locations),
   create: (body: LocationInput) => apiFetch<LocationRow>('/locations', { method: 'POST', body: JSON.stringify(body) }),
