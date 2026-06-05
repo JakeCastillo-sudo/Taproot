@@ -155,3 +155,77 @@ export async function getStaffingPlan(orgId: string, locationId: string | undefi
 
   return { days, avgHourlyRateCents: rate, targetPct: LABOR_TARGET_PCT, narrative, aiUsed };
 }
+
+// ─── S5-03: Menu Engineering ──────────────────────────────────────────────────
+
+export type MenuClass = 'star' | 'plowhorse' | 'puzzle' | 'dog';
+const MENU_ACTION: Record<MenuClass, string> = {
+  star:      'Feature prominently and protect quality — your winners.',
+  plowhorse: 'Popular but thin margin — nudge price up or trim cost.',
+  puzzle:    'High margin, low sales — promote or reposition on the menu.',
+  dog:       'Low sales, low margin — consider reworking or removing.',
+};
+
+export interface MenuItem {
+  id: string; name: string; units: number; revenue: number;
+  marginPct: number; category: MenuClass; action: string;
+}
+export interface MenuEngineering {
+  items: MenuItem[];
+  counts: Record<MenuClass, number>;
+  periodDays: number; narrative: string; aiUsed: boolean;
+}
+
+export async function getMenuEngineering(orgId: string, locationId: string | undefined, days = 90): Promise<MenuEngineering> {
+  const params: unknown[] = [orgId];
+  const lc = locClause(locationId, params);
+  const { rows } = await query<{ id: string; name: string; cost_price: number; units: number; revenue: number; avg_price: number }>(
+    `SELECT p.id, p.name, p.cost_price,
+            SUM(li.quantity) AS units, SUM(li.total) AS revenue, AVG(li.unit_price) AS avg_price
+       FROM order_line_items li
+       JOIN orders o ON o.id = li.order_id AND o.status NOT IN ('voided','parked')
+       JOIN products p ON p.id = li.product_id
+      WHERE o.organization_id = $1 AND li.voided_at IS NULL
+        AND o.created_at >= now() - ($${params.length + 1} || ' days')::interval ${lc}
+      GROUP BY p.id, p.name, p.cost_price
+      HAVING SUM(li.quantity) > 0`,
+    [...params, String(days)],
+  );
+
+  const enriched = rows.map((r) => {
+    const avgPrice = Number(r.avg_price) || 0;
+    const cost = Number(r.cost_price) || 0;
+    const marginPct = avgPrice > 0 ? ((avgPrice - cost) / avgPrice) * 100 : 0;
+    return { id: r.id, name: r.name, units: Number(r.units), revenue: Math.round(Number(r.revenue)), marginPct: Math.round(marginPct * 10) / 10 };
+  });
+
+  const avgUnits = enriched.length ? enriched.reduce((s, x) => s + x.units, 0) / enriched.length : 0;
+  const avgMargin = enriched.length ? enriched.reduce((s, x) => s + x.marginPct, 0) / enriched.length : 0;
+
+  const classify = (popular: boolean, profitable: boolean): MenuClass =>
+    popular && profitable ? 'star' : popular ? 'plowhorse' : profitable ? 'puzzle' : 'dog';
+
+  const items: MenuItem[] = enriched.map((x) => {
+    const category = classify(x.units >= avgUnits, x.marginPct >= avgMargin);
+    return { ...x, category, action: MENU_ACTION[category] };
+  }).sort((a, b) => b.revenue - a.revenue);
+
+  const counts: Record<MenuClass, number> = { star: 0, plowhorse: 0, puzzle: 0, dog: 0 };
+  for (const it of items) counts[it.category]++;
+
+  let narrative = items.length
+    ? `${counts.star} stars carry the menu; ${counts.dog} dogs are dragging it. Focus on converting plowhorses (${counts.plowhorse}) and promoting puzzles (${counts.puzzle}).`
+    : 'Not enough sales history to engineer the menu yet.';
+  let aiUsed = false;
+
+  if (aiAvailable() && items.length >= 4) {
+    const ai = await askClaudeText(
+      'You are a menu-engineering consultant using the Stars/Plowhorses/Puzzles/Dogs framework. Given classified items (units, marginPct, category), write 2 sentences naming 1-2 specific items and a concrete action. No preamble.',
+      JSON.stringify(items.slice(0, 25)),
+      300,
+    );
+    if (ai) { narrative = ai; aiUsed = true; }
+  }
+
+  return { items, counts, periodDays: days, narrative, aiUsed };
+}

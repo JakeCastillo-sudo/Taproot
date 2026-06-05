@@ -121,6 +121,12 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
   Claude action narrative. `GET /intelligence/staffing`.
 - `api.ts`: `intelligence.staffing` + `StaffingPlan`. InsightsPage Staffing tab (table + alerts).
 
+### S5-03 — AI Menu Engineering ✅ COMPLETE
+- `intelligence.service.getMenuEngineering`: 90-day per-product units + margin (price−cost), classified
+  into Stars/Plowhorses/Puzzles/Dogs vs avg-units/avg-margin thresholds + per-class action + Claude
+  narrative. `GET /intelligence/menu`.
+- `api.ts`: `intelligence.menu` + `MenuEngineering`/`MenuClass`. InsightsPage Menu tab (4 quadrant cards).
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

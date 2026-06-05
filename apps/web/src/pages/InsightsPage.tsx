@@ -9,7 +9,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Sparkles, TrendingUp, Users, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Sparkles, TrendingUp, Users, AlertTriangle, UtensilsCrossed } from 'lucide-react';
+import type { MenuClass } from '../lib/api';
 import { clsx } from 'clsx';
 import { intelligence } from '../lib/api';
 import { SalesBarChart } from '../components/charts/SalesBarChart';
@@ -17,10 +18,11 @@ import { fmtShortCurrency } from '../lib/dateRanges';
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
-type TabId = 'forecast' | 'staffing';
+type TabId = 'forecast' | 'staffing' | 'menu';
 const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ size?: number; className?: string }> }> = [
   { id: 'forecast', label: 'Forecast', icon: TrendingUp },
   { id: 'staffing', label: 'Staffing', icon: Users },
+  { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
 ];
 
 function AiBadge({ used }: { used: boolean }) {
@@ -65,6 +67,7 @@ export function InsightsPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
           {tab === 'forecast' && <ForecastTab />}
           {tab === 'staffing' && <StaffingTab />}
+          {tab === 'menu' && <MenuTab />}
         </div>
       </main>
     </div>
@@ -72,6 +75,56 @@ export function InsightsPage() {
 }
 
 function fmt(c: number): string { return `$${(c / 100).toFixed(2)}`; }
+
+const MENU_META: Record<MenuClass, { label: string; cls: string; emoji: string }> = {
+  star:      { label: 'Stars', cls: 'bg-green-50 text-green-700 border-green-200', emoji: '⭐' },
+  plowhorse: { label: 'Plowhorses', cls: 'bg-blue-50 text-blue-700 border-blue-200', emoji: '🐴' },
+  puzzle:    { label: 'Puzzles', cls: 'bg-amber-50 text-amber-700 border-amber-200', emoji: '🧩' },
+  dog:       { label: 'Dogs', cls: 'bg-gray-50 text-gray-600 border-gray-200', emoji: '🐶' },
+};
+
+function MenuTab() {
+  const { data, isLoading } = useQuery({ queryKey: ['intel', 'menu'], queryFn: () => intelligence.menu(), staleTime: 5 * 60_000 });
+  if (isLoading) return <div className="h-48 bg-gray-100 rounded-lg animate-pulse" />;
+  if (!data) return <p className="text-sm text-gray-400">No menu data available.</p>;
+
+  const groups: MenuClass[] = ['star', 'plowhorse', 'puzzle', 'dog'];
+  return (
+    <div className="space-y-5">
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-center justify-between mb-2"><h3 className="text-sm font-semibold text-gray-800">Menu engineering · last {data.periodDays} days</h3><AiBadge used={data.aiUsed} /></div>
+        <p className="text-sm text-gray-600">{data.narrative}</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {groups.map((g) => {
+          const meta = MENU_META[g];
+          const items = data.items.filter((i) => i.category === g);
+          return (
+            <div key={g} className={clsx('rounded-xl border p-4', meta.cls)}>
+              <h4 className="text-sm font-bold mb-2">{meta.emoji} {meta.label} ({data.counts[g]})</h4>
+              {items.length === 0 ? <p className="text-xs opacity-70">None</p> : (
+                <div className="space-y-1">
+                  {items.slice(0, 8).map((i) => (
+                    <div key={i.id} className="flex items-center justify-between text-sm bg-white/60 rounded px-2 py-1">
+                      <span className="truncate text-gray-800">{i.name}</span>
+                      <span className="text-xs text-gray-500 shrink-0 ml-2">{i.units}× · {i.marginPct}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] mt-2 opacity-80">{MENU_ACTION_HINT[g]}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const MENU_ACTION_HINT: Record<MenuClass, string> = {
+  star: 'Feature & protect quality.', plowhorse: 'Raise price or cut cost.',
+  puzzle: 'Promote / reposition.', dog: 'Rework or remove.',
+};
 
 function StaffingTab() {
   const { data, isLoading } = useQuery({ queryKey: ['intel', 'staffing'], queryFn: () => intelligence.staffing(TZ), staleTime: 60_000 });

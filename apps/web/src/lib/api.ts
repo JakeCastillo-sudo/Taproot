@@ -1532,7 +1532,15 @@ export const intelligence = {
     const qs = q.toString();
     return apiFetch<StaffingPlan>(`/intelligence/staffing${qs ? `?${qs}` : ''}`);
   },
+  menu: () => apiFetch<MenuEngineering>('/intelligence/menu'),
 };
+
+export type MenuClass = 'star' | 'plowhorse' | 'puzzle' | 'dog';
+export interface MenuEngineering {
+  items: Array<{ id: string; name: string; units: number; revenue: number; marginPct: number; category: MenuClass; action: string }>;
+  counts: Record<MenuClass, number>;
+  periodDays: number; narrative: string; aiUsed: boolean;
+}
 
 // ─── AI / NL Query ────────────────────────────────────────────────────────────
 
