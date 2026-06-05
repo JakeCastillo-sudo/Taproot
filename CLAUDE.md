@@ -105,29 +105,70 @@ Fixes BUG-NAV-001 (non-uniform tiles, no color/order control).
 
 **Demo**: POS → sidebar Customize → change Classic Burger to red + 🍔 icon → drag Food to top → Save → POS tiles update immediately
 
-### Prompt 30 — Fix import bugs (P1 backlog)
-Fix BUG-IMP-001 through 004.
-- BUG-IMP-003: fix ImportReview.tsx height/scroll so buttons are reachable without zoom
-- BUG-IMP-004: verify confirm flow end-to-end; test with real CSV/PDF upload
-- BUG-IMP-001/002: diagnose CSV parser path and PDF price extraction
+### Prompt 30 — Beta 1.0 Bug Fixes ✅ COMPLETE
+All P0 + P1 bugs resolved (commit 2dbace5):
+- BUG-PAY-001: already fixed (Prompt 27), BACKLOG.md updated
+- BUG-IMP-001: CSV full records stored in mappingConfig.parsed.records; GenericImportReview reads them
+- BUG-IMP-002: normalizeMenuPrice() added — values < 100 multiplied × 100; prompt updated with examples
+- BUG-IMP-003: ImportPage h-screen overflow-hidden + flex-1 min-h-0 card; GenericImportReview min-h-0
+- BUG-IMP-004: case 'generic_csv': added to confirmImportJob switch; applyGenericCsvImport() implemented
+- BUG-UX-001/002: InventoryPage h-screen overflow-hidden; <main> overflow-y-auto min-h-0
+- BUG-NAV-001: already fixed (Prompt 29), BACKLOG.md updated
 
-### Prompt 31 — Settings page
-- Location settings: name, address, phone, timezone, currency
-- Tax configuration UI (reads/writes `locations.tax_config JSONB`)
-- Printer configuration (receipt footer text, kitchen ticket options)
-- `GET /api/v1/locations/:id` and `PATCH /api/v1/locations/:id` endpoints
+## Sprint 1 Queue — Beta 1.1: Settings & Admin
+See full roadmap at docs/ROADMAP.md
 
-### Prompt 29 — Employee management
-- Employee list with roles and status
-- Invite/create employee flow
-- Role assignment (owner/manager/cashier/kitchen/readonly)
-- PIN management for cashiers
+### Prompt 31 (S1-01) — Product Management UI
+Full product create/edit/delete at /settings/products.
+Inline edit name/description/price/category/SKU, create modal, search/filter/sort,
+bulk archive/delete, day-part checkboxes, image URL field.
+Backend: PATCH/POST/DELETE /api/v1/products already exist — audit + complete.
 
-### Prompt 30 — Product management UI
-- Full product create/edit form (name, SKU, price, category, day parts)
-- Variant management
-- Bulk operations (price updates, category assignment)
-- Integration with existing import flow
+### Prompt 32 (S1-02) — Category Management UI
+/settings/categories — create/edit/delete, drag-to-reorder (dnd-kit already installed),
+color picker, icon picker, product count, archive category.
+Backend: PATCH/POST/DELETE /api/v1/categories (new).
+
+### Prompt 33 (S1-03) — Modifier Group Management
+/settings/modifiers — create/edit/delete groups + options, price delta, isDefault,
+selectionType, min/maxSelections, assign to products.
+Backend: Full CRUD for modifier_groups + modifiers tables.
+
+### Prompt 34 (S1-04) — Business Settings + Tax Config
+/settings/business — restaurant name, address, phone, timezone, currency,
+receipt footer text, logo URL.
+TAX CRITICAL: Replace hardcoded 8.5% with configurable rate from locations.tax_config.
+UI to set tax rates per location. Legal liability without this.
+Backend: PATCH /api/v1/settings/business + PATCH /api/v1/locations/:id.
+
+### Prompt 35 (S1-05) — Employee Management + PIN Login
+/settings/employees — add/edit/deactivate employees, set PIN, assign locations.
+POS login update: employee selection screen → PIN → logged in as that employee.
+Track which employee processes each transaction.
+Backend: PATCH/DELETE /api/v1/employees/:id, POST /api/v1/employees/:id/reset-pin.
+
+### Prompt 36 (S1-06 + S1-07) — Settings Shell + Payments Settings
+/settings root with left nav (Products|Categories|Modifiers|Employees|Business|Payments|Billing).
+Breadcrumbs, mobile accordion, permission guard.
+Payments: Stripe Connect status, payment methods toggle, fee display.
+
+### Prompt 37 (S1-08) — Sprint 1 Integration Test + Deploy
+Full walkthrough all settings screens, fix bugs, tag v0.2.0-beta-1.1.
+
+## NEXT PROMPT
+Prompt 31 (S1-01) — Product Management UI
+
+## IMPORTANT: Pending Railway Migrations
+Migrations 011, 012, 013 committed but NOT yet run on Railway.
+Run before any new code that depends on these columns:
+  npx node-pg-migrate up --migrations-dir migrations
+
+## Demo Day Scenario (use for testing)
+After completing Sprint 1:
+1. Settings → Business → set tax rate to 8.875% (NYC rate)
+2. Settings → Products → add "Seasonal Salad" at $16.99
+3. Settings → Employees → add "Maria" with cashier role + PIN 2468
+4. POS → select Maria → PIN → complete sale → verify Maria tracked in reports
 
 ---
 
