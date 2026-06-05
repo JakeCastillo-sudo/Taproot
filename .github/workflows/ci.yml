@@ -202,12 +202,14 @@ jobs:
           git secrets --add --allowed 'sk_test_'
           git secrets --add --allowed 'sk-ant-placeholder'
           git secrets --add --allowed 'whsec_placeholder'
-          # Allow documented placeholders / examples in committed files (not real secrets):
-          #   apps/api/.env.production.example  -> STRIPE_SECRET_KEY=sk_live_CHANGE_ME
-          #   apps/api/src/config.ts @example   -> ANTHROPIC_API_KEY=sk-ant-api03-...
-          # Scoped tightly so real keys (sk_live_<chars>, sk-ant-api03-<chars>) still trip.
-          git secrets --add --allowed 'sk_live_CHANGE_ME'
-          git secrets --add --allowed 'sk-ant-api03-\.\.\.'
+          # Allow two documented placeholders found in committed files / history
+          # (not real secrets): the STRIPE_SECRET_KEY=..CHANGE_ME in
+          # .env.production.example, and the ANTHROPIC_API_KEY @example in
+          # config.ts. The allowed patterns deliberately omit the leading
+          # sk/sk_ so these very lines do not themselves trip the scanner,
+          # while real keys still match the prohibited rules above.
+          git secrets --add --allowed 'live_CHANGE_ME'
+          git secrets --add --allowed 'ant-api03-\.\.\.'
 
       - name: Scan repository for secrets
         run: git secrets --scan-history
