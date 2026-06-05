@@ -152,6 +152,19 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
 - InsightsPage Copilot tab: chat UI (history bubbles), suggested-question chips, data tables + bar
   charts from responses.
 
+## 🚧 Sprint 6 — Beta 2.0: Scale & Infrastructure (in progress)
+
+### S6-01 — Multi-Location ✅ COMPLETE
+- `location.service.ts` (new): create/update/delete/list; createLocation grants access to
+  owner/manager `location_ids`. Routes POST/PATCH/DELETE `/api/v1/locations` in settings.routes
+  (GET already existed).
+- `session.ts`: `getActiveLocationId`/`setActiveLocationId`; `getLocationId` now honors the switcher
+  selection (localStorage `taproot_active_location`) → all client queries follow active location.
+- `LocationSwitcher.tsx` (new) in POS sidebar (hidden when 1 location; reloads on switch).
+- `LocationsSettingsPage.tsx` (new, `/settings/locations`): CRUD. `api.ts`: `locations.create/update/remove`.
+- NOTE: cross-location report comparison lands in S6-05 (reporting suite). New-location WRITES may need
+  a re-login so the JWT picks up the added location_id (reads work immediately).
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

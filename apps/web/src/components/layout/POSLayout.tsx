@@ -45,6 +45,7 @@ import { CashDrawerWidget } from '../pos/CashDrawerWidget';
 import { SplitCheckModal } from '../pos/SplitCheckModal';
 import { TableView } from '../pos/TableView';
 import { OnlineOrdersBell } from '../pos/OnlineOrdersBell';
+import { LocationSwitcher } from '../pos/LocationSwitcher';
 import { PaymentSheet } from '../pos/PaymentSheet';
 import { MobileCart } from '../pos/MobileCart';
 import { SyncStatus } from '../ui/SyncStatus';
@@ -265,7 +266,7 @@ function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarPr
           {!collapsed && (
             <div className="min-w-0">
               <p className="text-sm font-bold text-gray-900 truncate">Taproot POS</p>
-              <p className="text-[11px] text-gray-400">Location 1</p>
+              <LocationSwitcher />
             </div>
           )}
         </div>

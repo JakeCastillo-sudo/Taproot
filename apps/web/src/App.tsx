@@ -33,6 +33,7 @@ import { PublicMenuPage } from './pages/PublicMenuPage';
 import { QrCodesSettingsPage } from './pages/QrCodesSettingsPage';
 import { OnlineOrderingSettingsPage } from './pages/OnlineOrderingSettingsPage';
 import { LoyaltySettingsPage } from './pages/LoyaltySettingsPage';
+import { LocationsSettingsPage } from './pages/LocationsSettingsPage';
 import { GiftCardsSettingsPage } from './pages/GiftCardsSettingsPage';
 import { DiscountsSettingsPage } from './pages/DiscountsSettingsPage';
 import { KitchenDisplayPage } from './pages/KitchenDisplayPage';
@@ -358,6 +359,7 @@ export default function App() {
             <Route path="categories" element={<CategoriesSettingsPage />} />
             <Route path="modifiers" element={<ModifiersSettingsPage />} />
             <Route path="business" element={<BusinessSettingsPage />} />
+            <Route path="locations" element={<LocationsSettingsPage />} />
             <Route path="employees" element={<EmployeesSettingsPage />} />
             <Route path="payments" element={<PaymentsSettingsPage />} />
             <Route path="floor-plan" element={<FloorPlanEditorPage />} />

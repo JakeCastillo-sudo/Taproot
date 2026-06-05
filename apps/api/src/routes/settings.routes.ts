@@ -12,6 +12,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { AccessTokenPayload } from '../auth/jwt';
 import { query } from '../db/client';
+import * as LocationSvc from '../services/location.service';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
 
@@ -148,6 +149,29 @@ export default async function settingsRoutes(fastify: FastifyInstance): Promise<
       [user.orgId],
     );
     return reply.send({ locations: rows });
+  });
+
+  // POST /api/v1/locations — create a location
+  fastify.post('/api/v1/locations', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const loc = await LocationSvc.createLocation(user.orgId, req.body as LocationSvc.CreateLocationData, user.sub);
+    return reply.code(201).send(loc);
+  });
+
+  // PATCH /api/v1/locations/:id
+  fastify.patch('/api/v1/locations/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { id } = req.params as { id: string };
+    const loc = await LocationSvc.updateLocation(user.orgId, id, req.body as LocationSvc.UpdateLocationData, user.sub);
+    return reply.send(loc);
+  });
+
+  // DELETE /api/v1/locations/:id — soft delete
+  fastify.delete('/api/v1/locations/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { id } = req.params as { id: string };
+    await LocationSvc.deleteLocation(user.orgId, id, user.sub);
+    return reply.code(204).send();
   });
 
   // ── Helper: resolve the org's target location ──────────────────────────────

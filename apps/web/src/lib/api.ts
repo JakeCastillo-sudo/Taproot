@@ -368,10 +368,22 @@ export interface LocationRow {
   name:     string;
   timezone: string;
   currency: string;
+  address?: Record<string, unknown>;
+  phone?:   string | null;
+  is_active?: boolean;
+}
+
+export interface LocationInput {
+  name: string; address?: Record<string, unknown>; phone?: string;
+  timezone?: string; currency?: string;
 }
 
 export const locations = {
   list: () => apiFetch<{ locations: LocationRow[] }>('/locations').then((r) => r.locations),
+  create: (body: LocationInput) => apiFetch<LocationRow>('/locations', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: string, body: Partial<LocationInput> & { isActive?: boolean }) =>
+    apiFetch<LocationRow>(`/locations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id: string) => apiFetch<void>(`/locations/${id}`, { method: 'DELETE' }),
 };
 
 // ─── Gift cards ───────────────────────────────────────────────────────────────
