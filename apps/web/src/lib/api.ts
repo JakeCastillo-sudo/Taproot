@@ -782,6 +782,24 @@ export const orders = {
   getReceipt: (orderId: string) =>
     apiFetch<ReceiptData>(`/orders/${orderId}/receipt`),
 
+  /** Void an order (refunds completed payments). */
+  voidOrder: (orderId: string, reason: string) =>
+    apiFetch<{ success: boolean; refundedAmount: number }>(`/orders/${orderId}/void`, {
+      method: 'POST', body: JSON.stringify({ reason }),
+    }),
+
+  /** Refund an order — full / partial / by-item. */
+  refund: (orderId: string, body: { type: 'full' | 'partial'; amount?: number; lineItemIds?: string[]; reason: string }) =>
+    apiFetch<{ success: boolean; refundedAmount: number }>(`/orders/${orderId}/refund`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  /** Line items with ids for the by-item refund picker. */
+  lineItems: (orderId: string) =>
+    apiFetch<{ lineItems: Array<{ id: string; name: string; quantity: number; total: number; voided: boolean }> }>(
+      `/orders/${orderId}/line-items`,
+    ).then((r) => r.lineItems),
+
   /** Org-wide enriched order history (Order History screen). */
   history: (params?: {
     status?: string; employeeId?: string; paymentMethod?: string;

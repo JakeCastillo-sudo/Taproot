@@ -3,6 +3,7 @@ import type { AccessTokenPayload } from '../auth/jwt';
 import { Permission, requirePermissions } from '../auth/permissions';
 import * as OrderSvc from '../services/order.service';
 import * as PaymentSvc from '../services/payment.service';
+import * as TransactionSvc from '../services/transaction.service';
 import * as PurchaseOrderSvc from '../services/purchaseOrder.service';
 import * as ReceiptSvc from '../services/receipt.service';
 
@@ -44,6 +45,44 @@ export default async function orderRoutes(fastify: FastifyInstance): Promise<voi
         filter.restrictToEmployeeId = user.sub;
       }
       const result = await OrderSvc.listOrderHistory(user.orgId, filter);
+      return reply.send(result);
+    },
+  );
+
+  // POST /api/v1/orders/:id/void — org-level void (refunds completed payments)
+  fastify.post(
+    '/api/v1/orders/:id/void',
+    { preHandler: [requirePermissions(Permission.ORDER_VOID)] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user } = req as AuthedRequest;
+      const { id } = req.params as { id: string };
+      const { reason } = req.body as { reason: string };
+      const result = await TransactionSvc.voidOrder(user.orgId, user.sub, id, reason);
+      return reply.send(result);
+    },
+  );
+
+  // GET /api/v1/orders/:id/line-items — for the by-item refund picker
+  fastify.get(
+    '/api/v1/orders/:id/line-items',
+    { preHandler: [requirePermissions(Permission.ORDER_VIEW)] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user } = req as AuthedRequest;
+      const { id } = req.params as { id: string };
+      const items = await TransactionSvc.listOrderLineItems(user.orgId, id);
+      return reply.send({ lineItems: items });
+    },
+  );
+
+  // POST /api/v1/orders/:id/refund — full / partial / by-item refund
+  fastify.post(
+    '/api/v1/orders/:id/refund',
+    { preHandler: [requirePermissions(Permission.ORDER_REFUND)] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user } = req as AuthedRequest;
+      const { id } = req.params as { id: string };
+      const body = req.body as TransactionSvc.RefundOrderInput;
+      const result = await TransactionSvc.refundOrder(user.orgId, user.sub, id, body);
       return reply.send(result);
     },
   );

@@ -145,6 +145,19 @@ employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrade
 - `App.tsx`: `/orders` → OrderHistoryPage (replaced placeholder). `POSLayout`: Orders nav item.
 - NOTE: void/refund buttons added in S2-02.
 
+### S2-02 — Void & Refund ✅ COMPLETE
+- `transaction.service.ts` (new): `voidOrder` (works on completed orders — distributes full
+  refund across payments via existing `PaymentSvc.refundPayment` (Stripe + gift-card aware),
+  voids line items, sets status='voided'); `refundOrder` (full/partial/by-item; by-item sums
+  selected line totals); `listOrderLineItems`.
+- `order.routes.ts`: `POST /orders/:id/void` (ORDER_VOID), `POST /orders/:id/refund` (ORDER_REFUND),
+  `GET /orders/:id/line-items`.
+- `api.ts`: `orders.voidOrder/refund/lineItems`.
+- `OrderActions.tsx` (new): Void modal (reason dropdown, "cannot be undone") + Refund modal
+  (Full/Partial/By-item tabs, reason, live preview). Wired into OrderHistoryPage drawer.
+- NOTE: manager-PIN override for cashiers DEFERRED — access gated by ORDER_VOID/ORDER_REFUND
+  permissions instead (cashiers without them get 403).
+
 ## Sprint 1 Queue — Beta 1.1: Settings & Admin
 See full roadmap at docs/ROADMAP.md
 

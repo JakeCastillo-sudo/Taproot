@@ -17,6 +17,7 @@ import {
   orders as ordersApi, employees as employeesApi,
   type OrderHistoryRow,
 } from '../lib/api';
+import { OrderActions } from '../components/orders/OrderActions';
 
 function fmt(cents: number): string { return `$${(Number(cents) / 100).toFixed(2)}`; }
 
@@ -188,7 +189,8 @@ export function OrderHistoryPage() {
         <OrderDetailDrawer
           orderId={detailId}
           order={list.find((o) => o.id === detailId) ?? null}
-          onClose={() => { setDetailId(null); void refetch(); }}
+          onClose={() => setDetailId(null)}
+          onChanged={() => { setDetailId(null); void refetch(); }}
         />
       )}
     </div>
@@ -197,10 +199,11 @@ export function OrderHistoryPage() {
 
 // ─── Detail drawer ──────────────────────────────────────────────────────────
 
-function OrderDetailDrawer({ orderId, order, onClose }: {
+function OrderDetailDrawer({ orderId, order, onClose, onChanged }: {
   orderId: string;
   order:   OrderHistoryRow | null;
   onClose: () => void;
+  onChanged: () => void;
 }) {
   const { data: receipt, isLoading } = useQuery({
     queryKey: ['order', 'receipt', orderId],
@@ -265,7 +268,11 @@ function OrderDetailDrawer({ orderId, order, onClose }: {
           <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-md text-sm text-gray-600 hover:bg-gray-50">
             <Printer size={14} /> Print
           </button>
-          {/* Void / Refund actions added in S2-02 */}
+          <OrderActions
+            orderId={orderId}
+            status={order?.status ?? ''}
+            onChanged={onChanged}
+          />
         </div>
       </div>
     </div>
