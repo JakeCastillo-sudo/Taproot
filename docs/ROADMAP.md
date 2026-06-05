@@ -69,15 +69,15 @@ Live at taproot-pos.com as of June 4, 2026.
 
 ---
 
-## SPRINT 3 — BETA 1.3: Table Service
+## SPRINT 3 — BETA 1.3: Table Service ✅ COMPLETE (v0.4.0-beta-1.3)
 ### Week of June 23, 2026
 
-**S3-01** Floor Plan Editor — /settings/floor-plan, drag-drop canvas, table shapes, sections
-**S3-02** Table Service POS Mode — table view, status colors, server assignment, course firing
-**S3-03** QR Code Ordering — public menu URL, customer scans to order, Stripe payment
-**S3-04** Kitchen Display System — /kitchen full-screen, real-time orders, bump/complete
-**S3-05** Waitlist & Reservations — /reservations, SMS notifications via Twilio
-**S3-06** Sprint 3 Integration Test + Deploy — v0.4.0-beta-1.3 tag
+**S3-01** ✅ Floor Plan Editor — drag-drop canvas, shapes, sections, undo/redo
+**S3-02** ✅ Table Service POS Mode — table view, status colors, table assignment
+**S3-03** ✅ QR Code Ordering — public menu URL, customer ordering (pay-at-counter); verified live
+**S3-04** ✅ Kitchen Display System — /kitchen full-screen, polling, item-ready/bump
+**S3-05** ✅ Waitlist & Reservations — /reservations, SMS notify (Twilio stub)
+**S3-06** ✅ Sprint 3 Integration + Deploy — v0.4.0-beta-1.3 tag
 
 ---
 

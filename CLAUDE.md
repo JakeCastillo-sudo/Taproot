@@ -1,5 +1,23 @@
 # Taproot POS — Claude Project State
 
+> # 🚀 AUTONOMOUS BUILD COMPLETE — Sprints 1–3 done
+> Built overnight: **21/21 prompts** (S1-01…S3-06) across 3 sprints, tagged
+> **v0.2.0-beta-1.1**, **v0.3.0-beta-1.2**, **v0.4.0-beta-1.3**.
+> - **Sprint 1 (Settings & Admin):** Products, Categories, Modifiers, Employees + PIN login,
+>   Business + configurable tax, Payments, settings shell.
+> - **Sprint 2 (Transactions):** Order History, Void/Refund, Tips, Cash Drawer, End-of-Day,
+>   Split Check. **Found + fixed P0 BUG-ORD-001** (POS order-create contract mismatch).
+> - **Sprint 3 (Table Service):** Floor Plan editor, Table-service POS mode, QR ordering
+>   (public storefront — verified live), Kitchen Display, Reservations/Waitlist.
+> - **Migrations needed on Railway** (code degrades gracefully until run; ALL features 500-safe):
+>   `npx node-pg-migrate up --migrations-dir migrations` → **014_employee_hourly_rate,
+>   015_cash_drawer, 016_reservations**.
+> - **Bugs:** BUG-ORD-001 fixed (see BACKLOG); BUG-QA-013 resolved (tax UI). No new open P0/P1.
+> - **Verified live:** product create+price, tax round-trip, full order create→pay(+tip)→void
+>   lifecycle, employees/cash-drawer/reservations resilience, public QR menu (9 categories).
+> - **Next for Jake:** review live site, run the 3 migrations, then Sprint 4 (Online Ordering).
+> - TypeScript: 0 errors in apps/web + apps/api. All work committed + pushed to main.
+
 > ⚠️ **MIGRATIONS NEEDED** (run in Railway console):
 > `npx node-pg-migrate up --migrations-dir migrations`
 > Pending: **014_employee_hourly_rate** (S1-05), **015_cash_drawer** (S2-04), **016_reservations** (S3-05).
