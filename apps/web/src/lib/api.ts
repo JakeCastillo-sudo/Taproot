@@ -186,6 +186,7 @@ export interface CreateProductBody {
   categoryId?:     string | null;
   price:           number;        // cents
   sku?:            string;
+  barcode?:        string;
   trackInventory?: boolean;
   isActive?:       boolean;
   dayParts?:       string[] | null;

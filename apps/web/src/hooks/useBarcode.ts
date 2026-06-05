@@ -10,6 +10,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { usePOSStore } from '../store/pos.store';
 import { products } from '../lib/api';
 import { showToast } from '../components/ui/Toast';
+import { getScannerEnabled } from './useBarcodeScanner';
 
 export function useBarcode(): void {
   const addToCart          = usePOSStore((s) => s.addToCart);
@@ -47,6 +48,8 @@ export function useBarcode(): void {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Respect the Settings → Hardware scanner toggle
+      if (!getScannerEnabled()) return;
       // Disable when sheets are open
       if (isModifierSheetOpen || isPaymentSheetOpen) return;
 

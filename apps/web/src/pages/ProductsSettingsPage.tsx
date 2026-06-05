@@ -9,9 +9,10 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Plus, Search, Pencil, Archive, Trash2, ArchiveRestore, X, Package,
+  Plus, Search, Pencil, Archive, Trash2, ArchiveRestore, X, Package, ScanLine,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import {
   products as productsApi,
   categories as categoriesApi,
@@ -52,6 +53,7 @@ interface EditState {
   categoryId:     string;
   priceInput:     string;        // dollars as typed
   sku:            string;
+  barcode:        string;
   trackInventory: boolean;
   isActive:       boolean;
   dayParts:       DayPart[];
@@ -59,7 +61,7 @@ interface EditState {
 
 const EMPTY_EDIT: EditState = {
   id: null, name: '', description: '', categoryId: '', priceInput: '',
-  sku: '', trackInventory: true, isActive: true, dayParts: [],
+  sku: '', barcode: '', trackInventory: true, isActive: true, dayParts: [],
 };
 
 function ProductModal({
@@ -71,7 +73,11 @@ function ProductModal({
   onSaved:    () => void;
 }) {
   const [form, setForm] = useState<EditState>(state);
+  const [arming, setArming] = useState(false);
   const locationId = getLocationId();
+
+  // "Scan to assign" — capture the next scan into the barcode field.
+  useBarcodeScanner((code) => { setForm((f) => ({ ...f, barcode: code })); setArming(false); showToast.success(`Barcode set: ${code}`); }, arming);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -84,6 +90,7 @@ function ProductModal({
           description:    form.description.trim() || undefined,
           categoryId:     form.categoryId || null,
           sku:            form.sku.trim() || undefined,
+          barcode:        form.barcode.trim() || undefined,
           trackInventory: form.trackInventory,
           isActive:       form.isActive,
           dayParts,
@@ -96,6 +103,7 @@ function ProductModal({
           categoryId:     form.categoryId || null,
           price,
           sku:            form.sku.trim() || undefined,
+          barcode:        form.barcode.trim() || undefined,
           trackInventory: form.trackInventory,
           isActive:       form.isActive,
           dayParts,
@@ -202,6 +210,24 @@ function ProductModal({
               className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
               placeholder="Auto-generated if blank"
             />
+          </div>
+
+          {/* Barcode */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Barcode</label>
+            <div className="flex gap-2">
+              <input
+                value={form.barcode}
+                onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                placeholder="Scan or enter"
+              />
+              <button type="button" onClick={() => setArming((a) => !a)}
+                className={clsx('flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium border shrink-0',
+                  arming ? 'bg-primary text-white border-primary animate-pulse' : 'border-gray-200 text-gray-600 hover:bg-gray-50')}>
+                <ScanLine size={14} /> {arming ? 'Scan now…' : 'Scan to assign'}
+              </button>
+            </div>
           </div>
 
           {/* Day parts */}
@@ -370,6 +396,7 @@ export function ProductsSettingsPage() {
     categoryId:     p.category_id ?? '',
     priceInput:     p.defaultPrice ? (p.defaultPrice / 100).toFixed(2) : '',
     sku:            p.sku ?? '',
+    barcode:        p.barcode ?? '',
     trackInventory: p.track_inventory,
     isActive:       p.is_active,
     dayParts:       (p.day_parts ?? []).filter((d): d is DayPart => (DAY_PARTS as readonly string[]).includes(d)),

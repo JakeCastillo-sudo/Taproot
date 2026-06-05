@@ -184,6 +184,14 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
   (+ barcode toggle for S6-04). Nav item.
 - NOTE: print server runs on **3333** (prompt said 3001 = API port).
 
+### S6-04 — Barcode Scanner Support ✅ COMPLETE
+- Existing `useBarcode` (POS scan→add-to-cart) now gated on the Hardware scanner toggle.
+- `useBarcodeScanner.ts` (new, generic, gates on `enabled` arg; default-on `getScannerEnabled`).
+- ProductsSettingsPage modal: **Barcode field + "Scan to assign"** (arms a one-shot capture);
+  `barcode` flows through product create/update.
+- HardwareSettingsPage: scanner enable toggle (S6-03).
+- NOTE: inventory scan→jump deferred — POS scan-lookup already covers finding products by barcode.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

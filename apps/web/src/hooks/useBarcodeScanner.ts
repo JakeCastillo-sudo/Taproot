@@ -13,19 +13,21 @@ const ENABLED_KEY = 'taproot_scanner_enabled';
 const FAST_MS = 50;     // inter-key gap below this ⇒ machine input
 const MIN_LEN = 3;
 
+/** Scanner is enabled unless explicitly turned off (default on). */
 export function getScannerEnabled(): boolean {
-  try { return localStorage.getItem(ENABLED_KEY) === 'true'; } catch { return false; }
+  try { return localStorage.getItem(ENABLED_KEY) !== 'false'; } catch { return true; }
 }
 export function setScannerEnabled(v: boolean): void {
   try { localStorage.setItem(ENABLED_KEY, String(v)); } catch { /* ignore */ }
 }
 
+/** Gates only on the `enabled` arg — callers pass getScannerEnabled() or a one-shot arm flag. */
 export function useBarcodeScanner(onScan: (code: string) => void, enabled = true): void {
   const buf = useRef('');
   const last = useRef(0);
 
   useEffect(() => {
-    if (!enabled || !getScannerEnabled()) return;
+    if (!enabled) return;
 
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
