@@ -1514,12 +1514,23 @@ export interface DemandForecast {
   generatedAt: string;
 }
 
+export interface StaffingPlan {
+  days: Array<{ date: string; dow: string; predictedSales: number; recommendedStaff: number; laborCostCents: number; laborPct: number; alert: boolean }>;
+  avgHourlyRateCents: number; targetPct: number; narrative: string; aiUsed: boolean;
+}
+
 export const intelligence = {
   forecast: (timezone?: string) => {
     const q = new URLSearchParams();
     if (timezone) q.set('timezone', timezone);
     const qs = q.toString();
     return apiFetch<DemandForecast>(`/intelligence/forecast${qs ? `?${qs}` : ''}`);
+  },
+  staffing: (timezone?: string) => {
+    const q = new URLSearchParams();
+    if (timezone) q.set('timezone', timezone);
+    const qs = q.toString();
+    return apiFetch<StaffingPlan>(`/intelligence/staffing${qs ? `?${qs}` : ''}`);
   },
 };
 

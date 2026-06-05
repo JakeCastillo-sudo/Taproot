@@ -92,3 +92,66 @@ export async function getDemandForecast(orgId: string, locationId: string | unde
   await cacheSet(cacheKey, result, 4 * 60 * 60); // 4 hours
   return result;
 }
+
+// ─── S5-02: AI Staff Scheduling ───────────────────────────────────────────────
+
+const SHIFT_HOURS = 8;
+const SALES_PER_STAFF_SHIFT = 90000;   // $900 in sales handled per staffer per shift
+const DEFAULT_HOURLY_RATE_CENTS = 1500; // $15/hr fallback when no hourly_rate data
+const LABOR_TARGET_PCT = 30;
+
+export interface StaffingDay {
+  date: string; dow: string; predictedSales: number; recommendedStaff: number;
+  laborCostCents: number; laborPct: number; alert: boolean;
+}
+export interface StaffingPlan {
+  days: StaffingDay[]; avgHourlyRateCents: number; targetPct: number;
+  narrative: string; aiUsed: boolean;
+}
+
+async function avgHourlyRateCents(orgId: string): Promise<number> {
+  try {
+    const { rows } = await query<{ avg: string | null }>(
+      `SELECT AVG(hourly_rate) AS avg FROM employees
+        WHERE organization_id = $1 AND deleted_at IS NULL AND hourly_rate IS NOT NULL AND hourly_rate > 0`,
+      [orgId],
+    );
+    const dollars = Number(rows[0]?.avg ?? 0);
+    return dollars > 0 ? Math.round(dollars * 100) : DEFAULT_HOURLY_RATE_CENTS;
+  } catch {
+    return DEFAULT_HOURLY_RATE_CENTS; // hourly_rate column may not be migrated yet
+  }
+}
+
+export async function getStaffingPlan(orgId: string, locationId: string | undefined, timezone = 'UTC'): Promise<StaffingPlan> {
+  const forecast = await getDemandForecast(orgId, locationId, timezone);
+  const rate = await avgHourlyRateCents(orgId);
+
+  const days: StaffingDay[] = forecast.forecast.map((f) => {
+    const recommendedStaff = Math.max(2, Math.ceil(f.predictedSales / SALES_PER_STAFF_SHIFT));
+    const laborCostCents = recommendedStaff * SHIFT_HOURS * rate;
+    const laborPct = f.predictedSales > 0 ? (laborCostCents / f.predictedSales) * 100 : 0;
+    return {
+      date: f.date, dow: f.dow, predictedSales: f.predictedSales,
+      recommendedStaff, laborCostCents, laborPct: Math.round(laborPct * 10) / 10,
+      alert: laborPct > LABOR_TARGET_PCT,
+    };
+  });
+
+  const flagged = days.filter((d) => d.alert);
+  let narrative = flagged.length
+    ? `${flagged.length} day(s) project labor above the ${LABOR_TARGET_PCT}% target — consider trimming a shift on ${flagged.map((d) => d.dow).join(', ')}.`
+    : `Staffing looks balanced — projected labor stays under the ${LABOR_TARGET_PCT}% target all week.`;
+  let aiUsed = false;
+
+  if (aiAvailable()) {
+    const ai = await askClaudeText(
+      `You are a restaurant scheduling assistant. Given a 7-day staffing plan with predicted sales (cents), recommended staff, and labor %, write 2 short sentences with one concrete scheduling action. Labor target is ${LABOR_TARGET_PCT}%. No preamble.`,
+      JSON.stringify(days),
+      256,
+    );
+    if (ai) { narrative = ai; aiUsed = true; }
+  }
+
+  return { days, avgHourlyRateCents: rate, targetPct: LABOR_TARGET_PCT, narrative, aiUsed };
+}

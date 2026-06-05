@@ -115,6 +115,12 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
 - `api.ts`: `intelligence.forecast` + `DemandForecast`. `InsightsPage.tsx` (new, `/insights`):
   tabbed AI dashboard, Forecast tab (narrative + bar chart + detail table). Insights nav item.
 
+### S5-02 — AI Staff Scheduling ✅ COMPLETE
+- `intelligence.service.getStaffingPlan`: forecast → recommended staff (sales/$900-per-shift),
+  labor cost (avg `employees.hourly_rate` resilient → $15 fallback) + labor % with >30% alerts;
+  Claude action narrative. `GET /intelligence/staffing`.
+- `api.ts`: `intelligence.staffing` + `StaffingPlan`. InsightsPage Staffing tab (table + alerts).
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

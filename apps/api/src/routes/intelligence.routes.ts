@@ -19,4 +19,11 @@ export default async function intelligenceRoutes(fastify: FastifyInstance): Prom
     const result = await IntelSvc.getDemandForecast(user.orgId, q.locationId, q.timezone ?? 'UTC');
     return reply.send(result);
   });
+
+  fastify.get('/api/v1/intelligence/staffing', guard, async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const q = req.query as { locationId?: string; timezone?: string };
+    const result = await IntelSvc.getStaffingPlan(user.orgId, q.locationId, q.timezone ?? 'UTC');
+    return reply.send(result);
+  });
 }

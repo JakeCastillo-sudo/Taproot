@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Sparkles, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Sparkles, TrendingUp, Users, AlertTriangle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { intelligence } from '../lib/api';
 import { SalesBarChart } from '../components/charts/SalesBarChart';
@@ -17,9 +17,10 @@ import { fmtShortCurrency } from '../lib/dateRanges';
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
-type TabId = 'forecast';
+type TabId = 'forecast' | 'staffing';
 const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ size?: number; className?: string }> }> = [
   { id: 'forecast', label: 'Forecast', icon: TrendingUp },
+  { id: 'staffing', label: 'Staffing', icon: Users },
 ];
 
 function AiBadge({ used }: { used: boolean }) {
@@ -63,6 +64,7 @@ export function InsightsPage() {
       <main className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
           {tab === 'forecast' && <ForecastTab />}
+          {tab === 'staffing' && <StaffingTab />}
         </div>
       </main>
     </div>
@@ -70,6 +72,52 @@ export function InsightsPage() {
 }
 
 function fmt(c: number): string { return `$${(c / 100).toFixed(2)}`; }
+
+function StaffingTab() {
+  const { data, isLoading } = useQuery({ queryKey: ['intel', 'staffing'], queryFn: () => intelligence.staffing(TZ), staleTime: 60_000 });
+  if (isLoading) return <div className="h-48 bg-gray-100 rounded-lg animate-pulse" />;
+  if (!data) return <p className="text-sm text-gray-400">No staffing plan available.</p>;
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-gray-800">Staffing recommendation</h3>
+          <AiBadge used={data.aiUsed} />
+        </div>
+        <p className="text-sm text-gray-600">{data.narrative}</p>
+        <p className="text-xs text-gray-400 mt-1">Avg wage {fmt(data.avgHourlyRateCents)}/hr · labor target {data.targetPct}%</p>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <table className="w-full text-sm">
+          <thead><tr className="text-xs text-gray-400 border-b border-gray-100">
+            <th className="text-left font-medium pb-2">Day</th>
+            <th className="text-right font-medium pb-2">Sales</th>
+            <th className="text-right font-medium pb-2">Staff</th>
+            <th className="text-right font-medium pb-2">Labor</th>
+            <th className="text-right font-medium pb-2">Labor %</th>
+          </tr></thead>
+          <tbody>
+            {data.days.map((d) => (
+              <tr key={d.date} className="border-b border-gray-50 last:border-0">
+                <td className="py-2 text-gray-700">{d.dow} <span className="text-gray-400 text-xs">{d.date.slice(5)}</span></td>
+                <td className="py-2 text-right text-gray-600">{fmt(d.predictedSales)}</td>
+                <td className="py-2 text-right font-semibold text-gray-800">{d.recommendedStaff}</td>
+                <td className="py-2 text-right text-gray-500">{fmt(d.laborCostCents)}</td>
+                <td className="py-2 text-right">
+                  <span className={clsx('inline-flex items-center gap-1 font-medium', d.alert ? 'text-red-600' : 'text-green-600')}>
+                    {d.alert && <AlertTriangle size={11} />}{d.laborPct}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 function ForecastTab() {
   const { data, isLoading } = useQuery({ queryKey: ['intel', 'forecast'], queryFn: () => intelligence.forecast(TZ), staleTime: 60_000 });
