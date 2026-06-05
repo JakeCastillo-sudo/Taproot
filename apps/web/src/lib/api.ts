@@ -204,6 +204,7 @@ export interface CategoryWithCount {
   id:            string;
   name:          string;
   color:         string | null;
+  icon:          string | null;
   sort_order:    number;
   product_count: number;
 }
@@ -418,8 +419,43 @@ export const settings = {
 
 // ─── Categories ───────────────────────────────────────────────────────────────
 
+export interface CategoryInput {
+  name:       string;
+  color?:     string | null;
+  icon?:      string | null;
+  sortOrder?: number;
+  parentId?:  string | null;
+}
+
+export interface CategoryRow {
+  id:              string;
+  organization_id: string;
+  parent_id:       string | null;
+  name:            string;
+  color:           string | null;
+  icon:            string | null;
+  sort_order:      number;
+  is_active:       boolean;
+}
+
 export const categories = {
   list: () => apiFetch<CategoryListResponse>('/categories'),
+
+  create: (body: CategoryInput) =>
+    apiFetch<CategoryRow>('/categories', { method: 'POST', body: JSON.stringify(body) }),
+
+  update: (id: string, body: Partial<CategoryInput> & { isActive?: boolean }) =>
+    apiFetch<CategoryRow>(`/categories/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  remove: (id: string) =>
+    apiFetch<void>(`/categories/${id}`, { method: 'DELETE' }),
+
+  /** Bulk-update sort order after drag-to-reorder. */
+  reorder: (positions: Array<{ id: string; sortOrder: number }>) =>
+    apiFetch<{ success: boolean }>('/categories/reorder', {
+      method: 'PATCH',
+      body:   JSON.stringify({ positions }),
+    }),
 };
 
 // ─── Orders ───────────────────────────────────────────────────────────────────

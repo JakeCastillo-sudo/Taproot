@@ -133,10 +133,17 @@ Full product create/edit/delete at /settings/products.
   restore/delete actions.
 - `App.tsx`: nested `/settings` → SettingsLayout with `/settings/products` child; index → products.
 
-### Prompt 32 (S1-02) — Category Management UI
-/settings/categories — create/edit/delete, drag-to-reorder (dnd-kit already installed),
-color picker, icon picker, product count, archive category.
-Backend: PATCH/POST/DELETE /api/v1/categories (new).
+### Prompt 33 (S1-03) — Modifier Group Management ✅ COMPLETE
+/settings/categories — create/edit/delete, drag-to-reorder, color/icon picker, product count.
+- `category.service.ts` (new): createCategory, updateCategory, deleteCategory (detaches products
+  → category_id NULL, then soft-delete), reorderCategories.
+- `inventory.routes.ts`: POST/PATCH/DELETE `/api/v1/categories` + PATCH `/categories/reorder`
+  (declared before `:id`); GET /categories now also selects `c.icon`.
+- `api.ts`: `categories.create/update/remove/reorder`, `CategoryInput`/`CategoryRow`, `icon` on
+  `CategoryWithCount`.
+- `CategoriesSettingsPage.tsx` (new): @dnd-kit sortable rows, color palette + hex + Auto, emoji
+  icon picker + "use initials", product counts; reorder persists + invalidates layout store.
+- `App.tsx`: `/settings/categories` route.
 
 ### Prompt 33 (S1-03) — Modifier Group Management
 /settings/modifiers — create/edit/delete groups + options, price delta, isDefault,
@@ -165,7 +172,7 @@ Payments: Stripe Connect status, payment methods toggle, fee display.
 Full walkthrough all settings screens, fix bugs, tag v0.2.0-beta-1.1.
 
 ## NEXT PROMPT
-Prompt 32 (S1-02) — Category Management UI
+Prompt 33 (S1-03) — Modifier Group Management
 
 ## IMPORTANT: Pending Railway Migrations
 Migrations 011, 012, 013 committed but NOT yet run on Railway.

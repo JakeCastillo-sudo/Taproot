@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { AccessTokenPayload } from '../auth/jwt';
 import { requireLocation } from '../auth/middleware';
 import * as ProductSvc from '../services/product.service';
+import * as CategorySvc from '../services/category.service';
 import * as VariantSvc from '../services/variant.service';
 import * as RecipeSvc from '../services/recipe.service';
 import * as InventorySvc from '../services/inventory.service';
@@ -21,10 +22,10 @@ export default async function inventoryRoutes(fastify: FastifyInstance): Promise
   fastify.get('/api/v1/categories', async (req: FastifyRequest, reply: FastifyReply) => {
     const { user } = req as AuthedRequest;
     const { rows } = await (await import('../db/client')).query<{
-      id: string; name: string; color: string | null; sort_order: number;
-      product_count: number;
+      id: string; name: string; color: string | null; icon: string | null;
+      sort_order: number; product_count: number;
     }>(
-      `SELECT c.id, c.name, c.color, c.sort_order,
+      `SELECT c.id, c.name, c.color, c.icon, c.sort_order,
               COUNT(p.id) FILTER (
                 WHERE p.deleted_at IS NULL AND p.is_active = true
               )::int AS product_count
@@ -36,6 +37,39 @@ export default async function inventoryRoutes(fastify: FastifyInstance): Promise
       [user.orgId],
     );
     return reply.send({ categories: rows });
+  });
+
+  // POST /api/v1/categories
+  fastify.post('/api/v1/categories', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const body = req.body as CategorySvc.CreateCategoryData;
+    const category = await CategorySvc.createCategory(user.orgId, body, user.sub);
+    return reply.code(201).send(category);
+  });
+
+  // PATCH /api/v1/categories/reorder — bulk sort_order update (declare before :id)
+  fastify.patch('/api/v1/categories/reorder', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { positions } = req.body as { positions: Array<{ id: string; sortOrder: number }> };
+    await CategorySvc.reorderCategories(user.orgId, positions ?? []);
+    return reply.send({ success: true });
+  });
+
+  // PATCH /api/v1/categories/:id
+  fastify.patch('/api/v1/categories/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { id } = req.params as { id: string };
+    const body = req.body as CategorySvc.UpdateCategoryData;
+    const category = await CategorySvc.updateCategory(user.orgId, id, body, user.sub);
+    return reply.send(category);
+  });
+
+  // DELETE /api/v1/categories/:id — soft delete (detaches products)
+  fastify.delete('/api/v1/categories/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { id } = req.params as { id: string };
+    await CategorySvc.deleteCategory(user.orgId, id, user.sub);
+    return reply.code(204).send();
   });
 
   // ── Products ──────────────────────────────────────────────────────────────
