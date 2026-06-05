@@ -372,6 +372,37 @@ export const locations = {
   list: () => apiFetch<{ locations: LocationRow[] }>('/locations').then((r) => r.locations),
 };
 
+// ─── Tables / floor plan ──────────────────────────────────────────────────────
+
+export type TableShape = 'rectangle' | 'circle' | 'square';
+
+export interface TableRow {
+  id: string; location_id: string; name: string; section: string | null;
+  seats: number; position_x: number; position_y: number;
+  shape: TableShape; width: number; height: number; is_active: boolean;
+}
+
+export interface TableInput {
+  name: string; section?: string | null; seats?: number;
+  positionX?: number; positionY?: number; shape?: TableShape;
+  width?: number; height?: number; isActive?: boolean;
+}
+
+export const tables = {
+  list: (locationId?: string) => {
+    const q = locationId ? `?locationId=${locationId}` : '';
+    return apiFetch<{ tables: TableRow[] }>(`/tables${q}`).then((r) => r.tables);
+  },
+  create: (body: TableInput & { locationId?: string }) =>
+    apiFetch<TableRow>('/tables', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: string, body: Partial<TableInput>) =>
+    apiFetch<TableRow>(`/tables/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id: string) =>
+    apiFetch<void>(`/tables/${id}`, { method: 'DELETE' }),
+  bulkPositions: (positions: Array<{ id: string; positionX: number; positionY: number; width?: number; height?: number }>) =>
+    apiFetch<{ success: boolean }>('/tables/bulk-positions', { method: 'PATCH', body: JSON.stringify({ positions }) }),
+};
+
 // ─── Products ─────────────────────────────────────────────────────────────────
 
 export const products = {

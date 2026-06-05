@@ -132,6 +132,17 @@ business/tax/receipt/payments settings endpoints, `/auth/pin-login`, `/api/v1/lo
 Live-verified S1-08: product create (default variant+price), tax round-trip, all routes 401-gated,
 employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrades gracefully.
 
+## 🚧 Sprint 3 — Beta 1.3: Table Service (in progress)
+
+### S3-01 — Floor Plan Editor ✅ COMPLETE
+- `table.service.ts` + `table.routes.ts` (new, registered): GET/POST/PATCH/DELETE `/tables`,
+  PATCH `/tables/bulk-positions` (declared before `:id`). Uses existing `tables` table (001).
+- `api.ts`: `tables.*` + `TableRow`/`TableInput`/`TableShape`.
+- `FloorPlanEditorPage.tsx` (new, `/settings/floor-plan`): dotted 20px grid canvas, pointer-based
+  drag-to-move (snap) + corner resize, select + properties panel (name/seats/section/shape),
+  add/delete, undo/redo (20-deep, positions), deterministic section colors, Save → bulk-positions.
+- `SettingsLayout`: Floor Plan nav item. `App.tsx`: `/settings/floor-plan` route.
+
 ## ✅ Sprint 2 COMPLETE — Beta 1.2 (tag v0.3.0-beta-1.2)
 Order History, Void/Refund, Tips, Cash Drawer, End-of-Day, Split Check. **Found + fixed
 BUG-ORD-001** (P0): the POS order-create body shape didn't match the backend, so live cash/card

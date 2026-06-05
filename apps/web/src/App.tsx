@@ -28,6 +28,7 @@ import { EmployeesSettingsPage } from './pages/EmployeesSettingsPage';
 import { PaymentsSettingsPage } from './pages/PaymentsSettingsPage';
 import { OrderHistoryPage } from './pages/OrderHistoryPage';
 import { EndOfDayPage } from './pages/EndOfDayPage';
+import { FloorPlanEditorPage } from './pages/FloorPlanEditorPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -309,6 +310,7 @@ export default function App() {
             <Route path="business" element={<BusinessSettingsPage />} />
             <Route path="employees" element={<EmployeesSettingsPage />} />
             <Route path="payments" element={<PaymentsSettingsPage />} />
+            <Route path="floor-plan" element={<FloorPlanEditorPage />} />
           </Route>
 
           {/* Dashboard layout editor — full-screen, customize POS register tiles */}
