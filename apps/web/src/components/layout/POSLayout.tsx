@@ -26,7 +26,7 @@ import {
   ChevronRight, ChevronLeft, Plus, Minus, Trash2, Tag,
   FileText, AlertTriangle, User, Layers, BarChart3,
   Upload, ArrowRightLeft, Menu, Terminal, Settings,
-  LayoutGrid, UserCog,
+  LayoutGrid, UserCog, Grid3x3, Utensils,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
@@ -43,6 +43,7 @@ import { ModifierSheet, type ModifierSheetProduct } from '../pos/ModifierSheet';
 import { EmployeeSelect } from '../pos/EmployeeSelect';
 import { CashDrawerWidget } from '../pos/CashDrawerWidget';
 import { SplitCheckModal } from '../pos/SplitCheckModal';
+import { TableView } from '../pos/TableView';
 import { PaymentSheet } from '../pos/PaymentSheet';
 import { MobileCart } from '../pos/MobileCart';
 import { SyncStatus } from '../ui/SyncStatus';
@@ -404,6 +405,7 @@ export function POSLayout({ user }: POSLayoutProps) {
   const [cmdOpen,        setCmdOpen]        = useState(false);
   const [showEmployeeSelect, setShowEmployeeSelect] = useState(false);
   const [showSplit, setShowSplit] = useState(false);
+  const [floorMode, setFloorMode] = useState<'grid' | 'table'>('grid');
   const searchRef = useRef<HTMLInputElement>(null);
 
   // 5-minute idle → open the employee lock screen so the next person PINs in.
@@ -741,6 +743,18 @@ export function POSLayout({ user }: POSLayoutProps) {
             )}
           </div>
 
+          {/* Grid / Table view toggle */}
+          <div className="hidden sm:flex rounded-md border border-gray-200 overflow-hidden shrink-0">
+            <button onClick={() => setFloorMode('grid')} title="Grid view"
+              className={clsx('px-2.5 py-2 transition-colors', floorMode === 'grid' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-100')}>
+              <Grid3x3 size={15} />
+            </button>
+            <button onClick={() => setFloorMode('table')} title="Table view"
+              className={clsx('px-2.5 py-2 transition-colors', floorMode === 'table' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-100')}>
+              <Utensils size={15} />
+            </button>
+          </div>
+
           {/* Day-part toggle */}
           <DayPartToggle
             active={activeDayPart}
@@ -776,7 +790,9 @@ export function POSLayout({ user }: POSLayoutProps) {
 
         {/* Content area */}
         <div className="flex-1 overflow-y-auto">
-          {posViewMode === 'categories' && !searchQuery ? (
+          {floorMode === 'table' ? (
+            <TableView onStartOrder={() => setFloorMode('grid')} />
+          ) : posViewMode === 'categories' && !searchQuery ? (
             /* ── CATEGORY TILE VIEW ────────────────────────────────────── */
             <CategoryTileGrid
               categories={allCats}

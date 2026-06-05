@@ -216,6 +216,7 @@ export interface CategoryListResponse {
 export interface OrderCreateBody {
   locationId: string;
   customerId?: string | null;
+  tableId?: string | null;
   orderType?: string;
   items: Array<{
     productId: string;
@@ -401,7 +402,21 @@ export const tables = {
     apiFetch<void>(`/tables/${id}`, { method: 'DELETE' }),
   bulkPositions: (positions: Array<{ id: string; positionX: number; positionY: number; width?: number; height?: number }>) =>
     apiFetch<{ success: boolean }>('/tables/bulk-positions', { method: 'PATCH', body: JSON.stringify({ positions }) }),
+
+  status: (locationId?: string) => {
+    const q = locationId ? `?locationId=${locationId}` : '';
+    return apiFetch<{ tables: TableStatus[] }>(`/tables/status${q}`).then((r) => r.tables);
+  },
+  assignOrder: (orderId: string, tableId: string | null) =>
+    apiFetch<{ success: boolean }>(`/orders/${orderId}/table`, { method: 'PATCH', body: JSON.stringify({ tableId }) }),
 };
+
+export interface TableStatus extends TableRow {
+  currentOrder: {
+    id: string; orderNumber: string; status: string;
+    itemCount: number; total: number; openedAt: string; minutesOpen: number;
+  } | null;
+}
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 
@@ -798,8 +813,9 @@ export const orders = {
     apiFetch<Order>(`/locations/${locationId}/orders`, {
       method: 'POST',
       body: JSON.stringify({
-        orderType:  body.orderType ?? 'in_store',
+        orderType:  body.orderType ?? (body.tableId ? 'table_service' : 'in_store'),
         customerId: body.customerId ?? null,
+        tableId:    body.tableId ?? null,
         notes:      body.notes,
         discountIds: body.discountIds,
         lineItems:  body.items.map((i) => ({

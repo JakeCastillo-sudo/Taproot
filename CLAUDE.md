@@ -143,6 +143,18 @@ employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrade
   add/delete, undo/redo (20-deep, positions), deterministic section colors, Save → bulk-positions.
 - `SettingsLayout`: Floor Plan nav item. `App.tsx`: `/settings/floor-plan` route.
 
+### S3-02 — Table Service POS Mode ✅ COMPLETE
+- `table.service.ts`: `getTableStatus` (tables + current open order via LATERAL join: itemCount,
+  total, minutesOpen), `assignOrderToTable`. Routes `GET /tables/status`, `PATCH /orders/:id/table`.
+- `api.ts`: `tables.status/assignOrder` + `TableStatus`; `tableId` on `OrderCreateBody` (orderType
+  defaults to 'table_service' when a table is set); create transform passes tableId.
+- `TableView.tsx` (new): read-only floor plan, green=available/amber=occupied, section tabs, polls
+  10s. Tap available → `setTable` + switch to grid; tap occupied → toast order summary.
+- `POSLayout`: Grid/Table toggle in top bar; renders TableView in table mode. PaymentSheet +
+  SplitCheckModal send `tableId` (clearCart already resets it).
+- NOTE: "Move table" reassignment UI deferred (endpoint exists). Occupied-table tap shows summary
+  rather than loading the order into the cart (quick-service cart model).
+
 ## ✅ Sprint 2 COMPLETE — Beta 1.2 (tag v0.3.0-beta-1.2)
 Order History, Void/Refund, Tips, Cash Drawer, End-of-Day, Split Check. **Found + fixed
 BUG-ORD-001** (P0): the POS order-create body shape didn't match the backend, so live cash/card

@@ -57,6 +57,7 @@ export function SplitCheckModal({ onClose }: { onClose: () => void }) {
     if (orderId) return orderId;
     const order = await ordersApi.create(locationId, {
       customerId: customerId ?? undefined,
+      tableId: usePOSStore.getState().tableId ?? undefined,
       items: cart.map((c) => ({
         productId: c.productId, variantId: c.variantId, quantity: c.quantity, unitPrice: c.unitPrice,
         notes: c.notes || undefined,

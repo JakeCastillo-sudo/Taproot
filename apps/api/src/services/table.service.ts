@@ -103,6 +103,58 @@ export async function deleteTable(orgId: string, tableId: string, employeeId: st
   void createAuditLog({ organizationId: orgId, actorId: employeeId, action: 'table.delete', resourceType: 'table', resourceId: tableId });
 }
 
+export interface TableStatus extends TableRow {
+  currentOrder: {
+    id: string; orderNumber: string; status: string;
+    itemCount: number; total: number; openedAt: string; minutesOpen: number;
+  } | null;
+}
+
+export async function getTableStatus(orgId: string, locationId: string): Promise<TableStatus[]> {
+  const { rows } = await query<TableStatus & {
+    order_id: string | null; order_number: string | null; order_status: string | null;
+    item_count: number | null; order_total: number | null; opened_at: string | null;
+  }>(
+    `SELECT t.id, t.location_id, t.name, t.section, t.seats, t.position_x, t.position_y,
+            t.shape, t.width, t.height, t.is_active,
+            o.id AS order_id, o.order_number, o.status AS order_status, o.total AS order_total,
+            o.created_at AS opened_at,
+            (SELECT COUNT(*)::int FROM order_line_items oli WHERE oli.order_id = o.id AND oli.voided_at IS NULL) AS item_count
+       FROM tables t
+       LEFT JOIN LATERAL (
+         SELECT * FROM orders o2
+          WHERE o2.table_id = t.id AND o2.status IN ('open','in_progress')
+          ORDER BY o2.created_at DESC LIMIT 1
+       ) o ON true
+      WHERE t.organization_id = $1 AND t.location_id = $2 AND t.deleted_at IS NULL
+      ORDER BY t.name ASC`,
+    [orgId, locationId],
+  );
+
+  return rows.map((r) => ({
+    id: r.id, location_id: r.location_id, name: r.name, section: r.section, seats: r.seats,
+    position_x: r.position_x, position_y: r.position_y, shape: r.shape, width: r.width, height: r.height, is_active: r.is_active,
+    currentOrder: r.order_id ? {
+      id: r.order_id, orderNumber: r.order_number ?? '', status: r.order_status ?? 'open',
+      itemCount: Number(r.item_count ?? 0), total: Number(r.order_total ?? 0),
+      openedAt: r.opened_at ?? '',
+      minutesOpen: r.opened_at ? Math.max(0, Math.floor((Date.now() - new Date(r.opened_at).getTime()) / 60000)) : 0,
+    } : null,
+  }));
+}
+
+export async function assignOrderToTable(orgId: string, orderId: string, tableId: string | null): Promise<void> {
+  const { rows: [order] } = await query<{ id: string }>(
+    `SELECT id FROM orders WHERE id = $1 AND organization_id = $2`, [orderId, orgId]);
+  if (!order) throw new NotFoundError('Order not found');
+  if (tableId) {
+    const { rows: [t] } = await query<{ id: string }>(
+      `SELECT id FROM tables WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`, [tableId, orgId]);
+    if (!t) throw new ValidationError('Table not found');
+  }
+  await query(`UPDATE orders SET table_id = $1, updated_at = now() WHERE id = $2`, [tableId, orderId]);
+}
+
 export async function bulkUpdatePositions(
   orgId: string,
   positions: Array<{ id: string; positionX: number; positionY: number; width?: number; height?: number }>,

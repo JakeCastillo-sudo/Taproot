@@ -23,6 +23,23 @@ export default async function tableRoutes(fastify: FastifyInstance): Promise<voi
     return reply.send({ tables });
   });
 
+  // GET /api/v1/tables/status?locationId= — tables + current order status (declare before :id)
+  fastify.get('/api/v1/tables/status', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const locationId = resolveLocation(user, (req.query as { locationId?: string }).locationId);
+    const tables = await TableSvc.getTableStatus(user.orgId, locationId);
+    return reply.send({ tables });
+  });
+
+  // PATCH /api/v1/orders/:id/table — assign / move order to a table
+  fastify.patch('/api/v1/orders/:id/table', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { id } = req.params as { id: string };
+    const { tableId } = req.body as { tableId: string | null };
+    await TableSvc.assignOrderToTable(user.orgId, id, tableId ?? null);
+    return reply.send({ success: true });
+  });
+
   // POST /api/v1/tables
   fastify.post('/api/v1/tables', async (req: FastifyRequest, reply: FastifyReply) => {
     const { user } = req as AuthedRequest;
