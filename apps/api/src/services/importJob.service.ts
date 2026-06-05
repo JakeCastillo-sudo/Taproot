@@ -288,7 +288,10 @@ export async function processImportJob(jobId: string): Promise<void> {
       const records = csvParse(textContent, { columns: true, skip_empty_lines: true }) as Array<Record<string, string>>;
       const headers = records.length > 0 ? Object.keys(records[0]) : [];
       const sampleRows = records.slice(0, 5).map((r) => Object.values(r));
-      mappingConfig = await mapCsvColumns(headers, sampleRows, 'products');
+      const baseMapping = await mapCsvColumns(headers, sampleRows, 'products');
+      // BUG-IMP-001 fix: store full records alongside column mapping so
+      // confirmImportJob can apply them later (mirrors document branch pattern)
+      mappingConfig = { ...baseMapping, parsed: { records } } as unknown as ColumnMapping;
       previewData = records.slice(0, 10);
       totalRows = records.length;
     } else {
@@ -443,6 +446,10 @@ export async function confirmImportJob(
         case 'document_recipe':
           result = await applyRecipeSheetImport(orgId, stored.parsed as ParsedRecipeSheet, employeeId);
           break;
+        // BUG-IMP-004 fix: apply CSV import using stored records + confirmed column mapping
+        case 'generic_csv':
+          result = await applyGenericCsvImport(orgId, locationId, stored, employeeId);
+          break;
         default:
           throw new ValidationError(`Unsupported import type: ${job.import_type}`);
       }
@@ -590,6 +597,123 @@ export async function applyMenuImport(
     } catch (err: unknown) {
       result.failed++;
       result.errors.push(`"${item.name}": ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  return result;
+}
+
+// ─── applyGenericCsvImport ────────────────────────────────────────────────────
+// BUG-IMP-004 fix: apply a generic CSV import using the stored records and the
+// confirmed column mapping. Column mapping (from AI) tells us which CSV column
+// maps to which product field (name, price_cents, category, sku, description).
+
+function getCsvFieldValue(
+  row:      Record<string, string>,
+  fieldMap: Record<string, string>,
+  target:   string,
+): string | undefined {
+  const col = Object.keys(fieldMap).find((k) => fieldMap[k] === target);
+  return col !== undefined ? row[col] : undefined;
+}
+
+function parseCsvPriceCents(val: string | undefined): number {
+  if (!val) return 0;
+  const cleaned = val.replace(/[$,\s]/g, '');
+  const n = parseFloat(cleaned);
+  if (!isFinite(n) || n <= 0) return 0;
+  // Values < 100 are almost certainly dollars (e.g. $9, $12.99)
+  return n < 100 ? Math.round(n * 100) : Math.round(n);
+}
+
+export async function applyGenericCsvImport(
+  orgId:      string,
+  locationId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  stored:     any,
+  employeeId: string,
+): Promise<ImportResult> {
+  const result: ImportResult = { created: 0, updated: 0, failed: 0, errors: [] };
+
+  const records = stored.parsed?.records as Array<Record<string, string>> | undefined;
+  if (!records?.length) {
+    result.errors.push('No CSV records found — re-upload the file to process.');
+    result.failed++;
+    return result;
+  }
+
+  // Build column→field map from the AI-generated column mapping
+  const fieldMap: Record<string, string> = {};
+  const mappings = (stored.mappings ?? []) as Array<{ sourceColumn: string; targetField: string }>;
+  for (const m of mappings) {
+    if (m.targetField && m.targetField !== '(skip)') {
+      fieldMap[m.sourceColumn] = m.targetField;
+    }
+  }
+
+  for (const row of records) {
+    try {
+      const name = getCsvFieldValue(row, fieldMap, 'name');
+      if (!name?.trim()) {
+        result.failed++;
+        result.errors.push('Skipped row: empty name');
+        continue;
+      }
+
+      const priceRaw  = getCsvFieldValue(row, fieldMap, 'price_cents')
+        ?? getCsvFieldValue(row, fieldMap, 'price');
+      const price       = parseCsvPriceCents(priceRaw);
+      const category    = getCsvFieldValue(row, fieldMap, 'category');
+      const description = getCsvFieldValue(row, fieldMap, 'description');
+      const sku         = getCsvFieldValue(row, fieldMap, 'sku');
+
+      const existing = await findProductBySkuOrName(orgId, sku ?? null, name.trim());
+      if (existing) {
+        // Update price on existing product's default variant
+        const variantId = await getDefaultVariantId(existing.id);
+        if (variantId && price > 0) {
+          await query(
+            `UPDATE product_prices SET is_active = false WHERE variant_id = $1 AND is_active = true`,
+            [variantId],
+          );
+          await query(
+            `INSERT INTO product_prices (variant_id, price, currency, is_active, price_type)
+             VALUES ($1, $2, 'USD', true, 'fixed')`,
+            [variantId, price],
+          );
+        }
+        result.updated++;
+      } else {
+        const categoryId = category?.trim()
+          ? await findOrCreateCategory(orgId, category.trim())
+          : undefined;
+
+        const product = await ProductSvc.createProduct(orgId, locationId, {
+          name:           name.trim(),
+          description:    description?.trim() || undefined,
+          sku:            sku?.trim()          || undefined,
+          categoryId,
+          isActive:       true,
+          trackInventory: false,
+        }, employeeId);
+
+        if (price > 0) {
+          const { rows: [variant] } = await query<{ id: string }>(
+            `INSERT INTO product_variants (product_id, name, sort_order, is_active)
+             VALUES ($1, 'Default', 0, true) RETURNING id`,
+            [product.id],
+          );
+          await query(
+            `INSERT INTO product_prices (variant_id, price, currency, is_active, price_type)
+             VALUES ($1, $2, 'USD', true, 'fixed')`,
+            [variant.id, price],
+          );
+        }
+        result.created++;
+      }
+    } catch (err: unknown) {
+      result.failed++;
+      result.errors.push(`CSV row error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

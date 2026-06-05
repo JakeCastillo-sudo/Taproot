@@ -59,7 +59,9 @@ export function InventoryPage() {
   const [showStockCount,  setShowStockCount]  = useState(false);
 
   return (
-    <div className="min-h-screen bg-surface-2 flex flex-col">
+    // BUG-UX-002 fix: h-screen + overflow-hidden so all tab content scrolls
+    // within the viewport rather than growing the document.
+    <div className="h-screen bg-surface-2 flex flex-col overflow-hidden">
 
       {/* ── Top bar ── */}
       <header className="bg-white border-b border-gray-100 shrink-0">
@@ -117,7 +119,7 @@ export function InventoryPage() {
       </header>
 
       {/* ── Content ── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+      <main className="flex-1 overflow-y-auto min-h-0 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
         {activeTab === 'stock' && (
           <StockLevels locationId={locationId} />
         )}

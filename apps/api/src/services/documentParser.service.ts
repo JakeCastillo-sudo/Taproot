@@ -212,10 +212,30 @@ export interface ColumnMapping {
 
 // ─── 3. Menu parser ───────────────────────────────────────────────────────────
 
+/**
+ * Normalize a price value from Claude to cents.
+ * Claude sometimes returns 12.99 (dollars) instead of 1299 (cents)
+ * despite being told to use cents. This function handles both formats.
+ * - Float 12.99 → 1299 (multiply by 100)
+ * - Small int 9 → 900 ($9.00 in cents)
+ * - Large int 1299 → 1299 (already cents)
+ * - 0 / NaN → 0 (price unknown)
+ */
+function normalizeMenuPrice(v: unknown): number {
+  const n = typeof v === 'number' ? v : parseFloat(String(v));
+  if (!isFinite(n) || n <= 0) return 0;
+  // Values < 100 are almost certainly dollars (e.g. $9, $12.99)
+  // Values >= 100 are almost certainly already in cents (e.g. 1299, 500)
+  return n < 100 ? Math.round(n * 100) : Math.round(n);
+}
+
 export async function parseMenu(content: string): Promise<ParsedMenu> {
   const system = `You are a menu parser for a POS system. Extract all menu items
 with their prices, categories, and modifiers from the provided menu text.
 Convert all prices to cents (integer). All price fields must be integers (no decimals).
+IMPORTANT: $12.99 = 1299, $5.00 = 500, $0.99 = 99.
+Never return 0 for price unless the item is genuinely free.
+If a price is unclear, make a reasonable estimate based on context.
 Respond with JSON only matching this schema:
 {
   "items": [{ "name": string, "description"?: string, "price": integer,
@@ -228,8 +248,29 @@ Respond with JSON only matching this schema:
   const raw = await callClaude(system, content, 8192);
   const parsed = parseJson<Omit<ParsedMenu, 'rawText'>>(raw);
 
+  // Normalize prices in case Claude returned dollars instead of cents
+  const rawItems = Array.isArray(parsed.items) ? parsed.items : [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const normalizedItems = rawItems.map((item: any) => ({
+    ...item,
+    price:     normalizeMenuPrice(item.price),
+    modifiers: Array.isArray(item.modifiers)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? item.modifiers.map((mg: any) => ({
+          ...mg,
+          options: Array.isArray(mg.options)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ? mg.options.map((opt: any) => ({
+                ...opt,
+                priceDelta: normalizeMenuPrice(opt.priceDelta ?? 0),
+              }))
+            : [],
+        }))
+      : [],
+  }));
+
   return {
-    items:      Array.isArray(parsed.items) ? parsed.items : [],
+    items:      normalizedItems,
     categories: Array.isArray(parsed.categories) ? parsed.categories : [],
     confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.8,
     rawText:    content,

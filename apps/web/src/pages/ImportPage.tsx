@@ -331,10 +331,12 @@ export function ImportPage() {
   // ── Render review panel ───────────────────────────────────────────────────
 
   if (reviewJob) {
+    // BUG-IMP-003 fix: constrain outer to h-screen so ImportReview's
+    // h-full resolves to the viewport height and internal flex-1 scroll works.
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <div className="flex-1 max-w-3xl mx-auto w-full p-4">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col min-h-[600px]">
+      <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+        <div className="flex-1 max-w-3xl mx-auto w-full p-4 flex flex-col min-h-0">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col flex-1 min-h-0">
             <ImportReview
               job={reviewJob}
               onDone={handleReviewDone}

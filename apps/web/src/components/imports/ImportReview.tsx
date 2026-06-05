@@ -873,7 +873,12 @@ function GenericImportReview({ job, onDone, onCancel }: ImportReviewProps) {
   );
 
   const parsedConf: number = mapping?.confidence ?? 0.8;
-  const previewRows = Array.isArray(job.preview_data) ? (job.preview_data as unknown[]) : [];
+  // BUG-IMP-001 fix: read full CSV records from mapping_config.parsed.records
+  // (stored there since fix), fallback to preview_data (max 10 rows).
+  const storedMapping = job.mapping_config as (ColumnMapping & { parsed?: { records?: unknown[] } }) | null;
+  const previewRows = Array.isArray(storedMapping?.parsed?.records)
+    ? (storedMapping.parsed!.records as unknown[])
+    : Array.isArray(job.preview_data) ? (job.preview_data as unknown[]) : [];
 
   const confirm = useMutation({
     mutationFn: () => importsApi.confirm(job.id, {
@@ -892,9 +897,10 @@ function GenericImportReview({ job, onDone, onCancel }: ImportReviewProps) {
   const step = confirm.isPending ? 2 : confirm.isSuccess ? 3 : 1;
 
   return (
-    <div className="flex flex-col h-full">
+    // BUG-IMP-003 fix: add min-h-0 so flex-1 children can actually shrink + scroll
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 shrink-0">
         <StepIndicator current={step} />
         <button onClick={onCancel} className="p-1.5 rounded hover:bg-gray-100">
           <X size={16} className="text-gray-500" />

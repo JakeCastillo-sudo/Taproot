@@ -2,19 +2,13 @@
 
 ## P0 — Critical (blocks production)
 
-### BUG-PAY-001: Payment crashes with undefined length error
+### BUG-PAY-001: Payment crashes with undefined length error ✅ RESOLVED
 - Symptom: "Cannot read properties of undefined (reading 'length')" error modal
   after clicking Charge button
-- Location: apps/web/src/components/pos/PaymentSheet.tsx — in the
-  `buildReceiptSnapshot()` / `setLastCompletedOrder()` snapshot builder;
-  `item.modifiers` or the `items` array may be undefined at access time
-- Fix needed:
-  - Add safe fallbacks: `item.modifiers ?? []` and `items?.map(...) ?? []`
-  - Check pos.store.ts `CartItem` type — ensure `modifiers` field defaults to `[]`
-    so it is never undefined when snapshot is built
-- Impact: blocks all payment processing and receipt printing
-- Priority: P0
-- Status: OPEN
+- Fix applied (Prompt 27): `(c.modifiers ?? []).map(...)` guards added in both
+  `buildReceiptSnapshot()` and `ordersApi.create()` call in PaymentSheet.tsx.
+  `CartItem.modifiers` is non-optional in the type; `?? []` guards are defensive.
+- Status: RESOLVED
 
 ### BUG-001: Anthropic API key not loading in document parser ✅ RESOLVED
 - Symptom: 401 authentication_error from Anthropic API on file upload
@@ -28,23 +22,24 @@
 
 ## P1 — High (degrades experience)
 
-### BUG-UX-001: Missing scroll on Inventory archived screen
+### BUG-UX-001: Missing scroll on Inventory archived screen ✅ RESOLVED
 - Symptom: Archived products list has no scroll when content exceeds viewport height
-- Fix: Add `overflow-y: auto` to the archived products container
-- File: apps/web/src/components/inventory/ArchivedProducts.tsx
-- Priority: P1
-- Status: OPEN
+- Fix applied (Beta 1.0): `InventoryPage.tsx` outer changed to `h-screen overflow-hidden`;
+  `<main>` gets `overflow-y-auto min-h-0` — all Inventory tabs including Archived now
+  scroll within the viewport.
+- Status: RESOLVED
 
-### BUG-UX-002: Missing scroll on multiple screens
+### BUG-UX-002: Missing scroll on multiple screens ✅ RESOLVED
 - Symptom: Several screens have no scroll when content exceeds standard display viewport
   (1366x768 common laptop resolution)
-- Affected screens: Import review, Inventory stock levels, Onboarding wizard steps,
-  any modal/sheet with long content
-- Fix: Audit all page containers and sheets — ensure `overflow-y: auto` or scroll is
-  set on content areas. Use `h-screen` with `overflow-hidden` on outer container and
-  `overflow-y-auto` on inner scrollable content
-- Priority: P1 — affects usability on standard laptops
-- Status: OPEN
+- Fix applied (Beta 1.0):
+  - `InventoryPage.tsx`: `min-h-screen` → `h-screen overflow-hidden`; `<main>` gets
+    `overflow-y-auto min-h-0` — all inventory tabs scroll correctly
+  - `ImportPage.tsx`: `min-h-screen` → `h-screen overflow-hidden`; review card changed
+    from `min-h-[600px]` to `flex-1 min-h-0`; GenericImportReview root gets `min-h-0`
+  - Other audited screens (StockCountSheet, OnboardingPage, ReportsPage) already had
+    correct overflow handling — no changes needed
+- Status: RESOLVED
 
 ### BUG-002: Inventory table shows — for category names ✅ RESOLVED
 - Symptom: Category column blank in inventory stock levels table
@@ -162,56 +157,65 @@
 - Root cause: Check should be `SUM(payments) > total + change_due + 0.01`
 - Status: INFORMATIONAL — not a real bug, just overly strict check script
 
-### BUG-NAV-001: Category tile grid visual polish needed
+### BUG-NAV-001: Category tile grid visual polish needed ✅ RESOLVED
 - Symptom: Category tiles are different sizes, colors are auto-generated with no admin
   control, tile order cannot be rearranged, grid alignment is inconsistent
-- Expected:
-  * Uniform tile sizes in a consistent grid
-  * Admin ability to set category color
-  * Admin ability to set category sort order
-  * Admin ability to set category icon
-  * Grid alignment consistent across screen sizes
-- Files:
-  apps/web/src/components/pos/CategoryTileGrid.tsx
-  apps/web/src/lib/categoryColors.ts
-  Category admin settings UI (not yet built)
-- Note: Will be addressed in Prompt 29 (Dashboard Layout Editor) which gives owners
-  control over category appearance and ordering
-- Priority: P3
-- Status: OPEN
+- Fix applied (Prompt 29 + Beta 1.0):
+  - `CategoryTileGrid.tsx` uses `aspect-square` on all tiles (uniform size)
+  - `/settings/dashboard` editor: color picker, emoji icons, drag-to-reorder, pin/hide
+  - Layout config stored in `organizations.settings.dashboardLayout` JSONB
+- Status: RESOLVED
 
 ---
 
 ## Import Feature — P1 Bugs
 
-### BUG-IMP-001: CSV import parses file but does not extract menu items
+### BUG-IMP-001: CSV import parses file but does not extract menu items ✅ RESOLVED
 - Symptom: CSV file uploads successfully but review screen shows no items or empty list
-- Expected: CSV with columns (name, price, category, description) should parse into editable item list
-- File: apps/api/src/services/importJob.service.ts (CSV parsing path in processImportJob)
-- Priority: P1
-- Status: OPEN
+- Root cause: Full CSV records were stored only as 10-row preview_data; full record set
+  not persisted; no `case 'generic_csv':` in confirmImportJob switch
+- Fix applied (Beta 1.0):
+  - `importJob.service.ts` processImportJob: store full records in
+    `mappingConfig.parsed.records` (mirrors document branch pattern)
+  - `importJob.service.ts` confirmImportJob: added `case 'generic_csv':` calling
+    new `applyGenericCsvImport()` which maps columns via AI mapping and creates products
+  - `ImportReview.tsx` GenericImportReview: reads `mapping_config.parsed.records` for
+    full row count (falls back to preview_data for backward compatibility)
+- Status: RESOLVED
 
-### BUG-IMP-002: PDF menu parser does not extract prices
+### BUG-IMP-002: PDF menu parser does not extract prices ✅ RESOLVED
 - Symptom: All items imported from PDF show $0.00 price
-- Expected: AI parser should extract prices from menu PDF
-- Likely cause: Claude model prompt not returning prices in cents format, or price extraction failing on PDF text
-- File: apps/api/src/services/documentParser.service.ts (parseMenu function and prompt)
-- Priority: P1
-- Status: OPEN
+- Root cause: Claude occasionally returns prices as dollars (12.99) despite prompt
+  specifying cents; no post-parse normalization existed
+- Fix applied (Beta 1.0):
+  - `documentParser.service.ts` parseMenu: added `normalizeMenuPrice()` — values < 100
+    treated as dollars and multiplied by 100; applied to item prices and modifier
+    priceDelta values; prompt updated with clearer examples and "never return 0" rule
+- Status: RESOLVED
 
-### BUG-IMP-003: Import review screen overflows viewport
+### BUG-IMP-003: Import review screen overflows viewport ✅ RESOLVED
 - Symptom: Initial review screen does not fit browser window. User must zoom out (Cmd −) to see action buttons. No scroll available to reach buttons at bottom.
-- Expected: Screen should be scrollable, buttons always accessible without zooming
-- File: apps/web/src/components/imports/ImportReview.tsx (layout/height CSS)
-- Priority: P1
-- Status: OPEN
+- Root cause: ImportPage.tsx used `min-h-screen` (unbounded growth) and `min-h-[600px]`
+  card; `h-full` on ImportReview could not resolve to a finite height
+- Fix applied (Beta 1.0):
+  - `ImportPage.tsx`: `min-h-screen` → `h-screen overflow-hidden`; middle wrapper gets
+    `flex flex-col min-h-0`; review card changes to `flex-1 min-h-0`
+  - `ImportReview.tsx` GenericImportReview: root div gains `min-h-0`; header gets `shrink-0`
+- Status: RESOLVED
 
-### BUG-IMP-004: Import workflow stops at review step
+### BUG-IMP-004: Import workflow stops at review step ✅ RESOLVED
 - Symptom: Full workflow upload → review → edit → approve → push to menu stops at review. Confirm/import button does not complete the flow and push items to the POS menu.
-- Expected: After editing and clicking Import, products should appear in POS product grid immediately
-- Files: apps/web/src/components/imports/ImportReview.tsx + apps/api/src/services/importJob.service.ts (confirm flow and applyMenuImport)
-- Priority: P1 — blocks core import feature value
-- Status: OPEN
+- Root cause: `confirmImportJob` switch had no `case 'generic_csv':` — fell through to
+  `default: throw new ValidationError('Unsupported import type: generic_csv')`;
+  also full CSV records were not stored, so even adding the case would have no data
+- Fix applied (Beta 1.0):
+  - `importJob.service.ts` processImportJob: full CSV records stored in
+    `mappingConfig.parsed.records` (BUG-IMP-001 fix prerequisite)
+  - `importJob.service.ts` confirmImportJob: added `case 'generic_csv':` calling new
+    `applyGenericCsvImport()` which reads stored records, applies column mapping, and
+    creates/updates products via existing ProductSvc
+  - For `document_menu` imports: chain was already correct end-to-end (no changes needed)
+- Status: RESOLVED
 
 ## Prompt 22 Auth Bug Fixes ✅ RESOLVED
 
