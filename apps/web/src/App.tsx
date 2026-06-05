@@ -32,6 +32,7 @@ import { FloorPlanEditorPage } from './pages/FloorPlanEditorPage';
 import { PublicMenuPage } from './pages/PublicMenuPage';
 import { QrCodesSettingsPage } from './pages/QrCodesSettingsPage';
 import { KitchenDisplayPage } from './pages/KitchenDisplayPage';
+import { ReservationsPage } from './pages/ReservationsPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -252,6 +253,15 @@ export default function App() {
             element={
               <RequireAuth>
                 <ReportsPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/reservations"
+            element={
+              <RequireAuth>
+                <ReservationsPage />
               </RequireAuth>
             }
           />

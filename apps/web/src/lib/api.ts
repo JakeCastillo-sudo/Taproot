@@ -373,6 +373,39 @@ export const locations = {
   list: () => apiFetch<{ locations: LocationRow[] }>('/locations').then((r) => r.locations),
 };
 
+// ─── Reservations / waitlist ──────────────────────────────────────────────────
+
+export type ReservationType = 'reservation' | 'waitlist';
+
+export interface ReservationRow {
+  id: string; customer_name: string; party_size: number;
+  phone: string | null; email: string | null; type: ReservationType;
+  reserved_for: string | null; table_id: string | null; table_name: string | null;
+  status: string; notes: string | null; notified_at: string | null; created_at: string;
+}
+
+export interface ReservationInput {
+  customerName: string; partySize?: number; phone?: string; email?: string;
+  type?: ReservationType; reservedFor?: string | null; notes?: string;
+}
+
+export const reservations = {
+  list: (params?: { date?: string; type?: ReservationType }) => {
+    const q = new URLSearchParams();
+    if (params?.date) q.set('date', params.date);
+    if (params?.type) q.set('type', params.type);
+    const qs = q.toString();
+    return apiFetch<{ reservations: ReservationRow[] }>(`/reservations${qs ? `?${qs}` : ''}`).then((r) => r.reservations);
+  },
+  create: (body: ReservationInput) => apiFetch<ReservationRow>('/reservations', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: string, body: Partial<ReservationInput> & { status?: string; tableId?: string | null }) =>
+    apiFetch<ReservationRow>(`/reservations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id: string) => apiFetch<void>(`/reservations/${id}`, { method: 'DELETE' }),
+  notify: (id: string) => apiFetch<{ sent: boolean; channel: string }>(`/reservations/${id}/notify`, { method: 'POST' }),
+  seat: (id: string, tableId: string | null) =>
+    apiFetch<ReservationRow>(`/reservations/${id}/seat`, { method: 'POST', body: JSON.stringify({ tableId }) }),
+};
+
 // ─── Tables / floor plan ──────────────────────────────────────────────────────
 
 export type TableShape = 'rectangle' | 'circle' | 'square';

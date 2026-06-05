@@ -2,9 +2,9 @@
 
 > ⚠️ **MIGRATIONS NEEDED** (run in Railway console):
 > `npx node-pg-migrate up --migrations-dir migrations`
-> Pending: **014_employee_hourly_rate** (S1-05), **015_cash_drawer** (S2-04).
-> Both features are RESILIENT to their pending migration (column/table existence checks →
-> graceful degradation, no 500s). Hourly-rate persistence + cash drawer are unavailable until run.
+> Pending: **014_employee_hourly_rate** (S1-05), **015_cash_drawer** (S2-04), **016_reservations** (S3-05).
+> All three features are RESILIENT to their pending migration (column/table existence checks →
+> graceful degradation, no 500s). Hourly-rate, cash drawer, and reservations are unavailable until run.
 > Migrations 011/012/013 are CONFIRMED applied on Railway (verified live: product create with
 > default variant + price, tax round-trip, and listProducts all succeed on the deployed API).
 
@@ -177,6 +177,15 @@ employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrade
   color (green<5/amber5-10/red>10 flashing), tap item → ready (strikethrough), BUMP (green when all
   ready), large-text mode. Kitchen nav item in POS sidebar.
 - NOTE: stations deferred (no station config — all items station 'all').
+
+### S3-05 — Reservations & Waitlist ✅ COMPLETE
+- `migrations/016_reservations.js` ⚠️ NEEDS RAILWAY MIGRATION (prompt called it "014"; renumbered
+  to 016 since 014/015 were used this sprint).
+- `reservation.service.ts` (resilient) + `reservation.routes.ts` (registered): list/create/update/
+  delete + `/:id/notify` (Twilio stub → logs when unconfigured) + `/:id/seat`.
+- `api.ts`: `reservations.*` + types.
+- `ReservationsPage.tsx` (new, `/reservations`): Waitlist | Reservations tabs (date picker for
+  reservations), add modal, notify, seat (table prompt), remove. Reservations nav item in POS.
 
 ## ✅ Sprint 2 COMPLETE — Beta 1.2 (tag v0.3.0-beta-1.2)
 Order History, Void/Refund, Tips, Cash Drawer, End-of-Day, Split Check. **Found + fixed
