@@ -191,6 +191,17 @@ employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrade
   top items, employees, cash reconciliation; Print (.receipt-content) / CSV / Email(stub).
 - `ReportsPage`: prominent "End of Day" button.
 
+### S2-06 — Split Check ✅ COMPLETE
+- No backend change needed — the order model already accepts multiple payments (amount_paid
+  accumulates). `SplitCheckModal.tsx` (new) creates the order once on first charge, then
+  processes each split as a separate `payments.process` call (cash/card per split). On full
+  settlement → receipt snapshot → /receipt.
+- Modes: Split Evenly (2–8 ways, remainder spread to first shares) + Custom Amounts (must sum
+  to total). "Split check" button added under Charge in the cart panel.
+- NOTE: By-item split deferred (even + custom shipped).
+- CAVEAT: card splits use the real payment API like the rest of the app — needs Stripe Connect
+  in production; cash splits work everywhere.
+
 ## Sprint 1 Queue — Beta 1.1: Settings & Admin
 See full roadmap at docs/ROADMAP.md
 

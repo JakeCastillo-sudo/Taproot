@@ -42,6 +42,7 @@ import { DayPartToggle } from '../pos/DayPartToggle';
 import { ModifierSheet, type ModifierSheetProduct } from '../pos/ModifierSheet';
 import { EmployeeSelect } from '../pos/EmployeeSelect';
 import { CashDrawerWidget } from '../pos/CashDrawerWidget';
+import { SplitCheckModal } from '../pos/SplitCheckModal';
 import { PaymentSheet } from '../pos/PaymentSheet';
 import { MobileCart } from '../pos/MobileCart';
 import { SyncStatus } from '../ui/SyncStatus';
@@ -402,6 +403,7 @@ export function POSLayout({ user }: POSLayoutProps) {
   const [showShortcuts,  setShowShortcuts]  = useState(false);
   const [cmdOpen,        setCmdOpen]        = useState(false);
   const [showEmployeeSelect, setShowEmployeeSelect] = useState(false);
+  const [showSplit, setShowSplit] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // 5-minute idle → open the employee lock screen so the next person PINs in.
@@ -928,6 +930,12 @@ export function POSLayout({ user }: POSLayoutProps) {
             >
               <ChevronRight size={18} /> Charge {fmt(ttl)}
             </button>
+            <button
+              onClick={() => setShowSplit(true)}
+              className="w-full h-9 rounded-md border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Split check
+            </button>
             <div className="grid grid-cols-2 gap-2">
               <button className="h-9 rounded-md border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition-colors">
                 Park order
@@ -988,6 +996,9 @@ export function POSLayout({ user }: POSLayoutProps) {
 
       {/* ── Employee PIN lock screen ────────────────────────────────────────── */}
       {showEmployeeSelect && <EmployeeSelect onClose={() => setShowEmployeeSelect(false)} />}
+
+      {/* ── Split check ─────────────────────────────────────────────────────── */}
+      {showSplit && cart.length > 0 && <SplitCheckModal onClose={() => setShowSplit(false)} />}
     </div>
   );
 }
