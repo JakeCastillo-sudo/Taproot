@@ -54,6 +54,33 @@ export default async function settingsRoutes(fastify: FastifyInstance): Promise<
     return reply.send({ success: true });
   });
 
+  // ── GET /api/v1/settings/online-ordering ───────────────────────────────────
+  fastify.get('/api/v1/settings/online-ordering', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { rows: [org] } = await query<{ settings: { onlineOrdering?: Record<string, unknown> } }>(
+      `SELECT settings FROM organizations WHERE id = $1`, [user.orgId]);
+    const defaults = {
+      enabled: true, pickupEnabled: true, deliveryEnabled: false,
+      pickupPrepMinutes: 15, deliveryRadiusMiles: 5, deliveryFeeCents: 0, minOrderCents: 0,
+    };
+    return reply.send({ onlineOrdering: { ...defaults, ...(org?.settings?.onlineOrdering ?? {}) } });
+  });
+
+  // ── PATCH /api/v1/settings/online-ordering ─────────────────────────────────
+  fastify.patch('/api/v1/settings/online-ordering', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const body = req.body as Record<string, unknown>;
+    await query(
+      `UPDATE organizations
+          SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{onlineOrdering}',
+                COALESCE(settings->'onlineOrdering', '{}'::jsonb) || $2::jsonb),
+              updated_at = now()
+        WHERE id = $1`,
+      [user.orgId, JSON.stringify(body)],
+    );
+    return reply.send({ success: true });
+  });
+
   // ── GET /api/v1/settings/payments — payment method toggles ─────────────────
   fastify.get('/api/v1/settings/payments', async (req: FastifyRequest, reply: FastifyReply) => {
     const { user } = req as AuthedRequest;

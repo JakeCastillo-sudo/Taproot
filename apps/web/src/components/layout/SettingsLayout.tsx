@@ -12,7 +12,7 @@ import { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Package, FolderTree, SlidersHorizontal, Users, Building2,
-  CreditCard, LayoutGrid, ChevronLeft, LayoutDashboard, QrCode,
+  CreditCard, LayoutGrid, ChevronLeft, LayoutDashboard, QrCode, Globe,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { canAccessSettings } from '../../lib/session';
@@ -33,6 +33,7 @@ const NAV: SettingsNavItem[] = [
   { to: '/settings/payments',   label: 'Payments',   icon: <CreditCard size={17} /> },
   { to: '/settings/floor-plan', label: 'Floor Plan', icon: <LayoutDashboard size={17} /> },
   { to: '/settings/qr-codes',   label: 'QR Codes',   icon: <QrCode size={17} /> },
+  { to: '/settings/online-ordering', label: 'Online Ordering', icon: <Globe size={17} /> },
   { to: '/settings/dashboard',  label: 'Dashboard',  icon: <LayoutGrid size={17} /> },
 ];
 

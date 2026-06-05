@@ -647,6 +647,16 @@ export interface ReceiptConfig {
   showWebsite?: boolean;
 }
 
+export interface OnlineOrderingConfig {
+  enabled:             boolean;
+  pickupEnabled:       boolean;
+  deliveryEnabled:     boolean;
+  pickupPrepMinutes:   number;
+  deliveryRadiusMiles: number;
+  deliveryFeeCents:    number;
+  minOrderCents:       number;
+}
+
 export const settings = {
   getDashboardLayout: () =>
     apiFetch<{ dashboardLayout: DashboardLayout | null }>(
@@ -684,6 +694,12 @@ export const settings = {
     apiFetch<{ success: boolean }>('/settings/receipt', {
       method: 'PATCH', body: JSON.stringify({ receiptConfig }),
     }),
+
+  getOnlineOrdering: () =>
+    apiFetch<{ onlineOrdering: OnlineOrderingConfig }>('/settings/online-ordering').then((r) => r.onlineOrdering),
+
+  saveOnlineOrdering: (cfg: Partial<OnlineOrderingConfig>) =>
+    apiFetch<{ success: boolean }>('/settings/online-ordering', { method: 'PATCH', body: JSON.stringify(cfg) }),
 
   getPayments: () =>
     apiFetch<{ paymentMethods: Record<string, boolean>; stripeEnabled: boolean }>('/settings/payments'),

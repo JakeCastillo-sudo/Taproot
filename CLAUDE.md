@@ -43,6 +43,13 @@
 - NOTE: card path requires Stripe Connect + STRIPE_PUBLISHABLE_KEY — UNTESTED on demo (no Connect);
   pay-at-counter is the verified path. @stripe/stripe-js + react-stripe-js already installed.
 
+### S4-02 — Online Ordering Settings ✅ COMPLETE
+- `settings.routes.ts`: GET/PATCH `/settings/online-ordering` (org settings.onlineOrdering:
+  enabled/pickup/delivery/prepMinutes/radius/feeCents/minOrderCents). Public menu already reads it.
+- `api.ts`: `settings.getOnlineOrdering/saveOnlineOrdering` + `OnlineOrderingConfig`.
+- `OnlineOrderingSettingsPage.tsx` (new, `/settings/online-ordering`): toggles + prep/min/radius/fee.
+  Online Ordering nav item.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |
