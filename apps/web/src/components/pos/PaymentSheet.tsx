@@ -18,6 +18,7 @@ import { usePOSStore, type LastCompletedOrder } from '../../store/pos.store';
 import { orders as ordersApi, payments as paymentsApi } from '../../lib/api';
 import { showToast } from '../ui/Toast';
 import { TOKEN_KEY, USER_KEY } from '../../lib/api';
+import { enqueueOrder } from '../../lib/offlineQueue';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -289,6 +290,33 @@ export function PaymentSheet({ onClose }: Props) {
     setMethod(selectedMethod);
     setStep('processing');
     setErrorMsg('');
+
+    // ── Offline: queue the order locally, sync on reconnect ──────────────────
+    if (!navigator.onLine && (selectedMethod === 'cash' || selectedMethod === 'card')) {
+      const offlineBody = {
+        customerId: customerId ?? undefined,
+        tableId: usePOSStore.getState().tableId ?? undefined,
+        items: cart.map((c) => ({
+          productId: c.productId, variantId: c.variantId, quantity: c.quantity, unitPrice: c.unitPrice,
+          notes: c.notes || undefined,
+          modifiers: (c.modifiers ?? []).map((m) => ({ modifierId: m.modifierId, name: m.name, priceDelta: m.priceDelta })),
+        })),
+        notes: orderNotes || undefined,
+        discountCodes: usePOSStore.getState().appliedDiscount ? [usePOSStore.getState().appliedDiscount!.code] : undefined,
+      };
+      const queued = await enqueueOrder(locationId, offlineBody, {
+        paymentMethod: selectedMethod === 'card' ? 'credit_card' : 'cash',
+        amount: total(), tipAmount: tip > 0 ? tip : undefined,
+      });
+      usePOSStore.getState().setPendingSyncCount(usePOSStore.getState().pendingSyncCount + 1);
+      const snapshot = buildReceiptSnapshot(`offline-${Date.now()}`, queued.tempId, selectedMethod, selectedMethod === 'cash' ? cashTender : 0);
+      setLastCompletedOrder(snapshot);
+      clearCart();
+      close();
+      navigate('/receipt', { replace: true });
+      showToast.warning(`Order saved offline (${queued.tempId}) — will sync when online`);
+      return;
+    }
 
     // ── Dev / demo mode for card payments ────────────────────────────────────
     // In development there is no Stripe Terminal reader, so we simulate a

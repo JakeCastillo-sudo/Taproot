@@ -165,6 +165,15 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
 - NOTE: cross-location report comparison lands in S6-05 (reporting suite). New-location WRITES may need
   a re-login so the JWT picks up the added location_id (reads work immediately).
 
+### S6-02 — Offline Mode ✅ COMPLETE
+- `offlineQueue.ts` (new): IndexedDB queue (enqueueOrder/getQueue/processQueue/pendingCount/
+  clearSynced); replays create-order → process-payment on reconnect with real order numbers.
+- `useOfflineSync.ts` (new): mirrors navigator.onLine → pos.store `isOffline`, auto-syncs on
+  reconnect with toasts, polls pending count. Wired in POSLayout.
+- POSLayout: red pulsing **offline banner**; existing SyncStatus shows queued count.
+- PaymentSheet: when offline (cash/card) → enqueue + offline receipt snapshot (TEMP-xxxx), no API call.
+- NOTE: queued card orders sync only where Stripe is configured; cash syncs everywhere.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

@@ -51,6 +51,7 @@ import { MobileCart } from '../pos/MobileCart';
 import { SyncStatus } from '../ui/SyncStatus';
 import { CommandPalette, type CommandAction } from '../ui/CommandPalette';
 import { useBarcode } from '../../hooks/useBarcode';
+import { useOfflineSync } from '../../hooks/useOfflineSync';
 import { useKeyboardShortcuts, ShortcutsOverlay } from '../../hooks/useKeyboardShortcuts';
 import { useOrientation } from '../../hooks/useOrientation';
 import { useHaptic } from '../../hooks/useHaptic';
@@ -394,8 +395,10 @@ export function POSLayout({ user }: POSLayoutProps) {
     setPaymentSheetOpen, isPaymentSheetOpen,
     setModifierSheetOpen,
     subtotal, taxTotal, total, discountTotal, itemCount,
-    clearCart, appliedDiscount, setAppliedDiscount,
+    clearCart, appliedDiscount, setAppliedDiscount, isOffline,
   } = usePOSStore();
+
+  useOfflineSync();
 
   const handleAddDiscount = useCallback(async () => {
     if (appliedDiscount) { setAppliedDiscount(null); showToast.info('Discount removed'); return; }
@@ -686,8 +689,17 @@ export function POSLayout({ user }: POSLayoutProps) {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-screen flex overflow-hidden bg-surface-2">
+    <div className="h-screen flex flex-col overflow-hidden bg-surface-2">
 
+      {/* ── Offline banner ────────────────────────────────────────────────── */}
+      {isOffline && (
+        <div className="shrink-0 bg-red-600 text-white text-xs font-medium text-center py-1.5 flex items-center justify-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+          Working offline — orders will sync when the connection returns
+        </div>
+      )}
+
+      <div className="flex-1 flex overflow-hidden min-h-0">
       {/* ── INLINE SIDEBAR — desktop + iPad landscape (lg+) ───────────────── */}
       <aside
         className={clsx(
@@ -1037,6 +1049,7 @@ export function POSLayout({ user }: POSLayoutProps) {
 
       {/* ── Split check ─────────────────────────────────────────────────────── */}
       {showSplit && cart.length > 0 && <SplitCheckModal onClose={() => setShowSplit(false)} />}
+      </div>
     </div>
   );
 }
