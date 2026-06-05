@@ -9,6 +9,7 @@ import helmet from '@fastify/helmet';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { validateConfig, config } from './config';
+import { logger } from './lib/logger';
 import { pool } from './db/client';
 import { getPublisher } from './db/redis';
 import { registerValidationHooks } from './middleware/validation';
@@ -382,9 +383,17 @@ async function buildApp(): Promise<any> {
   return fastify;
 }
 
+// Process-level safety nets — log with full context, never crash silently.
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection', { reason: reason instanceof Error ? reason.stack : String(reason) });
+});
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception', { error: err.stack ?? err.message });
+});
+
 buildApp()
   .then((app) => app.listen({ port: config.PORT, host: '0.0.0.0' }))
   .catch((err) => {
-    console.error(err);
+    logger.error('Server failed to start', { error: err instanceof Error ? err.stack : String(err) });
     process.exit(1);
   });

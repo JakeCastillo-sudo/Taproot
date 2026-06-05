@@ -217,6 +217,13 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
   feature grid (kept), **Toast/Square/Taproot comparison table**, "8 hours vs 10 minutes" line,
   **FAQ** (hardware/import/data/setup fee), pricing + footer retained.
 
+### S7-05 — Error Monitoring + Analytics ✅ COMPLETE
+- `lib/logger.ts` (api): structured JSON logger (timestamp/level/message/context). Process-level
+  `unhandledRejection`/`uncaughtException` handlers in index.ts (log, no silent crash).
+- `ErrorBoundary.tsx` (web): friendly recovery page + refresh; wraps App in main.tsx.
+- Already present: `/api/health` (status/version/uptime/checks/timestamp), Plausible analytics
+  (index.html + analytics.ts track→window.plausible), Sentry init.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |
