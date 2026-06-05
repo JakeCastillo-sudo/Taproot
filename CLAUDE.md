@@ -26,6 +26,23 @@
 > Migrations 011/012/013 are CONFIRMED applied on Railway (verified live: product create with
 > default variant + price, tax round-trip, and listProducts all succeed on the deployed API).
 
+## 🚧 Sprint 4 — Beta 1.4: Online Ordering & Engagement (in progress)
+
+### S4-01 — Online Checkout + Stripe ✅ COMPLETE
+- `public.service.ts`: getPublicMenu now returns `online` block (enabled/pickup/delivery/fees/
+  minOrder/prepMinutes + `paymentAvailable` = connected Stripe acct + STRIPE_PUBLISHABLE_KEY).
+  createPublicOrder accepts fulfillmentType/address/requestedTime (stored in metadata+notes),
+  honors `enabled`. New `createOnlinePaymentIntent` (Connect direct charge w/ application fee) +
+  `confirmOnlinePayment` (verifies PI, records payment, completes order).
+- `public.routes.ts`: POST `/public/:slug/payment-intent`, POST `/public/:slug/order/:id/confirm`
+  (added to PUBLIC_ROUTES). 
+- `api.ts`: `publicApi.paymentIntent/confirmPayment`, `online` on PublicMenu, `PublicOrderBody`.
+- `PublicMenuPage`: pickup/delivery toggle + address, delivery fee + min-order, pay-at-counter
+  (always) + "Pay now with card" (only when paymentAvailable). `OnlinePaymentSheet.tsx` (new) —
+  Stripe Elements on the connected account.
+- NOTE: card path requires Stripe Connect + STRIPE_PUBLISHABLE_KEY — UNTESTED on demo (no Connect);
+  pay-at-counter is the verified path. @stripe/stripe-js + react-stripe-js already installed.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

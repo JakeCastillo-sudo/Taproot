@@ -339,6 +339,8 @@ async function buildApp(): Promise<any> {
     // Public QR-code storefront
     'GET /public/:orgSlug/menu',
     'POST /public/:orgSlug/order',
+    'POST /public/:orgSlug/payment-intent',
+    'POST /public/:orgSlug/order/:orderId/confirm',
     'GET /public/:orgSlug/order/:orderId/status',
     // Dev-only — this route is not registered in production so this entry is harmless
     ...(config.NODE_ENV === 'development' ? ['POST /api/v1/dev/reset-rate-limits'] : []),

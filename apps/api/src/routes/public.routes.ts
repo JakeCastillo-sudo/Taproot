@@ -33,6 +33,31 @@ export default async function publicRoutes(fastify: FastifyInstance): Promise<vo
       }
     });
 
+  fastify.post('/public/:orgSlug/payment-intent', { config: { rateLimit: { max: 30, timeWindow: 60_000 } } },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { orgSlug } = req.params as { orgSlug: string };
+      try {
+        const result = await PublicSvc.createOnlinePaymentIntent(orgSlug, req.body as PublicSvc.PublicOrderInput);
+        return reply.send(result);
+      } catch (err) {
+        if (err instanceof AppError) return reply.code(err.statusCode).send({ code: err.code, message: err.message });
+        throw err;
+      }
+    });
+
+  fastify.post('/public/:orgSlug/order/:orderId/confirm', { config: { rateLimit: { max: 30, timeWindow: 60_000 } } },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { orgSlug, orderId } = req.params as { orgSlug: string; orderId: string };
+      const { paymentIntentId } = req.body as { paymentIntentId: string };
+      try {
+        const result = await PublicSvc.confirmOnlinePayment(orgSlug, orderId, paymentIntentId);
+        return reply.send(result);
+      } catch (err) {
+        if (err instanceof AppError) return reply.code(err.statusCode).send({ code: err.code, message: err.message });
+        throw err;
+      }
+    });
+
   fastify.get('/public/:orgSlug/order/:orderId/status',
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { orgSlug, orderId } = req.params as { orgSlug: string; orderId: string };

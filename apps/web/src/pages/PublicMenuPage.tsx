@@ -11,7 +11,8 @@ import { useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Plus, Minus, ShoppingBag, Check, X } from 'lucide-react';
 import { clsx } from 'clsx';
-import { publicApi, type PublicMenu } from '../lib/api';
+import { publicApi, type PublicMenu, type PublicOrderBody } from '../lib/api';
+import { OnlinePaymentSheet } from '../components/public/OnlinePaymentSheet';
 
 function fmt(c: number): string { return `$${(c / 100).toFixed(2)}`; }
 
@@ -23,6 +24,9 @@ export function PublicMenuPage() {
   const [checkout, setCheckout] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [fulfillment, setFulfillment] = useState<'pickup' | 'delivery'>('pickup');
+  const [address, setAddress] = useState('');
+  const [payNow, setPayNow] = useState(false);
   const [placed, setPlaced] = useState<{ orderNumber: string; estimatedMinutes: number } | null>(null);
 
   const { data: menu, isLoading, error } = useQuery({
@@ -44,13 +48,22 @@ export function PublicMenuPage() {
   const setQty = (productId: string, q: number) =>
     setCart((c) => q <= 0 ? c.filter((l) => l.productId !== productId) : c.map((l) => l.productId === productId ? { ...l, quantity: q } : l));
 
+  const online = menu?.online;
+  const deliveryFee = fulfillment === 'delivery' ? (online?.deliveryFeeCents ?? 0) : 0;
+  const grandTotal = total + deliveryFee;
+  const belowMin = (online?.minOrderCents ?? 0) > 0 && total < (online!.minOrderCents);
+
+  const orderBody = (): PublicOrderBody => ({
+    tableId: tableId ?? null,
+    items: cart.map((l) => ({ productId: l.productId, variantId: l.variantId, quantity: l.quantity })),
+    customerName: name.trim() || undefined,
+    customerPhone: phone.trim() || undefined,
+    fulfillmentType: tableId ? undefined : fulfillment,
+    address: fulfillment === 'delivery' ? address.trim() || undefined : undefined,
+  });
+
   const place = useMutation({
-    mutationFn: () => publicApi.createOrder(orgSlug, {
-      tableId: tableId ?? null,
-      items: cart.map((l) => ({ productId: l.productId, variantId: l.variantId, quantity: l.quantity })),
-      customerName: name.trim() || undefined,
-      customerPhone: phone.trim() || undefined,
-    }),
+    mutationFn: () => publicApi.createOrder(orgSlug, orderBody()),
     onSuccess: (r) => { setPlaced({ orderNumber: r.orderNumber, estimatedMinutes: r.estimatedMinutes }); setCart([]); setCheckout(false); },
   });
 
@@ -139,23 +152,61 @@ export function PublicMenuPage() {
                   <span className="w-16 text-right text-sm font-semibold text-gray-800">{fmt(l.price * l.quantity)}</span>
                 </div>
               ))}
+              {/* Fulfillment (hidden for QR table orders) */}
+              {!tableId && (online?.deliveryEnabled || online?.pickupEnabled) && (
+                <div className="mt-3">
+                  <div className="flex gap-1.5">
+                    {online?.pickupEnabled && (
+                      <button onClick={() => setFulfillment('pickup')}
+                        className={clsx('flex-1 px-3 py-1.5 rounded-md text-sm font-medium', fulfillment === 'pickup' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600')}>Pickup</button>
+                    )}
+                    {online?.deliveryEnabled && (
+                      <button onClick={() => setFulfillment('delivery')}
+                        className={clsx('flex-1 px-3 py-1.5 rounded-md text-sm font-medium', fulfillment === 'delivery' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600')}>Delivery</button>
+                    )}
+                  </div>
+                  {fulfillment === 'delivery' && (
+                    <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Delivery address"
+                      className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-md text-sm" />
+                  )}
+                </div>
+              )}
+
               <div className="mt-3 space-y-2">
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name (optional)"
                   className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm" />
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (optional)" inputMode="tel"
                   className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm" />
               </div>
+              {belowMin && <p className="text-xs text-amber-600 mt-2">Minimum order is {fmt(online!.minOrderCents)}.</p>}
               {place.isError && <p className="text-xs text-red-600 mt-2">{place.error instanceof Error ? place.error.message : 'Could not place order'}</p>}
             </div>
-            <div className="px-5 py-4 border-t border-gray-100">
-              <div className="flex justify-between font-bold text-gray-900 mb-3"><span>Total</span><span>{fmt(total)}</span></div>
-              <button onClick={() => place.mutate()} disabled={place.isPending || cart.length === 0}
-                className="w-full h-12 bg-primary text-white rounded-md text-base font-bold hover:bg-primary-dark disabled:opacity-50">
+            <div className="px-5 py-4 border-t border-gray-100 space-y-2">
+              {deliveryFee > 0 && <div className="flex justify-between text-sm text-gray-500"><span>Delivery</span><span>{fmt(deliveryFee)}</span></div>}
+              <div className="flex justify-between font-bold text-gray-900"><span>Total</span><span>{fmt(grandTotal)}</span></div>
+              {online?.paymentAvailable && (
+                <button onClick={() => setPayNow(true)} disabled={cart.length === 0 || belowMin || (fulfillment === 'delivery' && !address.trim())}
+                  className="w-full h-12 bg-primary text-white rounded-md text-base font-bold hover:bg-primary-dark disabled:opacity-50">
+                  Pay now with card · {fmt(grandTotal)}
+                </button>
+              )}
+              <button onClick={() => place.mutate()} disabled={place.isPending || cart.length === 0 || belowMin || (fulfillment === 'delivery' && !address.trim())}
+                className={clsx('w-full h-12 rounded-md text-base font-bold disabled:opacity-50',
+                  online?.paymentAvailable ? 'border border-gray-200 text-gray-700 hover:bg-gray-50' : 'bg-primary text-white hover:bg-primary-dark')}>
                 {place.isPending ? 'Placing…' : 'Place order · Pay at counter'}
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {payNow && (
+        <OnlinePaymentSheet
+          slug={orgSlug}
+          body={orderBody()}
+          onClose={() => setPayNow(false)}
+          onSuccess={(orderNumber, estimatedMinutes) => { setPayNow(false); setPlaced({ orderNumber, estimatedMinutes }); setCart([]); setCheckout(false); }}
+        />
       )}
     </div>
   );

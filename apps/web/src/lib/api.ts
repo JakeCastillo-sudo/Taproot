@@ -1692,10 +1692,23 @@ const PUBLIC_BASE = `${import.meta.env.VITE_API_URL ?? ''}/public`;
 
 export interface PublicMenu {
   org: { name: string; logo: string | null; address: Record<string, unknown> | null };
+  online: {
+    enabled: boolean; pickupEnabled: boolean; deliveryEnabled: boolean;
+    deliveryFeeCents: number; minOrderCents: number; pickupPrepMinutes: number;
+    paymentAvailable: boolean;
+  };
   categories: Array<{
     id: string; name: string; color: string | null; icon: string | null;
     products: Array<{ id: string; variantId: string | null; name: string; description: string | null; price: number }>;
   }>;
+}
+
+export interface PublicOrderBody {
+  tableId?: string | null;
+  items: Array<{ productId: string; variantId?: string | null; quantity: number; specialInstructions?: string }>;
+  customerName?: string; customerPhone?: string;
+  fulfillmentType?: 'pickup' | 'delivery';
+  address?: string; requestedTime?: string;
 }
 
 async function publicFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -1713,12 +1726,16 @@ async function publicFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const publicApi = {
   menu: (slug: string) => publicFetch<PublicMenu>(`/${encodeURIComponent(slug)}/menu`),
-  createOrder: (slug: string, body: {
-    tableId?: string | null;
-    items: Array<{ productId: string; variantId?: string | null; quantity: number; specialInstructions?: string }>;
-    customerName?: string; customerPhone?: string;
-  }) => publicFetch<{ orderId: string; orderNumber: string; estimatedMinutes: number }>(
-    `/${encodeURIComponent(slug)}/order`, { method: 'POST', body: JSON.stringify(body) }),
+  createOrder: (slug: string, body: PublicOrderBody) =>
+    publicFetch<{ orderId: string; orderNumber: string; estimatedMinutes: number; total: number }>(
+      `/${encodeURIComponent(slug)}/order`, { method: 'POST', body: JSON.stringify(body) }),
+  paymentIntent: (slug: string, body: PublicOrderBody) =>
+    publicFetch<{ clientSecret: string; orderId: string; orderNumber: string; amount: number; publishableKey: string; connectedAccountId: string }>(
+      `/${encodeURIComponent(slug)}/payment-intent`, { method: 'POST', body: JSON.stringify(body) }),
+  confirmPayment: (slug: string, orderId: string, paymentIntentId: string) =>
+    publicFetch<{ status: string }>(`/${encodeURIComponent(slug)}/order/${orderId}/confirm`, {
+      method: 'POST', body: JSON.stringify({ paymentIntentId }),
+    }),
   orderStatus: (slug: string, orderId: string) =>
     publicFetch<{ status: string; orderNumber: string; estimatedMinutes: number }>(`/${encodeURIComponent(slug)}/order/${orderId}/status`),
 };
