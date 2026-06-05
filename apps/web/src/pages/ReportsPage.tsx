@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart3, ArrowLeft, LayoutDashboard, ShoppingBag,
-  Package, Users, UserCheck, Calendar, ChevronDown, Coins, CalendarDays,
+  Package, Users, UserCheck, Calendar, ChevronDown, Coins, CalendarDays, Grid3x3, MapPin,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { USER_KEY } from '../lib/api';
@@ -26,11 +26,14 @@ import { ProductsTab }    from '../components/reports/ProductsTab';
 import { CustomersTab }   from '../components/reports/CustomersTab';
 import { StaffTab }       from '../components/reports/StaffTab';
 import { TipsTab }        from '../components/reports/TipsTab';
+import { HeatmapTab }     from '../components/reports/HeatmapTab';
 import { ToastContainer } from '../components/ui/Toast';
+import { useQuery }       from '@tanstack/react-query';
+import { locations as locationsApi } from '../lib/api';
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
-type TabId = 'dashboard' | 'sales' | 'products' | 'customers' | 'staff' | 'tips';
+type TabId = 'dashboard' | 'sales' | 'products' | 'customers' | 'staff' | 'tips' | 'heatmap';
 
 const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ size?: number; className?: string }> }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -39,6 +42,7 @@ const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ size?: number; cl
   { id: 'customers', label: 'Customers', icon: Users           },
   { id: 'staff',     label: 'Staff',     icon: UserCheck       },
   { id: 'tips',      label: 'Tips',      icon: Coins           },
+  { id: 'heatmap',   label: 'Heatmap',   icon: Grid3x3         },
 ];
 
 // ─── Location helper ──────────────────────────────────────────────────────────
@@ -58,7 +62,10 @@ function getLocationId(): string | undefined {
 
 export function ReportsPage() {
   const navigate = useNavigate();
-  const locationId = getLocationId();
+
+  const { data: locs } = useQuery({ queryKey: ['locations'], queryFn: () => locationsApi.list(), staleTime: 5 * 60_000 });
+  const [selectedLocation, setSelectedLocation] = useState<string>(() => getLocationId() ?? 'all');
+  const locationId = selectedLocation === 'all' ? undefined : selectedLocation;
 
   const [activeTab,    setActiveTab]    = useState<TabId>('dashboard');
   const [presetId,     setPresetId]     = useState<PresetId>('last7');
@@ -106,6 +113,18 @@ export function ReportsPage() {
           </div>
 
           <div className="flex-1" />
+
+          {/* Location filter (cross-location) */}
+          {(locs?.length ?? 0) > 1 && (
+            <div className="flex items-center gap-1.5 mr-2">
+              <MapPin size={13} className="text-gray-400" />
+              <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)}
+                className="px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white">
+                <option value="all">All Locations</option>
+                {locs!.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* End of Day shortcut */}
           <button
@@ -211,6 +230,7 @@ export function ReportsPage() {
         {activeTab === 'customers'  && <CustomersTab  params={apiParams} />}
         {activeTab === 'staff'      && <StaffTab      params={apiParams} />}
         {activeTab === 'tips'       && <TipsTab       params={apiParams} />}
+        {activeTab === 'heatmap'    && <HeatmapTab    params={apiParams} />}
       </main>
 
       <ToastContainer />

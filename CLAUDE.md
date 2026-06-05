@@ -192,6 +192,14 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
 - HardwareSettingsPage: scanner enable toggle (S6-03).
 - NOTE: inventory scan→jump deferred — POS scan-lookup already covers finding products by barcode.
 
+### S6-05 — Advanced Reporting Suite ✅ COMPLETE
+- Report endpoints (sales/top-products/employee-perf/payment-methods/hourly-heatmap) + tabs
+  (Dashboard/Sales/Products/Customers/Staff/Tips) already existed. Added:
+  - **Heatmap tab** (`HeatmapTab.tsx`): 7×24 day×hour revenue grid, peak callout, CSV export.
+  - **Cross-location filter** (S6-01 deliverable): "All Locations" + per-location dropdown in
+    ReportsPage header → `apiParams.locationId` (omitted = org-wide).
+- Menu engineering matrix lives in `/insights` (S5-03). CSV export present on Heatmap/EOD/Orders.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |
