@@ -42,17 +42,17 @@ Live at taproot-pos.com as of June 4, 2026.
 
 ---
 
-## SPRINT 1 — BETA 1.1: Settings & Admin
+## SPRINT 1 — BETA 1.1: Settings & Admin ✅ COMPLETE (v0.2.0-beta-1.1)
 ### Week of June 9, 2026
 
-**S1-01** Product Management UI — /settings/products, create/edit/delete, photo URL, day-parts, allergens
-**S1-02** Category Management UI — /settings/categories, drag reorder, color/icon, subcategories
-**S1-03** Modifier Group Management — /settings/modifiers, create/edit/delete groups + options, assign to products
-**S1-04** Business Settings — /settings/business, tax rate (replace hardcoded 8.5%), receipt footer, timezone
-**S1-05** Employee Management — /settings/employees, PIN login, roles, deactivate, per-employee sales tracking
-**S1-06** Settings Shell + Navigation — /settings root, left nav, breadcrumbs, mobile accordion
-**S1-07** Payments & Stripe Settings — Stripe Connect status, payment methods toggle, fee display
-**S1-08** Sprint 1 Integration Test + Deploy — v0.2.0-beta-1.1 tag
+**S1-01** ✅ Product Management UI — /settings/products, create/edit/delete, day-parts
+**S1-02** ✅ Category Management UI — /settings/categories, drag reorder, color/icon
+**S1-03** ✅ Modifier Group Management — /settings/modifiers, groups + options, assign to products
+**S1-04** ✅ Business Settings — /settings/business, configurable tax (replaced hardcoded 8.5%), receipt
+**S1-05** ✅ Employee Management — /settings/employees, PIN login lock screen, roles, deactivate
+**S1-06** ✅ Settings Shell + Navigation — /settings root, left nav, mobile tab bar, permission guard
+**S1-07** ✅ Payments & Stripe Settings — Stripe Connect status, payment methods toggle, fee display
+**S1-08** ✅ Sprint 1 Integration Test + Deploy — v0.2.0-beta-1.1 tag
 
 ---
 

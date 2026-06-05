@@ -57,11 +57,28 @@ function toUuidArrayLiteral(ids: string[] | undefined): string | null {
   return `{${ids.join(',')}}`;
 }
 
+// Resilience: migration 014 adds employees.hourly_rate. Until it runs on a given
+// environment the column is absent, so we detect it once and degrade gracefully
+// (treat hourly_rate as always-null) instead of 500-ing every employee query.
+let _hourlyColExists: boolean | null = null;
+async function hasHourlyRateColumn(): Promise<boolean> {
+  if (_hourlyColExists !== null) return _hourlyColExists;
+  const { rows } = await query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'employees' AND column_name = 'hourly_rate'
+     ) AS exists`,
+  );
+  _hourlyColExists = Boolean(rows[0]?.exists);
+  return _hourlyColExists;
+}
+
 // ─── listEmployees ──────────────────────────────────────────────────────────
 
 export async function listEmployees(orgId: string): Promise<EmployeeListRow[]> {
+  const hourlyCol = (await hasHourlyRateColumn()) ? 'hourly_rate' : 'NULL::numeric AS hourly_rate';
   const { rows } = await query<EmployeeListRow>(
-    `SELECT id, first_name, last_name, email, role, location_ids, hourly_rate,
+    `SELECT id, first_name, last_name, email, role, location_ids, ${hourlyCol},
             (pin_hash IS NOT NULL) AS has_pin, last_login_at, created_at
        FROM employees
       WHERE organization_id = $1 AND deleted_at IS NULL
@@ -113,19 +130,21 @@ export async function createEmployee(
   // random unusable password until an owner sets one via password reset.
   const passwordHash = await hashPassword(generateSecureToken(24));
   const pinHash = data.pin ? await hashPin(data.pin) : null;
+  const hourlyCol = await hasHourlyRateColumn();
+
+  const cols = ['organization_id', 'email', 'password_hash', 'first_name', 'last_name', 'role',
+    'pin_hash', 'location_ids', 'created_by'];
+  const vals: unknown[] = [
+    orgId, data.email.trim(), passwordHash,
+    data.firstName.trim(), data.lastName.trim(), data.role,
+    pinHash, toUuidArrayLiteral(data.locationIds), creatorId,
+  ];
+  if (hourlyCol) { cols.splice(8, 0, 'hourly_rate'); vals.splice(8, 0, data.hourlyRate ?? null); }
+  const placeholders = vals.map((_, i) => `$${i + 1}`).join(',');
 
   const { rows: [row] } = await query<{ id: string }>(
-    `INSERT INTO employees
-       (organization_id, email, password_hash, first_name, last_name, role,
-        pin_hash, location_ids, hourly_rate, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-     RETURNING id`,
-    [
-      orgId, data.email.trim(), passwordHash,
-      data.firstName.trim(), data.lastName.trim(), data.role,
-      pinHash, toUuidArrayLiteral(data.locationIds),
-      data.hourlyRate ?? null, creatorId,
-    ],
+    `INSERT INTO employees (${cols.join(', ')}) VALUES (${placeholders}) RETURNING id`,
+    vals,
   );
 
   void createAuditLog({ organizationId: orgId, actorId: creatorId, action: 'employee.create', resourceType: 'employee', resourceId: row.id });
@@ -163,7 +182,7 @@ export async function updateEmployee(
   if (data.email !== undefined) add('email', data.email.trim());
   if (data.role !== undefined) add('role', data.role);
   if (data.locationIds !== undefined) add('location_ids', toUuidArrayLiteral(data.locationIds));
-  if ('hourlyRate' in data) add('hourly_rate', data.hourlyRate ?? null);
+  if ('hourlyRate' in data && await hasHourlyRateColumn()) add('hourly_rate', data.hourlyRate ?? null);
 
   if (sets.length === 0) return;
   sets.push('updated_at = now()');

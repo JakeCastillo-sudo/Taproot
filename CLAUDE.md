@@ -1,11 +1,12 @@
 # Taproot POS — Claude Project State
 
-> ⚠️ **MIGRATION NEEDED** (run in Railway console before relying on new columns):
+> ⚠️ **MIGRATION NEEDED** (run in Railway console to enable hourly-rate storage):
 > `npx node-pg-migrate up --migrations-dir migrations`
 > Pending: **014_employee_hourly_rate** (S1-05) — adds `employees.hourly_rate`.
-> Until run, Employee Management create/list will error in production.
-> (Also still pending per prior notes: 011 day_parts, 012 product_archive, 013 org_settings —
-> verify these are applied; the live POS working implies 011/012 likely already ran.)
+> Employee management is RESILIENT to this (employee.service detects the column and degrades
+> to hourly_rate=null until migrated) — no 500s; only hourly-rate persistence is unavailable.
+> Migrations 011/012/013 are CONFIRMED applied on Railway (verified live: product create with
+> default variant + price, tax round-trip, and listProducts all succeed on the deployed API).
 
 ## 🚀 Live Deployment (Current)
 
@@ -51,12 +52,13 @@ Auto-deploy: push to `main` → Railway (API) + Vercel (frontend) redeploy autom
 
 ## 📋 Pending Migrations (Railway Console)
 
-Migration 011 (`day_parts` column) was committed but **must be run manually on Railway**:
+Migrations 001–013 are applied on Railway (011/012/013 confirmed live during S1-08 verification).
+**Pending: 014_employee_hourly_rate** — run when convenient:
 ```bash
 # In Railway service console:
 npx node-pg-migrate up --migrations-dir migrations
 ```
-Migrations 001–010 have already been applied on Railway.
+Code degrades gracefully until 014 runs (employee.service column-existence guard).
 
 ---
 
@@ -121,6 +123,14 @@ All P0 + P1 bugs resolved (commit 2dbace5):
 - BUG-IMP-004: case 'generic_csv': added to confirmImportJob switch; applyGenericCsvImport() implemented
 - BUG-UX-001/002: InventoryPage h-screen overflow-hidden; <main> overflow-y-auto min-h-0
 - BUG-NAV-001: already fixed (Prompt 29), BACKLOG.md updated
+
+## ✅ Sprint 1 COMPLETE — Beta 1.1 (tag v0.2.0-beta-1.1)
+All 8 prompts done (S1-01…S1-08). New `/settings` area: Products, Categories, Modifiers,
+Employees (+ PIN login lock screen), Business (configurable tax — resolves BUG-QA-013),
+Payments, plus the Dashboard editor. New backend: category/modifier/employee services + routes,
+business/tax/receipt/payments settings endpoints, `/auth/pin-login`, `/api/v1/locations`.
+Live-verified S1-08: product create (default variant+price), tax round-trip, all routes 401-gated,
+employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrades gracefully.
 
 ## Sprint 1 Queue — Beta 1.1: Settings & Admin
 See full roadmap at docs/ROADMAP.md
