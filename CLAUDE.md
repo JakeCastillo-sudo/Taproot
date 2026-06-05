@@ -62,6 +62,17 @@
 - NOTE: redeem-at-checkout UI in PaymentSheet DEFERRED (POS payment flow is sacred); redeemPoints +
   manual adjust are available programmatically. Points/tier shown on the customer record (S4-06).
 
+### S4-04 — Gift Cards ✅ COMPLETE
+- Backend already complete (giftcard.service + /gift-cards routes; processPayment gift_card method
+  validates + DEDUCTS balance + logs gift_card_transactions, refund restores). No backend change.
+- `api.ts`: `giftCards.list/lookup/issue/reload/deactivate` + `GiftCardRow`.
+- `GiftCardsSettingsPage.tsx` (new, `/settings/gift-cards`): issue (sell), list w/ balances, lookup
+  by code, copy, deactivate. Nav item.
+- `PaymentSheet`: gift_card method now shows a code-entry sub-flow and passes `giftCardCode` →
+  real balance redemption at the POS.
+- NOTE: selling a gift card as a cart line item deferred (issued via settings/admin instead);
+  digital email delivery is a stub.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

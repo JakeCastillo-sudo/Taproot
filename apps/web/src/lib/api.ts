@@ -373,6 +373,31 @@ export const locations = {
   list: () => apiFetch<{ locations: LocationRow[] }>('/locations').then((r) => r.locations),
 };
 
+// ─── Gift cards ───────────────────────────────────────────────────────────────
+
+export interface GiftCardRow {
+  id: string; code: string; initial_balance: number; current_balance: number;
+  currency: string; issued_to_customer_id: string | null; expires_at: string | null;
+  is_active: boolean; created_at: string;
+}
+
+export const giftCards = {
+  list: (params?: { isActive?: boolean; page?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.isActive !== undefined) q.set('is_active', String(params.isActive));
+    if (params?.page) q.set('page', String(params.page));
+    const qs = q.toString();
+    return apiFetch<{ cards: GiftCardRow[]; total: number }>(`/gift-cards${qs ? `?${qs}` : ''}`);
+  },
+  lookup: (code: string) => apiFetch<GiftCardRow>(`/gift-cards/lookup?code=${encodeURIComponent(code)}`),
+  issue: (body: { initialBalance: number; issuedToCustomerId?: string; expiresAt?: string; notes?: string }) =>
+    apiFetch<GiftCardRow>('/gift-cards', { method: 'POST', body: JSON.stringify(body) }),
+  reload: (id: string, amount: number) =>
+    apiFetch<GiftCardRow>(`/gift-cards/${id}/reload`, { method: 'POST', body: JSON.stringify({ amount }) }),
+  deactivate: (id: string, reason?: string) =>
+    apiFetch<{ success?: boolean }>(`/gift-cards/${id}/deactivate`, { method: 'POST', body: JSON.stringify({ reason }) }),
+};
+
 // ─── Reservations / waitlist ──────────────────────────────────────────────────
 
 export type ReservationType = 'reservation' | 'waitlist';

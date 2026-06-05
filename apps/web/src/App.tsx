@@ -33,6 +33,7 @@ import { PublicMenuPage } from './pages/PublicMenuPage';
 import { QrCodesSettingsPage } from './pages/QrCodesSettingsPage';
 import { OnlineOrderingSettingsPage } from './pages/OnlineOrderingSettingsPage';
 import { LoyaltySettingsPage } from './pages/LoyaltySettingsPage';
+import { GiftCardsSettingsPage } from './pages/GiftCardsSettingsPage';
 import { KitchenDisplayPage } from './pages/KitchenDisplayPage';
 import { ReservationsPage } from './pages/ReservationsPage';
 import { ToastContainer } from './components/ui/Toast';
@@ -342,6 +343,7 @@ export default function App() {
             <Route path="qr-codes" element={<QrCodesSettingsPage />} />
             <Route path="online-ordering" element={<OnlineOrderingSettingsPage />} />
             <Route path="loyalty" element={<LoyaltySettingsPage />} />
+            <Route path="gift-cards" element={<GiftCardsSettingsPage />} />
           </Route>
 
           {/* Dashboard layout editor — full-screen, customize POS register tiles */}
