@@ -323,3 +323,80 @@ export async function getFoodCostIntelligence(orgId: string, locationId: string 
 
   return { foodCostPct, revenue, cogs, targetPct: FOOD_COST_TARGET_PCT, byItem, reorderSuggestions, narrative, aiUsed, periodDays: days };
 }
+
+// ─── S5-05: Daily Intelligence Feed ───────────────────────────────────────────
+
+export interface FeedAlert { type: string; severity: 'info' | 'warning' | 'critical'; message: string }
+export interface DailyFeed {
+  date: string;
+  yesterday: { sales: number; orders: number; avgTicket: number; topItem: string | null };
+  alerts: FeedAlert[];
+  briefing: string;
+  aiUsed: boolean;
+}
+
+export async function getDailyFeed(orgId: string, locationId: string | undefined, timezone = 'UTC'): Promise<DailyFeed> {
+  const params: unknown[] = [orgId, timezone];
+  const lc = locClause(locationId, params);
+  // Yesterday (local day window)
+  const { rows: [y] } = await query<{ sales: string; orders: string; avg: string }>(
+    `SELECT COALESCE(SUM(CASE WHEN o.status NOT IN ('voided','parked') THEN o.total ELSE 0 END),0) AS sales,
+            COUNT(*) FILTER (WHERE o.status NOT IN ('voided','parked')) AS orders,
+            COALESCE(AVG(CASE WHEN o.status NOT IN ('voided','parked') THEN o.total END),0) AS avg
+       FROM orders o
+      WHERE o.organization_id = $1
+        AND o.created_at >= (date_trunc('day', now() AT TIME ZONE $2) - interval '1 day') AT TIME ZONE $2
+        AND o.created_at <  date_trunc('day', now() AT TIME ZONE $2) AT TIME ZONE $2 ${lc}`,
+    params,
+  );
+  const { rows: [top] } = await query<{ name: string }>(
+    `SELECT li.name FROM order_line_items li
+       JOIN orders o ON o.id = li.order_id AND o.status NOT IN ('voided','parked')
+      WHERE o.organization_id = $1 AND li.voided_at IS NULL
+        AND o.created_at >= (date_trunc('day', now() AT TIME ZONE $2) - interval '1 day') AT TIME ZONE $2
+        AND o.created_at <  date_trunc('day', now() AT TIME ZONE $2) AT TIME ZONE $2 ${lc}
+      GROUP BY li.name ORDER BY SUM(li.quantity) DESC LIMIT 1`,
+    params,
+  );
+
+  const yesterday = {
+    sales: Math.round(Number(y?.sales ?? 0)),
+    orders: Number(y?.orders ?? 0),
+    avgTicket: Math.round(Number(y?.avg ?? 0)),
+    topItem: top?.name ?? null,
+  };
+
+  // Alerts from the other intelligence functions
+  const alerts: FeedAlert[] = [];
+  const [foodCost, staffing] = await Promise.all([
+    getFoodCostIntelligence(orgId, locationId, 7),
+    getStaffingPlan(orgId, locationId, timezone),
+  ]);
+  if (foodCost.revenue > 0 && foodCost.foodCostPct > foodCost.targetPct) {
+    alerts.push({ type: 'food_cost', severity: 'warning', message: `Food cost is ${foodCost.foodCostPct}% (target ${foodCost.targetPct}%).` });
+  }
+  if (foodCost.reorderSuggestions.length > 0) {
+    alerts.push({ type: 'reorder', severity: 'info', message: `${foodCost.reorderSuggestions.length} item(s) at or below reorder point.` });
+  }
+  const todayDow = DOW_NAMES[new Date().getDay()];
+  const todayPlan = staffing.days.find((d) => d.dow === todayDow);
+  if (todayPlan?.alert) {
+    alerts.push({ type: 'labor', severity: 'warning', message: `Today's projected labor is ${todayPlan.laborPct}% (target ${staffing.targetPct}%).` });
+  }
+  if (yesterday.orders === 0) {
+    alerts.push({ type: 'no_sales', severity: 'info', message: 'No recorded sales yesterday.' });
+  }
+
+  let briefing = `Yesterday: ${yesterday.orders} orders for $${(yesterday.sales / 100).toFixed(0)}${yesterday.topItem ? `, top seller "${yesterday.topItem}"` : ''}. ${alerts.length} alert(s) need attention today.`;
+  let aiUsed = false;
+  if (aiAvailable()) {
+    const ai = await askClaudeText(
+      'You are a restaurant GM assistant writing a brief morning briefing (3 sentences max). Summarize yesterday and call out the most important action for today. Friendly, concrete, no preamble.',
+      JSON.stringify({ yesterday, alerts }),
+      300,
+    );
+    if (ai) { briefing = ai; aiUsed = true; }
+  }
+
+  return { date: new Date().toISOString().slice(0, 10), yesterday, alerts, briefing, aiUsed };
+}

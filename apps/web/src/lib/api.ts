@@ -1534,7 +1534,25 @@ export const intelligence = {
   },
   menu: () => apiFetch<MenuEngineering>('/intelligence/menu'),
   foodCost: () => apiFetch<FoodCostIntelligence>('/intelligence/food-cost'),
+  feed: (timezone?: string) => {
+    const q = new URLSearchParams();
+    if (timezone) q.set('timezone', timezone);
+    const qs = q.toString();
+    return apiFetch<DailyFeed>(`/intelligence/feed${qs ? `?${qs}` : ''}`);
+  },
+  sendFeed: (timezone?: string) => {
+    const q = new URLSearchParams();
+    if (timezone) q.set('timezone', timezone);
+    return apiFetch<{ sent: boolean; channel: string; briefing: string }>(`/intelligence/feed/send?${q.toString()}`, { method: 'POST' });
+  },
 };
+
+export interface DailyFeed {
+  date: string;
+  yesterday: { sales: number; orders: number; avgTicket: number; topItem: string | null };
+  alerts: Array<{ type: string; severity: 'info' | 'warning' | 'critical'; message: string }>;
+  briefing: string; aiUsed: boolean;
+}
 
 export interface FoodCostIntelligence {
   foodCostPct: number; revenue: number; cogs: number; targetPct: number;

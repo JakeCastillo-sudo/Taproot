@@ -9,7 +9,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Sparkles, TrendingUp, Users, AlertTriangle, UtensilsCrossed, DollarSign } from 'lucide-react';
+import { ArrowLeft, Sparkles, TrendingUp, Users, AlertTriangle, UtensilsCrossed, DollarSign, Newspaper, Mail, Info } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
+import { showToast } from '../components/ui/Toast';
 import type { MenuClass } from '../lib/api';
 import { clsx } from 'clsx';
 import { intelligence } from '../lib/api';
@@ -18,8 +20,9 @@ import { fmtShortCurrency } from '../lib/dateRanges';
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
-type TabId = 'forecast' | 'staffing' | 'menu' | 'foodcost';
+type TabId = 'feed' | 'forecast' | 'staffing' | 'menu' | 'foodcost';
 const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ size?: number; className?: string }> }> = [
+  { id: 'feed', label: 'Daily Feed', icon: Newspaper },
   { id: 'forecast', label: 'Forecast', icon: TrendingUp },
   { id: 'staffing', label: 'Staffing', icon: Users },
   { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
@@ -38,7 +41,7 @@ function AiBadge({ used }: { used: boolean }) {
 
 export function InsightsPage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<TabId>('forecast');
+  const [tab, setTab] = useState<TabId>('feed');
 
   return (
     <div className="h-screen bg-surface-2 flex flex-col overflow-hidden">
@@ -66,6 +69,7 @@ export function InsightsPage() {
 
       <main className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
+          {tab === 'feed' && <FeedTab />}
           {tab === 'forecast' && <ForecastTab />}
           {tab === 'staffing' && <StaffingTab />}
           {tab === 'menu' && <MenuTab />}
@@ -127,6 +131,60 @@ const MENU_ACTION_HINT: Record<MenuClass, string> = {
   star: 'Feature & protect quality.', plowhorse: 'Raise price or cut cost.',
   puzzle: 'Promote / reposition.', dog: 'Rework or remove.',
 };
+
+const SEV_META: Record<string, { cls: string; Icon: React.FC<{ size?: number; className?: string }> }> = {
+  info: { cls: 'bg-blue-50 text-blue-700 border-blue-200', Icon: Info },
+  warning: { cls: 'bg-amber-50 text-amber-700 border-amber-200', Icon: AlertTriangle },
+  critical: { cls: 'bg-red-50 text-red-700 border-red-200', Icon: AlertTriangle },
+};
+
+function FeedTab() {
+  const { data, isLoading } = useQuery({ queryKey: ['intel', 'feed'], queryFn: () => intelligence.feed(TZ), staleTime: 60_000, refetchInterval: 5 * 60_000 });
+  const send = useMutation({
+    mutationFn: () => intelligence.sendFeed(TZ),
+    onSuccess: (r) => showToast.success(r.sent ? 'Briefing sent' : 'Delivery not configured — briefing logged'),
+    onError: (e: unknown) => showToast.error(e instanceof Error ? e.message : 'Failed'),
+  });
+  if (isLoading) return <div className="h-48 bg-gray-100 rounded-lg animate-pulse" />;
+  if (!data) return <p className="text-sm text-gray-400">No feed available.</p>;
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-gray-800">Morning briefing · {data.date}</h3>
+          <div className="flex items-center gap-2">
+            <AiBadge used={data.aiUsed} />
+            <button onClick={() => send.mutate()} disabled={send.isPending} className="flex items-center gap-1 text-xs text-primary hover:underline"><Mail size={12} /> Send</button>
+          </div>
+        </div>
+        <p className="text-sm text-gray-700">{data.briefing}</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-400">Yesterday sales</p><p className="text-xl font-bold text-gray-900 mt-1">{fmt(data.yesterday.sales)}</p></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-400">Orders</p><p className="text-xl font-bold text-gray-900 mt-1">{data.yesterday.orders}</p></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-400">Avg ticket</p><p className="text-xl font-bold text-gray-900 mt-1">{fmt(data.yesterday.avgTicket)}</p></div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="text-sm font-semibold text-gray-800 mb-3">Alerts</h3>
+        {data.alerts.length === 0 ? <p className="text-sm text-gray-400">All clear — no alerts. 🎉</p> : (
+          <div className="space-y-2">
+            {data.alerts.map((a, i) => {
+              const m = SEV_META[a.severity] ?? SEV_META.info;
+              return (
+                <div key={i} className={clsx('flex items-center gap-2 px-3 py-2 rounded-md border text-sm', m.cls)}>
+                  <m.Icon size={15} /> {a.message}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function FoodCostTab() {
   const { data, isLoading } = useQuery({ queryKey: ['intel', 'foodcost'], queryFn: () => intelligence.foodCost(), staleTime: 60_000 });

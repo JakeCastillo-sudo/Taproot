@@ -40,4 +40,24 @@ export default async function intelligenceRoutes(fastify: FastifyInstance): Prom
     const result = await IntelSvc.getFoodCostIntelligence(user.orgId, q.locationId, q.days ? parseInt(q.days, 10) : 30);
     return reply.send(result);
   });
+
+  fastify.get('/api/v1/intelligence/feed', guard, async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const q = req.query as { locationId?: string; timezone?: string };
+    const result = await IntelSvc.getDailyFeed(user.orgId, q.locationId, q.timezone ?? 'UTC');
+    return reply.send(result);
+  });
+
+  // Send the daily briefing (SMS/email stub — logs when delivery isn't configured).
+  fastify.post('/api/v1/intelligence/feed/send', guard, async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const q = req.query as { timezone?: string };
+    const feed = await IntelSvc.getDailyFeed(user.orgId, undefined, q.timezone ?? 'UTC');
+    const channel = process.env.TWILIO_ACCOUNT_SID || process.env.SMTP_HOST ? 'configured' : 'log';
+    if (channel === 'log') {
+      // eslint-disable-next-line no-console
+      console.info(`[intelligence.feed] (stub) Morning briefing for org ${user.orgId}: ${feed.briefing}`);
+    }
+    return reply.send({ sent: channel !== 'log', channel, briefing: feed.briefing });
+  });
 }

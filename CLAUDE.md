@@ -134,6 +134,13 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
 - `api.ts`: `intelligence.foodCost` + `FoodCostIntelligence`. InsightsPage Food Cost tab
   (headline %, high-cost items, reorder draft).
 
+### S5-05 — Daily Intelligence Feed ✅ COMPLETE
+- `intelligence.service.getDailyFeed`: yesterday summary (sales/orders/avg/top item, tz day window) +
+  aggregated alerts (food cost, reorder, labor, no-sales) + Claude morning briefing.
+  `GET /intelligence/feed`; `POST /intelligence/feed/send` (SMS/email stub → logs).
+- `api.ts`: `intelligence.feed/sendFeed` + `DailyFeed`. InsightsPage Daily Feed tab (default; briefing
+  + yesterday cards + alerts, polls 5m, Send button).
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |
