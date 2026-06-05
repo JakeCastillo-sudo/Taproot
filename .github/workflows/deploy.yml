@@ -169,7 +169,7 @@ jobs:
           image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY || 'taproot-api' }}:${{ needs.build-push.outputs.image-tag }}
 
       - name: Deploy to ECS (staging)
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service:          ${{ secrets.ECS_STAGING_SERVICE }}
@@ -289,7 +289,7 @@ jobs:
           image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY || 'taproot-api' }}:${{ needs.build-push.outputs.image-tag }}
 
       - name: Deploy to ECS (production)
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service:          ${{ secrets.ECS_PROD_SERVICE }}
