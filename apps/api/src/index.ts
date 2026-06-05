@@ -33,6 +33,7 @@ import employeeRoutes from './routes/employee.routes';
 import cashDrawerRoutes from './routes/cashDrawer.routes';
 import tableRoutes from './routes/table.routes';
 import publicRoutes from './routes/public.routes';
+import kitchenRoutes from './routes/kitchen.routes';
 import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
 import { checkSubscription } from './middleware/subscription';
@@ -233,6 +234,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(employeeRoutes);
   await fastify.register(cashDrawerRoutes);
   await fastify.register(tableRoutes);
+  await fastify.register(kitchenRoutes);
 
   // ─── Dev-only utilities (never registered in production) ──────────────────────
   //

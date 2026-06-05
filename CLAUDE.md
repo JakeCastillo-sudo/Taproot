@@ -168,6 +168,16 @@ employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrade
 - `OnlineOrdersBell.tsx` (new) in POS top bar: polls history 15s, badges open online orders, toasts on new.
 - NOTE deferred: Stripe "Pay Now" (pay-at-counter only), modifiers on public menu, PDF-all (print used).
 
+### S3-04 — Kitchen Display System ✅ COMPLETE
+- `kitchen.service.ts` + `kitchen.routes.ts` (new, registered): GET `/kitchen/tickets`,
+  PATCH `/kitchen/items/:itemId/ready`, PATCH `/kitchen/orders/:orderId/bump`. Kitchen state stored
+  in `orders.metadata.kitchen` ({ readyItems[], bumpedAt }) — NO migration. Bumped orders drop off.
+- `api.ts`: `kitchen.tickets/itemReady/bump` + types.
+- `KitchenDisplayPage.tsx` (new, `/kitchen`): dark full-screen, polls 5s, ticket cards w/ elapsed
+  color (green<5/amber5-10/red>10 flashing), tap item → ready (strikethrough), BUMP (green when all
+  ready), large-text mode. Kitchen nav item in POS sidebar.
+- NOTE: stations deferred (no station config — all items station 'all').
+
 ## ✅ Sprint 2 COMPLETE — Beta 1.2 (tag v0.3.0-beta-1.2)
 Order History, Void/Refund, Tips, Cash Drawer, End-of-Day, Split Check. **Found + fixed
 BUG-ORD-001** (P0): the POS order-create body shape didn't match the backend, so live cash/card

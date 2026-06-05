@@ -222,6 +222,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'orders',    icon: <FileText size={18} />,     label: 'Orders',    path: '/orders' },
   { id: 'inventory', icon: <Package size={18} />,      label: 'Inventory', path: '/inventory' },
   { id: 'reports',   icon: <BarChart3 size={18} />,    label: 'Reports',   path: '/reports' },
+  { id: 'kitchen',   icon: <Utensils size={18} />,     label: 'Kitchen',   path: '/kitchen' },
   { id: 'import',    icon: <Upload size={18} />,       label: 'Import',    path: '/import' },
   { id: 'migrate',   icon: <ArrowRightLeft size={18}/>,label: 'Migrate',   path: '/migrate' },
   { id: 'settings',  icon: <Settings size={18} />,     label: 'Settings',  path: '/settings' },

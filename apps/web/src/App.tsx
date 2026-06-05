@@ -31,6 +31,7 @@ import { EndOfDayPage } from './pages/EndOfDayPage';
 import { FloorPlanEditorPage } from './pages/FloorPlanEditorPage';
 import { PublicMenuPage } from './pages/PublicMenuPage';
 import { QrCodesSettingsPage } from './pages/QrCodesSettingsPage';
+import { KitchenDisplayPage } from './pages/KitchenDisplayPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -251,6 +252,15 @@ export default function App() {
             element={
               <RequireAuth>
                 <ReportsPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/kitchen"
+            element={
+              <RequireAuth>
+                <KitchenDisplayPage />
               </RequireAuth>
             }
           />

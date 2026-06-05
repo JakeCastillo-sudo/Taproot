@@ -411,6 +411,27 @@ export const tables = {
     apiFetch<{ success: boolean }>(`/orders/${orderId}/table`, { method: 'PATCH', body: JSON.stringify({ tableId }) }),
 };
 
+export interface KitchenItem {
+  id: string; name: string; quantity: number;
+  modifiers: Array<{ name: string }>; specialInstructions: string | null;
+  ready: boolean; station: string;
+}
+export interface KitchenTicket {
+  id: string; orderNumber: string; tableId: string | null; tableName: string | null;
+  orderType: string; createdAt: string; minutesOpen: number; items: KitchenItem[];
+}
+
+export const kitchen = {
+  tickets: (locationId?: string) => {
+    const q = locationId ? `?locationId=${locationId}` : '';
+    return apiFetch<{ orders: KitchenTicket[] }>(`/kitchen/tickets${q}`).then((r) => r.orders);
+  },
+  itemReady: (itemId: string) =>
+    apiFetch<{ success: boolean }>(`/kitchen/items/${itemId}/ready`, { method: 'PATCH' }),
+  bump: (orderId: string) =>
+    apiFetch<{ success: boolean }>(`/kitchen/orders/${orderId}/bump`, { method: 'PATCH' }),
+};
+
 export interface TableStatus extends TableRow {
   currentOrder: {
     id: string; orderNumber: string; status: string;
