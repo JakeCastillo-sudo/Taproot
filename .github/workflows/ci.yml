@@ -205,11 +205,14 @@ jobs:
           # Allow two documented placeholders found in committed files / history
           # (not real secrets): the STRIPE_SECRET_KEY=..CHANGE_ME in
           # .env.production.example, and the ANTHROPIC_API_KEY @example in
-          # config.ts. The allowed patterns deliberately omit the leading
-          # sk/sk_ so these very lines do not themselves trip the scanner,
-          # while real keys still match the prohibited rules above.
+          # config.ts (plus earlier revisions of this workflow file that listed
+          # the same placeholders, which scan-history still sees). The allowed
+          # patterns deliberately omit the leading sk/sk_ so these very lines
+          # never trip; the api03 class matches the dot/backslash/angle-bracket
+          # placeholder forms while real keys (which continue with
+          # [A-Za-z0-9_-]) still match the prohibited rules above.
           git secrets --add --allowed 'live_CHANGE_ME'
-          git secrets --add --allowed 'ant-api03-\.\.\.'
+          git secrets --add --allowed 'ant-api03-[.\\<]'
 
       - name: Scan repository for secrets
         run: git secrets --scan-history
