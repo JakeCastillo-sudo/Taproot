@@ -64,6 +64,7 @@ export function SplitCheckModal({ onClose }: { onClose: () => void }) {
         modifiers: (c.modifiers ?? []).map((m) => ({ modifierId: m.modifierId, name: m.name, priceDelta: m.priceDelta })),
       })),
       notes: orderNotes || undefined,
+      discountCodes: usePOSStore.getState().appliedDiscount ? [usePOSStore.getState().appliedDiscount!.code] : undefined,
     });
     const num = order.order_number?.toString() ?? order.id.slice(-6).toUpperCase();
     setOrderId(order.id); setOrderNum(num);

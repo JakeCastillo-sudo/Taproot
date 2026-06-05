@@ -32,7 +32,7 @@ import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
 import { usePOSStore, type CartItem } from '../../store/pos.store';
 import { useUIStore } from '../../store/ui.store';
-import { products as productsApi, categories as categoriesApi, settings as settingsApi, type ProductWithModifiers } from '../../lib/api';
+import { products as productsApi, categories as categoriesApi, settings as settingsApi, discounts as discountsApi, type ProductWithModifiers } from '../../lib/api';
 import { setPosTaxRate } from '../../store/pos.store';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '../../lib/queryClient';
@@ -391,8 +391,21 @@ export function POSLayout({ user }: POSLayoutProps) {
     setPaymentSheetOpen, isPaymentSheetOpen,
     setModifierSheetOpen,
     subtotal, taxTotal, total, discountTotal, itemCount,
-    clearCart,
+    clearCart, appliedDiscount, setAppliedDiscount,
   } = usePOSStore();
+
+  const handleAddDiscount = useCallback(async () => {
+    if (appliedDiscount) { setAppliedDiscount(null); showToast.info('Discount removed'); return; }
+    const code = window.prompt('Enter discount code:');
+    if (!code?.trim()) return;
+    try {
+      const v = await discountsApi.validate(code.trim(), subtotal());
+      setAppliedDiscount({ code: v.code, amount: v.amount });
+      showToast.success(`${v.name} applied — −${fmt(v.amount)}`);
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Invalid code');
+    }
+  }, [appliedDiscount, setAppliedDiscount, subtotal]);
 
   const {
     sidebarCollapsed, toggleSidebar,
@@ -915,8 +928,8 @@ export function POSLayout({ user }: POSLayoutProps) {
         {/* Totals + actions */}
         {cart.length > 0 && (
           <div className="border-t border-gray-100 px-4 py-3 shrink-0 space-y-2">
-            <button className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-dark transition-colors">
-              <Tag size={11} /> Add discount
+            <button onClick={() => void handleAddDiscount()} className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-dark transition-colors">
+              <Tag size={11} /> {appliedDiscount ? `Remove discount (${appliedDiscount.code})` : 'Add discount'}
             </button>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between text-gray-500">

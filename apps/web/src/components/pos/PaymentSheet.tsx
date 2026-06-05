@@ -319,6 +319,7 @@ export function PaymentSheet({ onClose }: Props) {
           modifiers: (c.modifiers ?? []).map((m) => ({ modifierId: m.modifierId, name: m.name, priceDelta: m.priceDelta })),
         })),
         notes: orderNotes || undefined,
+        discountCodes: usePOSStore.getState().appliedDiscount ? [usePOSStore.getState().appliedDiscount!.code] : undefined,
       });
 
       const orderNum = order.order_number?.toString() ?? order.id.slice(-6).toUpperCase();

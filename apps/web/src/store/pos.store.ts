@@ -69,6 +69,7 @@ export interface POSStore {
   tableId:             string | null;
   orderNotes:          string;
   appliedDiscountIds:  string[];
+  appliedDiscount:     { code: string; amount: number } | null;
 
   // ── UI state ──────────────────────────────────────────────────────────────
   activeView:          ActiveView;
@@ -88,6 +89,7 @@ export interface POSStore {
   clearCart:      () => void;
   undoLastRemove: () => void;
 
+  setAppliedDiscount: (d: { code: string; amount: number } | null) => void;
   setCustomer:     (id: string | null, name: string | null) => void;
   setTable:        (id: string | null) => void;
   setOrderNotes:   (notes: string) => void;
@@ -148,6 +150,7 @@ export const usePOSStore = create<POSStore>()(
       tableId:             null,
       orderNotes:          '',
       appliedDiscountIds:  [],
+      appliedDiscount:     null,
       activeView:          'checkout',
       selectedCategory:    null,
       searchQuery:         '',
@@ -222,6 +225,7 @@ export const usePOSStore = create<POSStore>()(
           s.tableId            = null;
           s.orderNotes         = '';
           s.appliedDiscountIds = [];
+          s.appliedDiscount    = null;
           s.undoStack          = [];
         }),
 
@@ -233,6 +237,9 @@ export const usePOSStore = create<POSStore>()(
             s.undoStack = [];
           }
         }),
+
+      setAppliedDiscount: (d) =>
+        set((s) => { s.appliedDiscount = d; }),
 
       setCustomer: (id, name) =>
         set((s) => { s.customerId = id; s.customerName = name; }),
@@ -291,8 +298,10 @@ export const usePOSStore = create<POSStore>()(
       subtotal: () =>
         get().cart.reduce((sum, item) => sum + item.lineTotal, 0),
 
-      discountTotal: () =>
-        0, // placeholder — populated when discount selector is integrated
+      discountTotal: () => {
+        const d = get().appliedDiscount;
+        return d ? Math.min(d.amount, get().subtotal()) : 0;
+      },
 
       taxTotal: () => {
         const sub = get().subtotal();
@@ -318,6 +327,7 @@ export const usePOSStore = create<POSStore>()(
         tableId:            state.tableId,
         orderNotes:         state.orderNotes,
         appliedDiscountIds: state.appliedDiscountIds,
+        appliedDiscount:    state.appliedDiscount,
       }),
     },
   ),

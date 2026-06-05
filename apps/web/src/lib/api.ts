@@ -227,6 +227,7 @@ export interface OrderCreateBody {
     modifiers?: Array<{ modifierId: string; name?: string; priceDelta: number }>;
   }>;
   discountIds?: string[];
+  discountCodes?: string[];
   notes?: string;
 }
 
@@ -927,6 +928,7 @@ export const orders = {
         tableId:    body.tableId ?? null,
         notes:      body.notes,
         discountIds: body.discountIds,
+        discountCodes: body.discountCodes,
         lineItems:  body.items.map((i) => ({
           productId:         i.productId,
           variantId:         i.variantId ?? null,
@@ -1087,9 +1089,37 @@ export const inventory = {
 
 // ─── Discounts ────────────────────────────────────────────────────────────────
 
+export type DiscountType = 'percentage' | 'fixed_amount' | 'bogo' | 'free_item';
+
+export interface DiscountRow {
+  id: string; name: string; code: string | null; discount_type: DiscountType;
+  value: number; minimum_order_amount: number | null; maximum_discount_amount: number | null;
+  usage_limit: number | null; usage_count: number; stackable: boolean;
+  active_from: string; active_until: string | null; is_active: boolean;
+}
+
+export interface DiscountInput {
+  name: string; code?: string | null; discountType: DiscountType; value: number;
+  minimumOrderAmount?: number | null; maximumDiscountAmount?: number | null;
+  usageLimit?: number | null; stackable?: boolean; activeFrom?: string | null; activeUntil?: string | null;
+}
+
+export interface ValidatedDiscount {
+  id: string; code: string; name: string; discountType: DiscountType; value: number; amount: number;
+}
+
 export const discounts = {
-  /** Placeholder — discount routes will be added in a future prompt */
+  /** Placeholder kept for existing callers — returns no active promos list. */
   listActive: (): Promise<ActiveDiscount[]> => Promise.resolve([]),
+
+  list: () => apiFetch<{ discounts: DiscountRow[] }>('/discounts').then((r) => r.discounts),
+  report: () => apiFetch<{ report: Array<{ id: string; name: string; code: string | null; usage_count: number; total_saved: number }> }>('/discounts/report').then((r) => r.report),
+  create: (body: DiscountInput) => apiFetch<DiscountRow>('/discounts', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: string, body: Partial<DiscountInput> & { isActive?: boolean }) =>
+    apiFetch<DiscountRow>(`/discounts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id: string) => apiFetch<void>(`/discounts/${id}`, { method: 'DELETE' }),
+  validate: (code: string, subtotal: number) =>
+    apiFetch<ValidatedDiscount>('/discounts/validate', { method: 'POST', body: JSON.stringify({ code, subtotal }) }),
 };
 
 // ─── Inventory (extended) ─────────────────────────────────────────────────────

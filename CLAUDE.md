@@ -73,6 +73,21 @@
 - NOTE: selling a gift card as a cart line item deferred (issued via settings/admin instead);
   digital email delivery is a stub.
 
+### S4-05 — Discount Code Engine ✅ COMPLETE
+- `discount.service.ts` + `discount.routes.ts` (new, registered): list/create/update/delete +
+  `validate` (active window/usage/min-order, computes savings, matches order.service value
+  semantics: percentage=percent#, fixed=cents) + `report` (usage + total_saved from applied_discounts).
+  Uses the existing `discounts` table (001).
+- `api.ts`: `discounts.list/report/create/update/remove/validate` + types; `discountCodes` on
+  OrderCreateBody + transform.
+- `pos.store`: `appliedDiscount` {code, amount} + `setAppliedDiscount`; `discountTotal` now real
+  (was placeholder 0); persisted + cleared on clearCart. tax computed on (subtotal − discount).
+- `POSLayout`: "Add discount" prompts a code → validates → applies (toggles to "Remove"); cart
+  preview + charged total both correct. PaymentSheet + SplitCheckModal send `discountCodes`.
+- `DiscountsSettingsPage.tsx` (new, `/settings/discounts`): CRUD (%, fixed, BOGO, free item),
+  min-order/usage-limit/active-until/stackable, redemption report column. Discounts nav item.
+- NOTE: bogo/free_item preview shows base value (computed precisely server-side at order creation).
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |
