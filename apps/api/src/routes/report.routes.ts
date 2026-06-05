@@ -78,6 +78,24 @@ export default async function reportRoutes(fastify: FastifyInstance): Promise<vo
     },
   );
 
+  // ── GET /api/v1/reports/tips ────────────────────────────────────────────────
+  fastify.get(
+    '/api/v1/reports/tips',
+    { preHandler: [requirePermissions(Permission.REPORTS_VIEW)] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user } = req as AuthedRequest;
+      const q = req.query as Record<string, string>;
+      try {
+        const params = parseDateRange(q);
+        const report = await ReportSvc.getTipsReport(user.orgId, params);
+        return reply.send(report);
+      } catch (err) {
+        if (err instanceof AppError) return reply.code(err.statusCode).send({ code: err.code, message: err.message });
+        throw err;
+      }
+    },
+  );
+
   // ── GET /api/v1/reports/top-products ────────────────────────────────────────
   fastify.get(
     '/api/v1/reports/top-products',

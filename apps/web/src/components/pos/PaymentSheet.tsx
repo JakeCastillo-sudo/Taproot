@@ -323,10 +323,12 @@ export function PaymentSheet({ onClose }: Props) {
       setOrderId(order.id);
       setOrderNum(orderNum);
 
-      // 2. Process payment
+      // 2. Process payment.
+      // `amount` is the order total WITHOUT the tip; the tip is sent separately as
+      // `tipAmount` so the backend tracks it on its own (and never as "change due").
       await paymentsApi.process(locationId, order.id, {
         paymentMethod: selectedMethod === 'card' ? 'card' : selectedMethod,
-        amount:        ttl,
+        amount:        total(),
         tipAmount:     tip > 0 ? tip : undefined,
         cashTendered:  selectedMethod === 'cash' && cashTender > 0 ? cashTender : undefined,
       });

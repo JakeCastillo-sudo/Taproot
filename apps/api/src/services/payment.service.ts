@@ -234,31 +234,41 @@ export async function processPayment(
         }
       }
 
-      // Recalculate amount_paid / change_due and maybe mark order completed
+      // Recalculate amount_paid / tip_total / change_due and maybe mark order completed.
+      // Balance + change are based on `amount` only; tips are tracked separately so a
+      // card tip never shows up as "change due".
       const { rows: [totals] } = await client.query<{
-        amount_paid: number; total: number;
+        amount_paid: number; amount_only: number; tip_total: number; total: number;
       }>(
         `SELECT
            (SELECT COALESCE(SUM(amount + tip_amount), 0)
             FROM payments
             WHERE order_id = $1 AND status IN ('completed','offline_queued')) AS amount_paid,
+           (SELECT COALESCE(SUM(amount), 0)
+            FROM payments
+            WHERE order_id = $1 AND status IN ('completed','offline_queued')) AS amount_only,
+           (SELECT COALESCE(SUM(tip_amount), 0)
+            FROM payments
+            WHERE order_id = $1 AND status IN ('completed','offline_queued')) AS tip_total,
            total
          FROM orders WHERE id = $1`,
         [orderId],
       );
 
       const newAmountPaid = Number(totals.amount_paid);
-      const changeDue = Math.max(0, newAmountPaid - Number(totals.total));
+      const amountOnly = Number(totals.amount_only);
+      const tipTotal = Number(totals.tip_total);
+      const changeDue = Math.max(0, amountOnly - Number(totals.total));
 
-      const fullyPaid = newAmountPaid >= Number(totals.total);
+      const fullyPaid = amountOnly >= Number(totals.total);
       await client.query(
         `UPDATE orders
-         SET amount_paid = $1, change_due = $2,
-             status     = CASE WHEN $3 THEN 'completed' ELSE status END,
-             fulfilled_at = CASE WHEN $3 THEN now() ELSE fulfilled_at END,
+         SET amount_paid = $1, tip_total = $2, change_due = $3,
+             status     = CASE WHEN $4 THEN 'completed' ELSE status END,
+             fulfilled_at = CASE WHEN $4 THEN now() ELSE fulfilled_at END,
              updated_at = now()
-         WHERE id = $4`,
-        [newAmountPaid, changeDue, fullyPaid, orderId],
+         WHERE id = $5`,
+        [newAmountPaid, tipTotal, changeDue, fullyPaid, orderId],
       );
 
       return p;

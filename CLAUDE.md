@@ -158,6 +158,18 @@ employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrade
 - NOTE: manager-PIN override for cashiers DEFERRED — access gated by ORDER_VOID/ORDER_REFUND
   permissions instead (cashiers without them get 403).
 
+### S2-03 — Tip Management ✅ COMPLETE
+- `payment.service.ts`: `processPayment` now sets `orders.tip_total` and computes change_due /
+  fullyPaid from `amount` ONLY (tips no longer counted as change). Fixed double-count bug.
+- `PaymentSheet.tsx`: tip UI already existed; now sends `amount: total()` (excl tip) +
+  `tipAmount` separately (was sending tip-inclusive amount → double count).
+- `transaction.service.ts`: `adjustTip` (manager post-payment tip adjust on latest payment +
+  recompute order tip_total/amount_paid). Route `POST /orders/:id/adjust-tip` (ORDER_REFUND).
+- `reporting.service.ts`: `getTipsReport` (by day / employee / payment method + avg tip %).
+  Route `GET /reports/tips`. `reports.getTips` + `TipsReportData` in api.ts.
+- `TipsTab.tsx` (new) added to ReportsPage (6th tab "Tips": summary cards, by-day chart,
+  by-employee + by-method tables).
+
 ## Sprint 1 Queue — Beta 1.1: Settings & Admin
 See full roadmap at docs/ROADMAP.md
 

@@ -62,6 +62,19 @@ export default async function orderRoutes(fastify: FastifyInstance): Promise<voi
     },
   );
 
+  // POST /api/v1/orders/:id/adjust-tip — manager post-payment tip adjustment
+  fastify.post(
+    '/api/v1/orders/:id/adjust-tip',
+    { preHandler: [requirePermissions(Permission.ORDER_REFUND)] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user } = req as AuthedRequest;
+      const { id } = req.params as { id: string };
+      const { tipAmount } = req.body as { tipAmount: number };
+      const result = await TransactionSvc.adjustTip(user.orgId, user.sub, id, Math.round(tipAmount));
+      return reply.send(result);
+    },
+  );
+
   // GET /api/v1/orders/:id/line-items — for the by-item refund picker
   fastify.get(
     '/api/v1/orders/:id/line-items',

@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart3, ArrowLeft, LayoutDashboard, ShoppingBag,
-  Package, Users, UserCheck, Calendar, ChevronDown,
+  Package, Users, UserCheck, Calendar, ChevronDown, Coins,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { USER_KEY } from '../lib/api';
@@ -25,11 +25,12 @@ import { SalesTab }       from '../components/reports/SalesTab';
 import { ProductsTab }    from '../components/reports/ProductsTab';
 import { CustomersTab }   from '../components/reports/CustomersTab';
 import { StaffTab }       from '../components/reports/StaffTab';
+import { TipsTab }        from '../components/reports/TipsTab';
 import { ToastContainer } from '../components/ui/Toast';
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
-type TabId = 'dashboard' | 'sales' | 'products' | 'customers' | 'staff';
+type TabId = 'dashboard' | 'sales' | 'products' | 'customers' | 'staff' | 'tips';
 
 const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ size?: number; className?: string }> }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -37,6 +38,7 @@ const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ size?: number; cl
   { id: 'products',  label: 'Products',  icon: Package         },
   { id: 'customers', label: 'Customers', icon: Users           },
   { id: 'staff',     label: 'Staff',     icon: UserCheck       },
+  { id: 'tips',      label: 'Tips',      icon: Coins           },
 ];
 
 // ─── Location helper ──────────────────────────────────────────────────────────
@@ -200,6 +202,7 @@ export function ReportsPage() {
         {activeTab === 'products'   && <ProductsTab   params={apiParams} />}
         {activeTab === 'customers'  && <CustomersTab  params={apiParams} />}
         {activeTab === 'staff'      && <StaffTab      params={apiParams} />}
+        {activeTab === 'tips'       && <TipsTab       params={apiParams} />}
       </main>
 
       <ToastContainer />

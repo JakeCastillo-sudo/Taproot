@@ -244,6 +244,78 @@ export async function getEmployeePerformance(
   return rows;
 }
 
+// ─── getTipsReport ────────────────────────────────────────────────────────────
+
+export interface TipsReport {
+  totalTips:       number;
+  totalSales:      number;
+  avgTipPct:       number;
+  byEmployee:      Array<{ employee_id: string; employee_name: string; tips: number; order_count: number }>;
+  byDay:           Array<{ day: string; tips: number }>;
+  byPaymentMethod: Array<{ method: string; tips: number }>;
+}
+
+export async function getTipsReport(orgId: string, params: DateRangeParams): Promise<TipsReport> {
+  const tz = params.timezone ?? 'UTC';
+  const bindings: unknown[] = [orgId, params.from, params.to];
+  const locClause = params.locationId
+    ? (bindings.push(params.locationId), `AND o.location_id = $${bindings.length}`)
+    : '';
+
+  const tipWhere = `
+    FROM payments p
+    JOIN orders o ON o.id = p.order_id
+    WHERE o.organization_id = $1 AND o.created_at >= $2 AND o.created_at < $3
+      AND p.status IN ('completed','partially_refunded') AND p.tip_amount > 0 ${locClause}`;
+
+  const [empRows, byDay, byMethod, totals] = await Promise.all([
+    query<{ employee_id: string; employee_name: string; tips: number; order_count: number }>(
+      `SELECT e.id AS employee_id, e.first_name || ' ' || e.last_name AS employee_name,
+              COALESCE(SUM(p.tip_amount),0) AS tips, COUNT(DISTINCT o.id) AS order_count
+       FROM payments p
+       JOIN orders o ON o.id = p.order_id
+       JOIN employees e ON e.id = o.employee_id
+       WHERE o.organization_id = $1 AND o.created_at >= $2 AND o.created_at < $3
+         AND p.status IN ('completed','partially_refunded') AND p.tip_amount > 0 ${locClause}
+       GROUP BY e.id, e.first_name, e.last_name
+       ORDER BY tips DESC`,
+      bindings,
+    ),
+    query<{ day: string; tips: number }>(
+      `SELECT to_char(o.created_at AT TIME ZONE $${bindings.length + 1}, 'YYYY-MM-DD') AS day,
+              COALESCE(SUM(p.tip_amount),0) AS tips
+       ${tipWhere}
+       GROUP BY day ORDER BY day ASC`,
+      [...bindings, tz],
+    ),
+    query<{ method: string; tips: number }>(
+      `SELECT p.payment_method AS method, COALESCE(SUM(p.tip_amount),0) AS tips
+       ${tipWhere}
+       GROUP BY p.payment_method ORDER BY tips DESC`,
+      bindings,
+    ),
+    query<{ total_sales: number }>(
+      `SELECT COALESCE(SUM(o.subtotal),0) AS total_sales FROM orders o
+        WHERE o.organization_id = $1 AND o.created_at >= $2 AND o.created_at < $3
+          AND o.status NOT IN ('voided','parked') ${locClause}`,
+      bindings,
+    ),
+  ]);
+
+  const byEmployee = empRows.rows.map((r) => ({ ...r, tips: Number(r.tips), order_count: Number(r.order_count) }));
+  const totalTips = byEmployee.reduce((s, r) => s + r.tips, 0);
+  const totalSales = Number(totals.rows[0]?.total_sales ?? 0);
+
+  return {
+    totalTips,
+    totalSales,
+    avgTipPct: totalSales > 0 ? (totalTips / totalSales) * 100 : 0,
+    byEmployee,
+    byDay: byDay.rows.map((r) => ({ day: r.day, tips: Number(r.tips) })),
+    byPaymentMethod: byMethod.rows.map((r) => ({ method: r.method, tips: Number(r.tips) })),
+  };
+}
+
 // ─── getHourlyHeatmap ─────────────────────────────────────────────────────────
 
 /**

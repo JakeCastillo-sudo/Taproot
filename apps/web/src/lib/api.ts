@@ -1216,7 +1216,19 @@ export const reports = {
     apiFetch<{ rows: HourlyHeatmapRow[] }>(
       `/reports/hourly-heatmap?${buildReportQS(params)}`,
     ).then((r) => r.rows),
+
+  getTips: (params: ReportDateParams) =>
+    apiFetch<TipsReportData>(`/reports/tips?${buildReportQS(params)}`),
 };
+
+export interface TipsReportData {
+  totalTips:       number;
+  totalSales:      number;
+  avgTipPct:       number;
+  byEmployee:      Array<{ employee_id: string; employee_name: string; tips: number; order_count: number }>;
+  byDay:           Array<{ day: string; tips: number }>;
+  byPaymentMethod: Array<{ method: string; tips: number }>;
+}
 
 // ─── AI / NL Query ────────────────────────────────────────────────────────────
 

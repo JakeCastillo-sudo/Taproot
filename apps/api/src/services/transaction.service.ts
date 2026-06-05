@@ -55,6 +55,46 @@ async function distributeRefund(
   return refunded;
 }
 
+// ─── adjustTip ──────────────────────────────────────────────────────────────
+// Manager-only post-payment tip adjustment. Sets the order's total tip onto its
+// most recent completed payment and recomputes order tip_total + amount_paid.
+
+export async function adjustTip(
+  orgId: string, employeeId: string, orderId: string, tipAmount: number,
+): Promise<{ success: boolean; tipTotal: number }> {
+  const order = await loadOrder(orgId, orderId);
+  if (tipAmount < 0) throw new ValidationError('Tip cannot be negative');
+
+  const { rows: [payment] } = await query<{ id: string }>(
+    `SELECT id FROM payments
+      WHERE order_id = $1 AND status IN ('completed','partially_refunded')
+      ORDER BY created_at DESC LIMIT 1`,
+    [orderId],
+  );
+  if (!payment) throw new ValidationError('No completed payment to attach a tip to');
+
+  await query(`UPDATE payments SET tip_amount = $1, updated_at = now() WHERE id = $2`, [tipAmount, payment.id]);
+
+  const { rows: [agg] } = await query<{ tip_total: string; amount_paid: string }>(
+    `SELECT COALESCE(SUM(tip_amount),0) AS tip_total,
+            COALESCE(SUM(amount + tip_amount),0) AS amount_paid
+       FROM payments WHERE order_id = $1 AND status IN ('completed','offline_queued','partially_refunded')`,
+    [orderId],
+  );
+  await query(
+    `UPDATE orders SET tip_total = $1, amount_paid = $2, updated_at = now() WHERE id = $3`,
+    [Number(agg.tip_total), Number(agg.amount_paid), order.id],
+  );
+
+  void createAuditLog({
+    organizationId: orgId, actorId: employeeId,
+    action: 'order.tip_adjusted', resourceType: 'order', resourceId: orderId,
+    afterState: { tipTotal: Number(agg.tip_total) },
+  });
+
+  return { success: true, tipTotal: Number(agg.tip_total) };
+}
+
 // ─── listOrderLineItems ─────────────────────────────────────────────────────
 // Minimal line items (with ids) for the by-item refund picker.
 
