@@ -1,12 +1,15 @@
 # Taproot POS — Claude Project State
 
-> # 🚀 AUTONOMOUS BUILD COMPLETE — Sprints 1–4 done
-> Built across sessions: **28/28 prompts** (S1-01…S4-07) over 4 sprints, tagged
-> **v0.2.0-beta-1.1**, **v0.3.0-beta-1.2**, **v0.4.0-beta-1.3**, **v0.5.0-beta-1.4**.
-> - **Sprint 4 (Online Ordering & Engagement):** online checkout (pickup/delivery + Stripe Connect),
->   online-ordering settings, loyalty (auto-accrual), gift cards (POS redemption), discount engine,
->   customer management. Verified live: discount 10% applied + 97 loyalty pts on a $97.94 order.
-> - BUG-QA-012 resolved (CustomerSearch + creates inline). No new migrations in Sprint 4.
+> # 🚀 AUTONOMOUS BUILD COMPLETE — Sprints 1–5 done
+> Built across sessions: **35/35 prompts** (S1-01…S5-07) over 5 sprints, tagged
+> **v0.2.0** → **v0.6.0-beta-1.5**.
+> - **Sprint 4 (Online Ordering & Engagement):** online checkout, settings, loyalty (auto-accrual),
+>   gift cards, discount engine, customer mgmt. Verified live: 10% discount + 97 loyalty pts on $97.94.
+> - **Sprint 5 (AI Intelligence):** `/insights` dashboard — demand forecast, staff scheduling, menu
+>   engineering, food-cost (auto reorder draft), daily feed, enhanced copilot. Deterministic-first
+>   (works without ANTHROPIC_API_KEY; aiUsed flag) — all 5 endpoints verified live with real numbers.
+>   Fixed a latent nl-query 500 (total_amount/draft → total/parked).
+> - BUG-QA-012 resolved. No new migrations in Sprints 4–5.
 > - **Sprint 1 (Settings & Admin):** Products, Categories, Modifiers, Employees + PIN login,
 >   Business + configurable tax, Payments, settings shell.
 > - **Sprint 2 (Transactions):** Order History, Void/Refund, Tips, Cash Drawer, End-of-Day,

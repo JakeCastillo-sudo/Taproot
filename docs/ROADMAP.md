@@ -94,16 +94,17 @@ Live at taproot-pos.com as of June 4, 2026.
 
 ---
 
-## SPRINT 5 — BETA 1.5: AI Intelligence Layer
+## SPRINT 5 — BETA 1.5: AI Intelligence Layer ✅ COMPLETE (v0.6.0-beta-1.5)
 ### Week of July 7, 2026
+Pattern: deterministic SQL compute + optional Claude narrative (graceful without API key).
 
-**S5-01** Demand Forecasting Engine — Claude-powered sales forecast, cached 4 hours
-**S5-02** AI Staff Scheduling — forecast → staffing recommendation, labor cost % alerts
-**S5-03** AI Menu Engineering — Stars/Plowhorses/Puzzles/Dogs matrix, suggested actions
-**S5-04** AI Food Cost Intelligence — real-time food cost %, ingredient price alerts, auto PO drafts
-**S5-05** Daily Intelligence Feed — morning summary, real-time alerts, SMS/email delivery
-**S5-06** Enhanced AI Copilot — conversation history, suggested questions, chart output
-**S5-07** Sprint 5 Integration Test + Deploy — v0.6.0-beta-1.5 tag
+**S5-01** ✅ Demand Forecasting — DOW-averaged 7-day forecast + AI narrative, 4h Redis cache
+**S5-02** ✅ AI Staff Scheduling — forecast → staff + labor % alerts (>30%)
+**S5-03** ✅ AI Menu Engineering — Stars/Plowhorses/Puzzles/Dogs + actions
+**S5-04** ✅ AI Food Cost — food cost %, high-cost items, auto reorder draft
+**S5-05** ✅ Daily Intelligence Feed — morning briefing + alerts (SMS/email stub)
+**S5-06** ✅ Enhanced AI Copilot — multi-turn history, suggested questions, charts (+ fixed nl-query bug)
+**S5-07** ✅ Sprint 5 Integration + Deploy — all endpoints verified live; v0.6.0-beta-1.5
 
 ---
 
