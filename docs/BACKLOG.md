@@ -28,6 +28,24 @@
 
 ## P1 — High (degrades experience)
 
+### BUG-UX-001: Missing scroll on Inventory archived screen
+- Symptom: Archived products list has no scroll when content exceeds viewport height
+- Fix: Add `overflow-y: auto` to the archived products container
+- File: apps/web/src/components/inventory/ArchivedProducts.tsx
+- Priority: P1
+- Status: OPEN
+
+### BUG-UX-002: Missing scroll on multiple screens
+- Symptom: Several screens have no scroll when content exceeds standard display viewport
+  (1366x768 common laptop resolution)
+- Affected screens: Import review, Inventory stock levels, Onboarding wizard steps,
+  any modal/sheet with long content
+- Fix: Audit all page containers and sheets — ensure `overflow-y: auto` or scroll is
+  set on content areas. Use `h-screen` with `overflow-hidden` on outer container and
+  `overflow-y-auto` on inner scrollable content
+- Priority: P1 — affects usability on standard laptops
+- Status: OPEN
+
 ### BUG-002: Inventory table shows — for category names ✅ RESOLVED
 - Symptom: Category column blank in inventory stock levels table
 - Root cause: products not linked to categories in seed data
