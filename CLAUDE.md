@@ -206,10 +206,14 @@ Full product create/edit/delete at /settings/products.
 - Transaction employee attribution is server-side via JWT (order.service uses user.sub).
 - NOTE: order attribution already correct via JWT; pos.store loggedInEmployeeId not needed.
 
-### Prompt 36 (S1-06 + S1-07) — Settings Shell + Payments Settings
-/settings root with left nav (Products|Categories|Modifiers|Employees|Business|Payments|Billing).
-Breadcrumbs, mobile accordion, permission guard.
-Payments: Stripe Connect status, payment methods toggle, fee display.
+### Prompt 36 (S1-06) — Settings Shell + Navigation ✅ COMPLETE
+Shell was built in S1-01 (`SettingsLayout.tsx`): desktop sidebar + mobile horizontal tab bar,
+`canAccessSettings()` permission guard (cashier/kitchen/readonly → redirect to / with toast),
+`/settings` index → `/settings/products`, `<Outlet/>` for nested pages. POSLayout Settings nav →
+`/settings`. This prompt added the `/settings/payments` route + stub page so all 7 nav links
+resolve (Products, Categories, Modifiers, Employees, Business, Payments, Dashboard).
+
+### Prompt 37 (S1-07) — Payments Settings
 
 ### Prompt 37 (S1-08) — Sprint 1 Integration Test + Deploy
 Full walkthrough all settings screens, fix bugs, tag v0.2.0-beta-1.1.
