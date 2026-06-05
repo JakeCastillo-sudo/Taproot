@@ -7,12 +7,13 @@
  */
 
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search, AlertTriangle, Package, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Search, AlertTriangle, Package, RefreshCw, ChevronDown, ChevronUp, Archive } from 'lucide-react';
 import { clsx } from 'clsx';
-import { inventoryApi, type InventoryLevelRow } from '../../lib/api';
+import { inventoryApi, products as productsApi, type InventoryLevelRow } from '../../lib/api';
 import { QK } from '../../lib/queryClient';
 import { ProductDetailSheet } from './ProductDetailSheet';
+import { showToast } from '../ui/Toast';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,8 @@ type SortDir = 'asc' | 'desc';
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function StockLevels({ locationId }: StockLevelsProps) {
+  const qc = useQueryClient();
+
   const [search,       setSearch]       = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [selectedRow,  setSelectedRow]  = useState<InventoryLevelRow | null>(null);
@@ -82,6 +85,31 @@ export function StockLevels({ locationId }: StockLevelsProps) {
   const [sortKey,      setSortKey]      = useState<SortKey>('total_on_hand');
   const [sortDir,      setSortDir]      = useState<SortDir>('asc');
   const limit = 25;
+
+  // ── Archive state ─────────────────────────────────────────────────────────
+
+  /** productId of the row whose archive confirmation is open */
+  const [archiveTarget, setArchiveTarget] = useState<{
+    productId: string;
+    name:      string;
+  } | null>(null);
+  const [archiveReason, setArchiveReason] = useState('');
+
+  const archiveMutation = useMutation({
+    mutationFn: ({ productId, reason }: { productId: string; reason?: string }) =>
+      productsApi.archive(productId, reason),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: QK.inventory(locationId, {}) });
+      void qc.invalidateQueries({ queryKey: QK.products() });
+      void qc.invalidateQueries({ queryKey: ['archivedProducts'] });
+      showToast.success('Item archived — restore it in the Archived tab');
+      setArchiveTarget(null);
+      setArchiveReason('');
+      // If the archived row was selected in detail sheet, close it
+      if (selectedRow?.product_id === vars.productId) setSelectedRow(null);
+    },
+    onError: (err) => showToast.error(err instanceof Error ? err.message : 'Archive failed'),
+  });
 
   // Fetch more rows than displayed so grouping doesn't lose data across page boundaries.
   // We fetch up to 200 rows and group client-side, then slice for pagination display.
@@ -192,6 +220,7 @@ export function StockLevels({ locationId }: StockLevelsProps) {
                 <th className="text-right px-4 py-2.5 font-medium text-gray-500">On order</th>
                 <th className="text-left px-4 py-2.5 font-medium text-gray-500">Status</th>
                 <th className="text-right px-4 py-2.5 font-medium text-gray-500">Last count</th>
+                <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
@@ -254,6 +283,19 @@ export function StockLevels({ locationId }: StockLevelsProps) {
                           ? new Date(row.latest_counted).toLocaleDateString()
                           : 'Never'}
                       </td>
+                      {/* Archive action — stop propagation so row click doesn't open detail sheet */}
+                      <td className="px-2 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setArchiveTarget({
+                            productId: row.primary.product_id,
+                            name:      row.primary.product_name,
+                          })}
+                          className="p-1.5 rounded-md text-gray-300 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                          title="Archive item"
+                        >
+                          <Archive size={13} />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
@@ -312,6 +354,76 @@ export function StockLevels({ locationId }: StockLevelsProps) {
           locationId={locationId}
           onClose={() => setSelectedRow(null)}
         />
+      )}
+
+      {/* ── Archive confirmation dialog ─────────────────────────────── */}
+      {archiveTarget && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => { setArchiveTarget(null); setArchiveReason(''); }}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <Archive size={18} className="text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Archive &ldquo;{archiveTarget.name}&rdquo;?
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  This item will be hidden from the register until restored.
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Reason <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={archiveReason}
+                onChange={(e) => setArchiveReason(e.target.value)}
+                placeholder="e.g. Out of season, 86'd, Being reformulated"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    archiveMutation.mutate({
+                      productId: archiveTarget.productId,
+                      reason:    archiveReason || undefined,
+                    });
+                  }
+                  if (e.key === 'Escape') { setArchiveTarget(null); setArchiveReason(''); }
+                }}
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setArchiveTarget(null); setArchiveReason(''); }}
+                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => archiveMutation.mutate({
+                  productId: archiveTarget.productId,
+                  reason:    archiveReason || undefined,
+                })}
+                disabled={archiveMutation.isPending}
+                className="flex-1 px-3 py-2 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                <Archive size={13} />
+                {archiveMutation.isPending ? 'Archiving…' : 'Archive Item'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

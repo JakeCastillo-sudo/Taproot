@@ -108,6 +108,32 @@ export default async function inventoryRoutes(fastify: FastifyInstance): Promise
     return reply.code(204).send();
   });
 
+  // ── Archive / restore / list-archived ─────────────────────────────────────
+
+  // GET /api/v1/products/archived — list archived products for admin
+  fastify.get('/api/v1/products/archived', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const archived = await ProductSvc.listArchivedProducts(user.orgId);
+    return reply.send({ products: archived });
+  });
+
+  // POST /api/v1/products/:id/archive — hide product from POS register
+  fastify.post('/api/v1/products/:id/archive', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { id } = req.params as { id: string };
+    const { reason } = (req.body ?? {}) as { reason?: string };
+    await ProductSvc.archiveProduct(user.orgId, id, user.sub, reason);
+    return reply.send({ success: true });
+  });
+
+  // POST /api/v1/products/:id/restore — restore archived product to active
+  fastify.post('/api/v1/products/:id/restore', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { id } = req.params as { id: string };
+    await ProductSvc.restoreProduct(user.orgId, id, user.sub);
+    return reply.send({ success: true });
+  });
+
   // ── Variants ──────────────────────────────────────────────────────────────
 
   // POST /api/v1/products/:productId/variants

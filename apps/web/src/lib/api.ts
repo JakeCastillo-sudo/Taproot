@@ -318,7 +318,36 @@ export const products = {
       method: 'PATCH',
       body:   JSON.stringify(body),
     }),
+
+  /** Archive a product (hidden from POS until restored). */
+  archive: (productId: string, reason?: string) =>
+    apiFetch<{ success: boolean }>(`/products/${productId}/archive`, {
+      method: 'POST',
+      body:   JSON.stringify({ reason }),
+    }),
+
+  /** Restore an archived product back to active. */
+  restore: (productId: string) =>
+    apiFetch<{ success: boolean }>(`/products/${productId}/restore`, {
+      method: 'POST',
+    }),
+
+  /** List archived products (admin Archived tab). */
+  listArchived: () =>
+    apiFetch<{ products: ArchivedProductRow[] }>('/products/archived')
+      .then((r) => r.products),
 };
+
+/** Archived product row returned by GET /api/v1/products/archived. */
+export interface ArchivedProductRow {
+  id:             string;
+  name:           string;
+  sku:            string | null;
+  category_name:  string | null;
+  last_price:     number;
+  archived_at:    string;  // ISO timestamp
+  archive_reason: string | null;
+}
 
 // ─── Categories ───────────────────────────────────────────────────────────────
 

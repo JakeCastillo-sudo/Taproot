@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Plus, Minus } from 'lucide-react';
+import { X, Plus, Minus, Archive } from 'lucide-react';
 import { clsx } from 'clsx';
 import { usePOSStore, type AppliedModifier } from '../../store/pos.store';
 
@@ -56,13 +56,15 @@ function isSingle(type: ModifierGroupDef['selectionType']): boolean {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
-  product:    ModifierSheetProduct;
+  product:     ModifierSheetProduct;
   /** Existing cart item ID when editing (undefined = add new) */
-  cartItemId?: string;
-  onClose:    () => void;
+  cartItemId?:  string;
+  onClose:      () => void;
+  /** If provided, shows an "Archive Item" button in the header for POS quick-archive. */
+  onArchive?:   (productId: string, productName: string) => void;
 }
 
-export function ModifierSheet({ product, cartItemId, onClose }: Props) {
+export function ModifierSheet({ product, cartItemId, onClose, onArchive }: Props) {
   const addToCart       = usePOSStore((s) => s.addToCart);
   const updateNotes     = usePOSStore((s) => s.updateNotes);
   const setSheetOpen    = usePOSStore((s) => s.setModifierSheetOpen);
@@ -151,12 +153,23 @@ export function ModifierSheet({ product, cartItemId, onClose }: Props) {
             <h2 className="text-base font-semibold text-gray-900">{product.name}</h2>
             <p className="text-sm text-gray-400 mt-0.5">${(product.basePrice / 100).toFixed(2)}</p>
           </div>
-          <button
-            onClick={() => { setSheetOpen(false); onClose(); }}
-            className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
-          >
-            <X size={18} className="text-gray-500" />
-          </button>
+          <div className="flex items-center gap-1">
+            {onArchive && (
+              <button
+                onClick={() => onArchive(product.id, product.name)}
+                title="Archive item (hide from register)"
+                className="p-1.5 rounded-full hover:bg-amber-50 text-gray-300 hover:text-amber-600 transition-colors"
+              >
+                <Archive size={16} />
+              </button>
+            )}
+            <button
+              onClick={() => { setSheetOpen(false); onClose(); }}
+              className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <X size={18} className="text-gray-500" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable modifier groups */}

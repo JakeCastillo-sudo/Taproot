@@ -63,7 +63,24 @@ Migrations 001–010 have already been applied on Railway.
 - `POSLayout.tsx`: `handleProductTap` checks `modifierGroups.length > 0`; if yes → opens ModifierSheet; if no → fast path direct add; `handleProductLongPress` always opens sheet; cart display shows modifiers as indented sub-lines with price deltas
 - **Demo**: Tap "Classic Burger" → modifier sheet opens; tap "Draft Beer" → adds instantly
 
-### Prompt 28 — Fix import bugs (P1 backlog)
+### Prompt 28 — Archive/Seasonal Items ✅ COMPLETE
+Three-state product model: Active / Archived / Deleted.
+- **PRODUCT STATE RULE**: every POS query must filter `deleted_at IS NULL AND archived_at IS NULL`
+- `migrations/012_product_archive.js`: `archived_at TIMESTAMPTZ`, `archive_reason VARCHAR(255)`, `archived_by UUID→employees` + partial GIN index
+  ⚠️ Needs `npx node-pg-migrate up --migrations-dir migrations` on Railway
+- `product.service.ts`: state rule comment, `archived_at IS NULL` added to `listProducts` + barcode search; new exports `archiveProduct`, `restoreProduct`, `listArchivedProducts`, `ArchivedProductRow`
+- `inventory.routes.ts`: `GET /products/archived`, `POST /products/:id/archive`, `POST /products/:id/restore`
+- `api.ts`: `products.archive()`, `products.restore()`, `products.listArchived()`, `ArchivedProductRow` type
+- `InventoryPage.tsx`: 5th tab "Archived" (Archive icon)
+- `ArchivedProducts.tsx` (new): archived items table with name/category/price/date/reason; Restore button; "Delete permanently" stub
+- `StockLevels.tsx`: Archive icon per row → confirmation dialog with optional reason; removes row from list on success
+- `ModifierSheet.tsx`: `onArchive?` prop + Archive icon in header (amber on hover)
+- `POSLayout.tsx`: `handleArchiveFromPOS` → `window.confirm` → archive + invalidate queries + close sheet
+- `docs/ARCHITECTURE.md` (new): canonical query pattern, state table, day-part rule, auth/cart patterns
+
+**Demo**: Inventory → Stock Levels → Classic Burger → Archive icon → enter reason → POS no longer shows it → Inventory → Archived → Restore → back on POS
+
+### Prompt 29 — Fix import bugs (P1 backlog)
 Fix BUG-IMP-001 through 004.
 - BUG-IMP-003: fix ImportReview.tsx height/scroll so buttons are reachable without zoom
 - BUG-IMP-004: verify confirm flow end-to-end; test with real CSV/PDF upload

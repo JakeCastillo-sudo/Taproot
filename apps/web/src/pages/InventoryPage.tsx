@@ -1,6 +1,6 @@
 /**
- * InventoryPage — 4-tab inventory management view:
- *   Stock Levels | Forecast | Recipes | Variance Reports
+ * InventoryPage — 5-tab inventory management view:
+ *   Stock Levels | Forecast | Recipes | Variance Reports | Archived
  *
  * Reads locationId from the stored user (first location).
  */
@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Package, TrendingDown, ChefHat, FileBarChart2,
-  ClipboardList, ArrowLeft, Layers,
+  ClipboardList, ArrowLeft, Layers, Archive,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { USER_KEY } from '../lib/api';
@@ -17,12 +17,13 @@ import { StockLevels }       from '../components/inventory/StockLevels';
 import { ForecastDashboard } from '../components/inventory/ForecastDashboard';
 import { RecipesManager }    from '../components/inventory/RecipesManager';
 import { VarianceReports }   from '../components/inventory/VarianceReports';
+import { ArchivedProducts }  from '../components/inventory/ArchivedProducts';
 import { StockCountSheet }   from '../components/inventory/StockCountSheet';
 import { ToastContainer }    from '../components/ui/Toast';
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
-type TabId = 'stock' | 'forecast' | 'recipes' | 'variance';
+type TabId = 'stock' | 'forecast' | 'recipes' | 'variance' | 'archived';
 
 interface Tab { id: TabId; label: string; icon: React.FC<{ size?: number; className?: string }> }
 
@@ -31,6 +32,7 @@ const TABS: Tab[] = [
   { id: 'forecast', label: 'Forecast',           icon: TrendingDown  },
   { id: 'recipes',  label: 'Recipes',            icon: ChefHat       },
   { id: 'variance', label: 'Variance Reports',   icon: FileBarChart2 },
+  { id: 'archived', label: 'Archived',           icon: Archive       },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -127,6 +129,9 @@ export function InventoryPage() {
         )}
         {activeTab === 'variance' && (
           <VarianceReports locationId={locationId} />
+        )}
+        {activeTab === 'archived' && (
+          <ArchivedProducts locationId={locationId} />
         )}
       </main>
 

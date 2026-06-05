@@ -9,6 +9,20 @@ import type {
   ProductWithRelations, UnitOfMeasure, ProductType,
 } from '@taproot/shared';
 
+// ─── PRODUCT STATE RULE ───────────────────────────────────────────────────────
+//
+// Products have THREE states. EVERY query that lists products for the POS or
+// cashier MUST filter BOTH columns:
+//   WHERE p.deleted_at IS NULL AND p.archived_at IS NULL
+//
+// State | deleted_at | archived_at | Visible in POS | Visible in Admin
+// ------+------------+-------------+----------------+------------------
+// Active  | NULL       | NULL        | YES            | YES
+// Archived| NULL       | SET         | NO             | YES (Archive tab)
+// Deleted | SET        | any         | NO             | NO
+//
+// See docs/ARCHITECTURE.md for the full product state machine.
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 /** Valid meal-period values for day-part filtering. */
@@ -396,7 +410,8 @@ export async function listProducts(
   const limit = Math.min(rawLimit, 200);
   const offset = (page - 1) * limit;
 
-  const conditions: string[] = ['p.organization_id = $1', 'p.deleted_at IS NULL'];
+  // PRODUCT STATE RULE: both conditions required so archived items stay hidden from POS
+  const conditions: string[] = ['p.organization_id = $1', 'p.deleted_at IS NULL', 'p.archived_at IS NULL'];
   const params: unknown[] = [orgId];
   let p = 2;
 
@@ -445,9 +460,10 @@ export async function searchByBarcode(
   orgId: string,
   barcode: string,
 ): Promise<ProductWithModifiers | null> {
-  // Check products first, then variants
+  // PRODUCT STATE RULE: archived items must not be found by barcode scan
   const { rows: [productRow] } = await query<{ id: string }>(
-    `SELECT id FROM products WHERE organization_id = $1 AND barcode = $2 AND deleted_at IS NULL LIMIT 1`,
+    `SELECT id FROM products WHERE organization_id = $1 AND barcode = $2
+     AND deleted_at IS NULL AND archived_at IS NULL LIMIT 1`,
     [orgId, barcode],
   );
   if (productRow) return buildProductWithRelations(productRow.id);
@@ -455,10 +471,111 @@ export async function searchByBarcode(
   const { rows: [variantRow] } = await query<{ product_id: string }>(
     `SELECT pv.product_id FROM product_variants pv
      JOIN products p ON p.id = pv.product_id
-     WHERE p.organization_id = $1 AND pv.barcode = $2 AND pv.deleted_at IS NULL LIMIT 1`,
+     WHERE p.organization_id = $1 AND pv.barcode = $2
+     AND pv.deleted_at IS NULL AND p.archived_at IS NULL LIMIT 1`,
     [orgId, barcode],
   );
   if (variantRow) return buildProductWithRelations(variantRow.product_id);
 
   return null;
+}
+
+// ─── archiveProduct ───────────────────────────────────────────────────────────
+
+export interface ArchivedProductRow {
+  id:             string;
+  name:           string;
+  sku:            string | null;
+  category_name:  string | null;
+  last_price:     number;
+  archived_at:    string;
+  archive_reason: string | null;
+}
+
+export async function archiveProduct(
+  orgId:      string,
+  productId:  string,
+  employeeId: string,
+  reason?:    string,
+): Promise<void> {
+  const { rows: [product] } = await query<{ id: string }>(
+    `SELECT id FROM products WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL AND archived_at IS NULL`,
+    [productId, orgId],
+  );
+  if (!product) throw new ProductNotFoundError(productId);
+
+  await query(
+    `UPDATE products
+        SET archived_at     = NOW(),
+            archive_reason  = $3,
+            archived_by     = $4,
+            updated_at      = NOW()
+      WHERE id = $1 AND organization_id = $2`,
+    [productId, orgId, reason ?? null, employeeId],
+  );
+
+  void createAuditLog({
+    organizationId: orgId, actorId: employeeId, actorType: 'employee',
+    action: 'product.archived', resourceType: 'product', resourceId: productId,
+    metadata: { reason },
+  });
+}
+
+// ─── restoreProduct ───────────────────────────────────────────────────────────
+
+export async function restoreProduct(
+  orgId:      string,
+  productId:  string,
+  employeeId: string,
+): Promise<void> {
+  const { rows: [product] } = await query<{ id: string }>(
+    `SELECT id FROM products WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL AND archived_at IS NOT NULL`,
+    [productId, orgId],
+  );
+  if (!product) throw new ProductNotFoundError(productId);
+
+  await query(
+    `UPDATE products
+        SET archived_at     = NULL,
+            archive_reason  = NULL,
+            archived_by     = NULL,
+            updated_at      = NOW()
+      WHERE id = $1 AND organization_id = $2`,
+    [productId, orgId],
+  );
+
+  void createAuditLog({
+    organizationId: orgId, actorId: employeeId, actorType: 'employee',
+    action: 'product.restored', resourceType: 'product', resourceId: productId,
+  });
+}
+
+// ─── listArchivedProducts ─────────────────────────────────────────────────────
+
+export async function listArchivedProducts(orgId: string): Promise<ArchivedProductRow[]> {
+  const { rows } = await query<ArchivedProductRow>(
+    `SELECT
+        p.id,
+        p.name,
+        p.sku,
+        c.name                  AS category_name,
+        COALESCE((
+          SELECT pp.price
+          FROM product_prices pp
+          JOIN product_variants pv ON pv.id = pp.variant_id
+          WHERE pv.product_id = p.id AND pp.is_active = true
+            AND (pp.effective_until IS NULL OR pp.effective_until > NOW())
+          ORDER BY pp.effective_from DESC LIMIT 1
+        ), 0)                   AS last_price,
+        p.archived_at,
+        p.archive_reason
+      FROM products p
+      LEFT JOIN categories c ON c.id = p.category_id AND c.deleted_at IS NULL
+      WHERE p.organization_id = $1
+        AND p.archived_at IS NOT NULL
+        AND p.deleted_at IS NULL
+      ORDER BY p.archived_at DESC`,
+    [orgId],
+  );
+  return rows;
 }

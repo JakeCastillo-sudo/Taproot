@@ -33,6 +33,7 @@ import { useQuery } from '@tanstack/react-query';
 import { usePOSStore, type CartItem } from '../../store/pos.store';
 import { useUIStore } from '../../store/ui.store';
 import { products as productsApi, categories as categoriesApi, type ProductWithModifiers } from '../../lib/api';
+import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
 import { CategoryTileGrid } from '../pos/CategoryTileGrid';
@@ -364,6 +365,7 @@ function Sidebar({ user, collapsed, onToggle, onClose }: SidebarProps) {
 
 export function POSLayout({ user }: POSLayoutProps) {
   const navigate = useNavigate();
+  const qc       = useQueryClient();
 
   const {
     cart, searchQuery, setSearch,
@@ -520,6 +522,20 @@ export function POSLayout({ user }: POSLayoutProps) {
     // Long-press always opens sheet (even without modifiers — for notes / qty)
     openModifierSheet(product as ProductWithModifiers);
   }, [openModifierSheet]);
+
+  /** Called from ModifierSheet when cashier taps "Archive Item" */
+  const handleArchiveFromPOS = useCallback((productId: string, productName: string) => {
+    if (!window.confirm(`Remove "${productName}" from the register?\n\nIt will be hidden until restored in Inventory → Archived.`)) return;
+    void productsApi.archive(productId).then(() => {
+      void qc.invalidateQueries({ queryKey: QK.products() });
+      void qc.invalidateQueries({ queryKey: ['archivedProducts'] });
+      setModifierProduct(null);
+      setModifierSheetOpen(false);
+      showToast.success(`${productName} archived — restore in Inventory`);
+    }).catch((err: unknown) => {
+      showToast.error(err instanceof Error ? err.message : 'Archive failed');
+    });
+  }, [qc, setModifierSheetOpen]);
 
   const sub  = subtotal();
   const disc = discountTotal();
@@ -907,6 +923,7 @@ export function POSLayout({ user }: POSLayoutProps) {
         <ModifierSheet
           product={modifierProduct}
           onClose={() => { setModifierProduct(null); setModifierSheetOpen(false); }}
+          onArchive={handleArchiveFromPOS}
         />
       )}
 
