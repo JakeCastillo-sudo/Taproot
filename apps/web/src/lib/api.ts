@@ -1533,7 +1533,15 @@ export const intelligence = {
     return apiFetch<StaffingPlan>(`/intelligence/staffing${qs ? `?${qs}` : ''}`);
   },
   menu: () => apiFetch<MenuEngineering>('/intelligence/menu'),
+  foodCost: () => apiFetch<FoodCostIntelligence>('/intelligence/food-cost'),
 };
+
+export interface FoodCostIntelligence {
+  foodCostPct: number; revenue: number; cogs: number; targetPct: number;
+  byItem: Array<{ name: string; revenue: number; cogs: number; foodCostPct: number; flagged: boolean }>;
+  reorderSuggestions: Array<{ productId: string; name: string; onHand: number; reorderPoint: number; suggestedQty: number }>;
+  narrative: string; aiUsed: boolean; periodDays: number;
+}
 
 export type MenuClass = 'star' | 'plowhorse' | 'puzzle' | 'dog';
 export interface MenuEngineering {

@@ -229,3 +229,97 @@ export async function getMenuEngineering(orgId: string, locationId: string | und
 
   return { items, counts, periodDays: days, narrative, aiUsed };
 }
+
+// ─── S5-04: Food Cost Intelligence ────────────────────────────────────────────
+
+const FOOD_COST_TARGET_PCT = 33;
+
+export interface FoodCostItem { name: string; revenue: number; cogs: number; foodCostPct: number; flagged: boolean }
+export interface ReorderSuggestion { productId: string; name: string; onHand: number; reorderPoint: number; suggestedQty: number }
+export interface FoodCostIntelligence {
+  foodCostPct: number; revenue: number; cogs: number; targetPct: number;
+  byItem: FoodCostItem[]; reorderSuggestions: ReorderSuggestion[];
+  narrative: string; aiUsed: boolean; periodDays: number;
+}
+
+async function resolveLocation(orgId: string, locationId?: string): Promise<string | null> {
+  if (locationId) return locationId;
+  const { rows } = await query<{ id: string }>(
+    `SELECT id FROM locations WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 1`, [orgId]);
+  return rows[0]?.id ?? null;
+}
+
+export async function getFoodCostIntelligence(orgId: string, locationId: string | undefined, days = 30): Promise<FoodCostIntelligence> {
+  // Overall + per-item food cost
+  const params: unknown[] = [orgId];
+  const lc = locClause(locationId, params);
+  const periodIdx = params.length + 1;
+
+  const [totals, byItemRows] = await Promise.all([
+    query<{ revenue: string; cogs: string }>(
+      `SELECT COALESCE(SUM(li.total),0) AS revenue, COALESCE(SUM(li.cost_price * li.quantity),0) AS cogs
+         FROM order_line_items li
+         JOIN orders o ON o.id = li.order_id AND o.status NOT IN ('voided','parked')
+        WHERE o.organization_id = $1 AND li.voided_at IS NULL
+          AND o.created_at >= now() - ($${periodIdx} || ' days')::interval ${lc}`,
+      [...params, String(days)],
+    ),
+    query<{ name: string; revenue: string; cogs: string }>(
+      `SELECT p.name, SUM(li.total) AS revenue, SUM(li.cost_price * li.quantity) AS cogs
+         FROM order_line_items li
+         JOIN orders o ON o.id = li.order_id AND o.status NOT IN ('voided','parked')
+         JOIN products p ON p.id = li.product_id
+        WHERE o.organization_id = $1 AND li.voided_at IS NULL
+          AND o.created_at >= now() - ($${periodIdx} || ' days')::interval ${lc}
+        GROUP BY p.name HAVING SUM(li.total) > 0
+        ORDER BY SUM(li.cost_price * li.quantity) DESC LIMIT 20`,
+      [...params, String(days)],
+    ),
+  ]);
+
+  const revenue = Math.round(Number(totals.rows[0]?.revenue ?? 0));
+  const cogs = Math.round(Number(totals.rows[0]?.cogs ?? 0));
+  const foodCostPct = revenue > 0 ? Math.round((cogs / revenue) * 1000) / 10 : 0;
+
+  const byItem: FoodCostItem[] = byItemRows.rows.map((r) => {
+    const rev = Math.round(Number(r.revenue)); const c = Math.round(Number(r.cogs));
+    const pct = rev > 0 ? Math.round((c / rev) * 1000) / 10 : 0;
+    return { name: r.name, revenue: rev, cogs: c, foodCostPct: pct, flagged: pct > FOOD_COST_TARGET_PCT };
+  });
+
+  // Reorder suggestions (auto-PO draft) from inventory below reorder point
+  const loc = await resolveLocation(orgId, locationId);
+  let reorderSuggestions: ReorderSuggestion[] = [];
+  if (loc) {
+    const { rows } = await query<{ product_id: string; name: string; on_hand: number; reorder_point: number; reorder_quantity: number | null }>(
+      `SELECT il.product_id, p.name, il.quantity_on_hand AS on_hand, il.reorder_point, il.reorder_quantity
+         FROM inventory_levels il JOIN products p ON p.id = il.product_id
+        WHERE il.organization_id = $1 AND il.location_id = $2 AND p.deleted_at IS NULL
+          AND il.reorder_point IS NOT NULL AND il.reorder_point > 0
+          AND il.quantity_on_hand <= il.reorder_point
+        ORDER BY (il.reorder_point - il.quantity_on_hand) DESC LIMIT 20`,
+      [orgId, loc],
+    );
+    reorderSuggestions = rows.map((r) => ({
+      productId: r.product_id, name: r.name,
+      onHand: Math.round(Number(r.on_hand)), reorderPoint: Math.round(Number(r.reorder_point)),
+      suggestedQty: Math.max(1, Math.round(Number(r.reorder_quantity ?? (Number(r.reorder_point) - Number(r.on_hand))))),
+    }));
+  }
+
+  let narrative = revenue > 0
+    ? `Food cost is ${foodCostPct}% vs a ${FOOD_COST_TARGET_PCT}% target. ${byItem.filter((i) => i.flagged).length} item(s) run high; ${reorderSuggestions.length} item(s) need reordering.`
+    : 'Not enough sales with cost data to compute food cost yet.';
+  let aiUsed = false;
+
+  if (aiAvailable() && revenue > 0) {
+    const ai = await askClaudeText(
+      `You are a restaurant food-cost analyst. Target food cost is ${FOOD_COST_TARGET_PCT}%. Given overall food cost %, high-cost items, and reorder suggestions, write 2 sentences with one concrete cost-saving action. No preamble.`,
+      JSON.stringify({ foodCostPct, flagged: byItem.filter((i) => i.flagged).slice(0, 10), reorder: reorderSuggestions.slice(0, 10) }),
+      300,
+    );
+    if (ai) { narrative = ai; aiUsed = true; }
+  }
+
+  return { foodCostPct, revenue, cogs, targetPct: FOOD_COST_TARGET_PCT, byItem, reorderSuggestions, narrative, aiUsed, periodDays: days };
+}

@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Sparkles, TrendingUp, Users, AlertTriangle, UtensilsCrossed } from 'lucide-react';
+import { ArrowLeft, Sparkles, TrendingUp, Users, AlertTriangle, UtensilsCrossed, DollarSign } from 'lucide-react';
 import type { MenuClass } from '../lib/api';
 import { clsx } from 'clsx';
 import { intelligence } from '../lib/api';
@@ -18,11 +18,12 @@ import { fmtShortCurrency } from '../lib/dateRanges';
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
-type TabId = 'forecast' | 'staffing' | 'menu';
+type TabId = 'forecast' | 'staffing' | 'menu' | 'foodcost';
 const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ size?: number; className?: string }> }> = [
   { id: 'forecast', label: 'Forecast', icon: TrendingUp },
   { id: 'staffing', label: 'Staffing', icon: Users },
   { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
+  { id: 'foodcost', label: 'Food Cost', icon: DollarSign },
 ];
 
 function AiBadge({ used }: { used: boolean }) {
@@ -68,6 +69,7 @@ export function InsightsPage() {
           {tab === 'forecast' && <ForecastTab />}
           {tab === 'staffing' && <StaffingTab />}
           {tab === 'menu' && <MenuTab />}
+          {tab === 'foodcost' && <FoodCostTab />}
         </div>
       </main>
     </div>
@@ -125,6 +127,56 @@ const MENU_ACTION_HINT: Record<MenuClass, string> = {
   star: 'Feature & protect quality.', plowhorse: 'Raise price or cut cost.',
   puzzle: 'Promote / reposition.', dog: 'Rework or remove.',
 };
+
+function FoodCostTab() {
+  const { data, isLoading } = useQuery({ queryKey: ['intel', 'foodcost'], queryFn: () => intelligence.foodCost(), staleTime: 60_000 });
+  if (isLoading) return <div className="h-48 bg-gray-100 rounded-lg animate-pulse" />;
+  if (!data) return <p className="text-sm text-gray-400">No food cost data available.</p>;
+  const over = data.foodCostPct > data.targetPct;
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-center justify-between mb-2"><h3 className="text-sm font-semibold text-gray-800">Food cost · last {data.periodDays} days</h3><AiBadge used={data.aiUsed} /></div>
+        <div className="flex items-baseline gap-3">
+          <span className={clsx('text-3xl font-bold', over ? 'text-red-600' : 'text-green-600')}>{data.foodCostPct}%</span>
+          <span className="text-xs text-gray-400">target {data.targetPct}% · COGS {fmt(data.cogs)} / rev {fmt(data.revenue)}</span>
+        </div>
+        <p className="text-sm text-gray-600 mt-2">{data.narrative}</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">High-cost items</h3>
+          {data.byItem.length === 0 ? <p className="text-sm text-gray-400">No data</p> : (
+            <table className="w-full text-sm"><tbody>
+              {data.byItem.slice(0, 12).map((i) => (
+                <tr key={i.name} className="border-b border-gray-50 last:border-0">
+                  <td className="py-2 text-gray-700 truncate">{i.name}</td>
+                  <td className="py-2 text-right"><span className={clsx('font-medium', i.flagged ? 'text-red-600' : 'text-gray-600')}>{i.foodCostPct}%</span></td>
+                </tr>
+              ))}
+            </tbody></table>
+          )}
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">Reorder draft ({data.reorderSuggestions.length})</h3>
+          {data.reorderSuggestions.length === 0 ? <p className="text-sm text-gray-400">Nothing needs reordering 🎉</p> : (
+            <table className="w-full text-sm"><tbody>
+              {data.reorderSuggestions.map((r) => (
+                <tr key={r.productId} className="border-b border-gray-50 last:border-0">
+                  <td className="py-2 text-gray-700 truncate">{r.name}</td>
+                  <td className="py-2 text-right text-gray-400 text-xs">{r.onHand}/{r.reorderPoint}</td>
+                  <td className="py-2 text-right font-semibold text-primary">+{r.suggestedQty}</td>
+                </tr>
+              ))}
+            </tbody></table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function StaffingTab() {
   const { data, isLoading } = useQuery({ queryKey: ['intel', 'staffing'], queryFn: () => intelligence.staffing(TZ), staleTime: 60_000 });

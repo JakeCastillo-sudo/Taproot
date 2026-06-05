@@ -33,4 +33,11 @@ export default async function intelligenceRoutes(fastify: FastifyInstance): Prom
     const result = await IntelSvc.getMenuEngineering(user.orgId, q.locationId, q.days ? parseInt(q.days, 10) : 90);
     return reply.send(result);
   });
+
+  fastify.get('/api/v1/intelligence/food-cost', guard, async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const q = req.query as { locationId?: string; days?: string };
+    const result = await IntelSvc.getFoodCostIntelligence(user.orgId, q.locationId, q.days ? parseInt(q.days, 10) : 30);
+    return reply.send(result);
+  });
 }

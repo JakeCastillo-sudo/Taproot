@@ -127,6 +127,13 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
   narrative. `GET /intelligence/menu`.
 - `api.ts`: `intelligence.menu` + `MenuEngineering`/`MenuClass`. InsightsPage Menu tab (4 quadrant cards).
 
+### S5-04 — AI Food Cost Intelligence ✅ COMPLETE
+- `intelligence.service.getFoodCostIntelligence`: overall food cost % (COGS from
+  order_line_items.cost_price vs revenue, 30d), high-cost item list (flag >33%), auto **reorder
+  draft** from inventory_levels ≤ reorder_point, + Claude action. `GET /intelligence/food-cost`.
+- `api.ts`: `intelligence.foodCost` + `FoodCostIntelligence`. InsightsPage Food Cost tab
+  (headline %, high-cost items, reorder draft).
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |
