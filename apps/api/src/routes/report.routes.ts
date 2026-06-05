@@ -78,6 +78,27 @@ export default async function reportRoutes(fastify: FastifyInstance): Promise<vo
     },
   );
 
+  // ── GET /api/v1/reports/end-of-day ──────────────────────────────────────────
+  fastify.get(
+    '/api/v1/reports/end-of-day',
+    { preHandler: [requirePermissions(Permission.REPORTS_VIEW)] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user } = req as AuthedRequest;
+      const q = req.query as Record<string, string>;
+      try {
+        const date = q.date;
+        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          throw new ValidationError('date=YYYY-MM-DD is required');
+        }
+        const report = await ReportSvc.getEndOfDayReport(user.orgId, date, q.location_id ?? q.locationId, q.timezone ?? 'UTC');
+        return reply.send(report);
+      } catch (err) {
+        if (err instanceof AppError) return reply.code(err.statusCode).send({ code: err.code, message: err.message });
+        throw err;
+      }
+    },
+  );
+
   // ── GET /api/v1/reports/tips ────────────────────────────────────────────────
   fastify.get(
     '/api/v1/reports/tips',

@@ -316,6 +316,148 @@ export async function getTipsReport(orgId: string, params: DateRangeParams): Pro
   };
 }
 
+// ─── getEndOfDayReport ────────────────────────────────────────────────────────
+
+export interface EndOfDayReport {
+  date:           string;
+  grossSales:     number;
+  refunds:        number;
+  netSales:       number;
+  orderCount:     number;
+  averageTicket:  number;
+  taxCollected:   number;
+  tipsCollected:  number;
+  byPaymentMethod: Record<string, number>;
+  topItems:       Array<{ name: string; quantity: number; revenue: number }>;
+  byEmployee:     Array<{ name: string; orderCount: number; revenue: number }>;
+  hourlyBreakdown: Array<{ hour: number; orderCount: number; revenue: number }>;
+  cashReconciliation: {
+    openingAmount: number; cashSales: number; cashRefunds: number;
+    cashDrops: number; expectedAmount: number; actualAmount: number | null; discrepancy: number | null;
+  } | null;
+}
+
+export async function getEndOfDayReport(
+  orgId: string, date: string, locationId?: string, timezone = 'UTC',
+): Promise<EndOfDayReport> {
+  // Resolve the local-day window as UTC instants.
+  const { rows: [bounds] } = await query<{ start: string; end: string }>(
+    `SELECT (($1::date)::timestamp AT TIME ZONE $2) AS start,
+            ((($1::date) + 1)::timestamp AT TIME ZONE $2) AS end`,
+    [date, timezone],
+  );
+  const start = bounds.start, end = bounds.end;
+
+  // Location is $4 when present; timezone is appended per-query only where used.
+  const baseParams: unknown[] = [orgId, start, end];
+  if (locationId) baseParams.push(locationId);
+  const locClause = locationId ? 'AND o.location_id = $4' : '';
+  const locClauseO2 = locationId ? 'AND o2.location_id = $4' : '';
+
+  const [summary, byMethod, topItems, byEmployee, hourly] = await Promise.all([
+    query<{ gross: string; orders: string; tax: string; tips: string; refunds: string }>(
+      `SELECT
+         COALESCE(SUM(CASE WHEN o.status NOT IN ('voided','parked') THEN o.total ELSE 0 END),0) AS gross,
+         COUNT(DISTINCT CASE WHEN o.status NOT IN ('voided','parked') THEN o.id END) AS orders,
+         COALESCE(SUM(CASE WHEN o.status NOT IN ('voided','parked') THEN o.tax_total ELSE 0 END),0) AS tax,
+         COALESCE((SELECT SUM(p.tip_amount) FROM payments p JOIN orders o2 ON o2.id=p.order_id
+                   WHERE o2.organization_id=$1 AND o2.created_at>=$2 AND o2.created_at<$3
+                     AND p.status IN ('completed','partially_refunded') ${locClauseO2}),0) AS tips,
+         COALESCE((SELECT SUM(p.refunded_amount) FROM payments p JOIN orders o2 ON o2.id=p.order_id
+                   WHERE o2.organization_id=$1 AND o2.created_at>=$2 AND o2.created_at<$3 ${locClauseO2}),0) AS refunds
+       FROM orders o
+       WHERE o.organization_id=$1 AND o.created_at>=$2 AND o.created_at<$3 ${locClause}`,
+      baseParams,
+    ),
+    query<{ method: string; amount: string }>(
+      `SELECT p.payment_method AS method, COALESCE(SUM(p.amount),0) AS amount
+       FROM payments p JOIN orders o ON o.id=p.order_id
+       WHERE o.organization_id=$1 AND o.created_at>=$2 AND o.created_at<$3
+         AND p.status IN ('completed','partially_refunded','refunded') ${locClause}
+       GROUP BY p.payment_method`,
+      baseParams,
+    ),
+    query<{ name: string; quantity: string; revenue: string }>(
+      `SELECT li.name, SUM(li.quantity) AS quantity, SUM(li.total) AS revenue
+       FROM order_line_items li JOIN orders o ON o.id=li.order_id
+       WHERE o.organization_id=$1 AND o.created_at>=$2 AND o.created_at<$3
+         AND li.voided_at IS NULL AND o.status NOT IN ('voided','parked') ${locClause}
+       GROUP BY li.name ORDER BY revenue DESC LIMIT 5`,
+      baseParams,
+    ),
+    query<{ name: string; order_count: string; revenue: string }>(
+      `SELECT e.first_name || ' ' || e.last_name AS name,
+              COUNT(DISTINCT o.id) AS order_count,
+              COALESCE(SUM(CASE WHEN o.status NOT IN ('voided','parked') THEN o.total ELSE 0 END),0) AS revenue
+       FROM orders o JOIN employees e ON e.id=o.employee_id
+       WHERE o.organization_id=$1 AND o.created_at>=$2 AND o.created_at<$3 ${locClause}
+       GROUP BY e.id, e.first_name, e.last_name ORDER BY revenue DESC`,
+      baseParams,
+    ),
+    query<{ hour: string; order_count: string; revenue: string }>(
+      `SELECT EXTRACT(HOUR FROM o.created_at AT TIME ZONE $${baseParams.length + 1})::int AS hour,
+              COUNT(DISTINCT o.id) AS order_count,
+              COALESCE(SUM(CASE WHEN o.status NOT IN ('voided','parked') THEN o.total ELSE 0 END),0) AS revenue
+       FROM orders o
+       WHERE o.organization_id=$1 AND o.created_at>=$2 AND o.created_at<$3 ${locClause}
+       GROUP BY hour ORDER BY hour ASC`,
+      [...baseParams, timezone],
+    ),
+  ]);
+
+  const s = summary.rows[0];
+  const grossSales = Math.round(Number(s?.gross ?? 0));
+  const refunds = Math.round(Number(s?.refunds ?? 0));
+  const orderCount = parseInt(s?.orders ?? '0', 10);
+  const netSales = grossSales - refunds;
+
+  const byPaymentMethod: Record<string, number> = {};
+  for (const r of byMethod.rows) byPaymentMethod[r.method] = Math.round(Number(r.amount));
+
+  // Cash reconciliation from a drawer session opened that day (resilient if table absent)
+  let cashReconciliation: EndOfDayReport['cashReconciliation'] = null;
+  try {
+    const cashBind = locationId ? [orgId, start, end, locationId] : [orgId, start, end];
+    const cashLoc = locationId ? 'AND s.location_id = $4' : '';
+    const { rows: [sess] } = await query<{
+      opening_amount: string; expected_amount: string | null; actual_amount: string | null; discrepancy: string | null; id: string;
+    }>(
+      `SELECT s.id, s.opening_amount, s.expected_amount, s.actual_amount, s.discrepancy
+         FROM cash_drawer_sessions s
+        WHERE s.organization_id=$1 AND s.opened_at>=$2 AND s.opened_at<$3 ${cashLoc}
+        ORDER BY s.opened_at DESC LIMIT 1`,
+      cashBind,
+    );
+    if (sess) {
+      const cashSales = byPaymentMethod['cash'] ?? 0;
+      const { rows: [d] } = await query<{ drops: string }>(
+        `SELECT COALESCE(SUM(amount),0) AS drops FROM cash_drops WHERE session_id=$1`, [sess.id],
+      );
+      const opening = Number(sess.opening_amount);
+      const drops = Math.round(Number(d?.drops ?? 0));
+      cashReconciliation = {
+        openingAmount: opening, cashSales, cashRefunds: 0, cashDrops: drops,
+        expectedAmount: sess.expected_amount != null ? Number(sess.expected_amount) : opening + cashSales - drops,
+        actualAmount: sess.actual_amount != null ? Number(sess.actual_amount) : null,
+        discrepancy: sess.discrepancy != null ? Number(sess.discrepancy) : null,
+      };
+    }
+  } catch { /* cash drawer tables not migrated yet */ }
+
+  return {
+    date,
+    grossSales, refunds, netSales, orderCount,
+    averageTicket: orderCount > 0 ? Math.round(netSales / orderCount) : 0,
+    taxCollected: Math.round(Number(s?.tax ?? 0)),
+    tipsCollected: Math.round(Number(s?.tips ?? 0)),
+    byPaymentMethod,
+    topItems: topItems.rows.map((r) => ({ name: r.name, quantity: Math.round(Number(r.quantity)), revenue: Math.round(Number(r.revenue)) })),
+    byEmployee: byEmployee.rows.map((r) => ({ name: r.name, orderCount: parseInt(r.order_count, 10), revenue: Math.round(Number(r.revenue)) })),
+    hourlyBreakdown: hourly.rows.map((r) => ({ hour: parseInt(r.hour, 10), orderCount: parseInt(r.order_count, 10), revenue: Math.round(Number(r.revenue)) })),
+    cashReconciliation,
+  };
+}
+
 // ─── getHourlyHeatmap ─────────────────────────────────────────────────────────
 
 /**

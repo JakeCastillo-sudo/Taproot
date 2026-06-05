@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart3, ArrowLeft, LayoutDashboard, ShoppingBag,
-  Package, Users, UserCheck, Calendar, ChevronDown, Coins,
+  Package, Users, UserCheck, Calendar, ChevronDown, Coins, CalendarDays,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { USER_KEY } from '../lib/api';
@@ -106,6 +106,14 @@ export function ReportsPage() {
           </div>
 
           <div className="flex-1" />
+
+          {/* End of Day shortcut */}
+          <button
+            onClick={() => navigate('/reports/end-of-day')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors mr-2"
+          >
+            <CalendarDays size={13} /> End of Day
+          </button>
 
           {/* Date range picker */}
           <div className="relative">

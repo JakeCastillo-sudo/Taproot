@@ -180,6 +180,17 @@ employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrade
   modals + live expected; close shows discrepancy.
 - NOTE: no-sale button deferred.
 
+### S2-05 — End of Day Report ✅ COMPLETE
+- `reporting.service.ts`: `getEndOfDayReport(orgId, date, locationId?, tz)` — tz-aware day window;
+  gross/refunds/net/orders/avg ticket, tax, tips, by-payment-method, top 5 items, by-employee,
+  hourly breakdown, cash reconciliation (from that day's drawer session; resilient if 015 absent).
+  Careful param indexing (location=$4, tz appended per-query) to avoid the $N-type-infer trap.
+- `report.routes.ts`: `GET /reports/end-of-day?date=YYYY-MM-DD&location_id&timezone`.
+- `api.ts`: `reports.getEndOfDay` + `EndOfDayReport`.
+- `EndOfDayPage.tsx` (new, route `/reports/end-of-day`): date picker, summary cards, payment/hourly,
+  top items, employees, cash reconciliation; Print (.receipt-content) / CSV / Email(stub).
+- `ReportsPage`: prominent "End of Day" button.
+
 ## Sprint 1 Queue — Beta 1.1: Settings & Admin
 See full roadmap at docs/ROADMAP.md
 

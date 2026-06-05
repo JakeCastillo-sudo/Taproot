@@ -1241,7 +1241,32 @@ export const reports = {
 
   getTips: (params: ReportDateParams) =>
     apiFetch<TipsReportData>(`/reports/tips?${buildReportQS(params)}`),
+
+  getEndOfDay: (date: string, locationId?: string, timezone = 'UTC') => {
+    const q = new URLSearchParams({ date, timezone });
+    if (locationId) q.set('location_id', locationId);
+    return apiFetch<EndOfDayReport>(`/reports/end-of-day?${q.toString()}`);
+  },
 };
+
+export interface EndOfDayReport {
+  date:           string;
+  grossSales:     number;
+  refunds:        number;
+  netSales:       number;
+  orderCount:     number;
+  averageTicket:  number;
+  taxCollected:   number;
+  tipsCollected:  number;
+  byPaymentMethod: Record<string, number>;
+  topItems:       Array<{ name: string; quantity: number; revenue: number }>;
+  byEmployee:     Array<{ name: string; orderCount: number; revenue: number }>;
+  hourlyBreakdown: Array<{ hour: number; orderCount: number; revenue: number }>;
+  cashReconciliation: {
+    openingAmount: number; cashSales: number; cashRefunds: number;
+    cashDrops: number; expectedAmount: number; actualAmount: number | null; discrepancy: number | null;
+  } | null;
+}
 
 export interface TipsReportData {
   totalTips:       number;

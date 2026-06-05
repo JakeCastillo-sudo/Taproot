@@ -27,6 +27,7 @@ import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
 import { EmployeesSettingsPage } from './pages/EmployeesSettingsPage';
 import { PaymentsSettingsPage } from './pages/PaymentsSettingsPage';
 import { OrderHistoryPage } from './pages/OrderHistoryPage';
+import { EndOfDayPage } from './pages/EndOfDayPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -243,6 +244,15 @@ export default function App() {
             element={
               <RequireAuth>
                 <ReportsPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/reports/end-of-day"
+            element={
+              <RequireAuth>
+                <EndOfDayPage />
               </RequireAuth>
             }
           />
