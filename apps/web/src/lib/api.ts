@@ -458,6 +458,57 @@ export const categories = {
     }),
 };
 
+// ─── Modifiers ────────────────────────────────────────────────────────────────
+
+export type ModifierSelectionType = 'single' | 'multiple' | 'required_single' | 'required_multiple';
+
+export interface ModifierItem {
+  id:         string;
+  name:       string;
+  priceDelta: number; // cents
+  isDefault:  boolean;
+  sortOrder:  number;
+}
+
+export interface ModifierGroupFull {
+  id:            string;
+  name:          string;
+  selectionType: ModifierSelectionType;
+  minSelections: number;
+  maxSelections: number | null;
+  sortOrder:     number;
+  modifiers:     ModifierItem[];
+  productIds:    string[];
+}
+
+export const modifiers = {
+  listGroups: () =>
+    apiFetch<{ groups: ModifierGroupFull[] }>('/modifier-groups').then((r) => r.groups),
+
+  createGroup: (body: { name: string; selectionType?: ModifierSelectionType; minSelections?: number; maxSelections?: number | null }) =>
+    apiFetch<{ id: string }>('/modifier-groups', { method: 'POST', body: JSON.stringify(body) }),
+
+  updateGroup: (id: string, body: { name?: string; selectionType?: ModifierSelectionType; minSelections?: number; maxSelections?: number | null }) =>
+    apiFetch<{ success: boolean }>(`/modifier-groups/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteGroup: (id: string) =>
+    apiFetch<void>(`/modifier-groups/${id}`, { method: 'DELETE' }),
+
+  addModifier: (groupId: string, body: { name: string; priceDelta?: number; isDefault?: boolean; sortOrder?: number }) =>
+    apiFetch<{ id: string }>(`/modifier-groups/${groupId}/modifiers`, { method: 'POST', body: JSON.stringify(body) }),
+
+  updateModifier: (id: string, body: { name?: string; priceDelta?: number; isDefault?: boolean; sortOrder?: number }) =>
+    apiFetch<{ success: boolean }>(`/modifiers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteModifier: (id: string) =>
+    apiFetch<void>(`/modifiers/${id}`, { method: 'DELETE' }),
+
+  setGroupProducts: (groupId: string, productIds: string[]) =>
+    apiFetch<{ success: boolean }>(`/modifier-groups/${groupId}/products`, {
+      method: 'POST', body: JSON.stringify({ productIds }),
+    }),
+};
+
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
 export interface ReceiptLineItemData {

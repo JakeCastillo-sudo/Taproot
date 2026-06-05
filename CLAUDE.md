@@ -133,7 +133,7 @@ Full product create/edit/delete at /settings/products.
   restore/delete actions.
 - `App.tsx`: nested `/settings` → SettingsLayout with `/settings/products` child; index → products.
 
-### Prompt 33 (S1-03) — Modifier Group Management ✅ COMPLETE
+### Prompt 34 (S1-04) — Business Settings + Tax Config ✅ COMPLETE
 /settings/categories — create/edit/delete, drag-to-reorder, color/icon picker, product count.
 - `category.service.ts` (new): createCategory, updateCategory, deleteCategory (detaches products
   → category_id NULL, then soft-delete), reorderCategories.
@@ -145,10 +145,18 @@ Full product create/edit/delete at /settings/products.
   icon picker + "use initials", product counts; reorder persists + invalidates layout store.
 - `App.tsx`: `/settings/categories` route.
 
-### Prompt 33 (S1-03) — Modifier Group Management
-/settings/modifiers — create/edit/delete groups + options, price delta, isDefault,
-selectionType, min/maxSelections, assign to products.
-Backend: Full CRUD for modifier_groups + modifiers tables.
+### Prompt 34 (S1-04) — Business Settings + Tax Config ✅ COMPLETE
+/settings/modifiers — full CRUD groups + options + product assignment.
+- `modifier.service.ts` (new): listModifierGroups (groups + modifiers[] + productIds via JSON_AGG),
+  create/update/delete group (soft-delete cascades modifiers + clears assignments), add/update/
+  delete modifier, setGroupProducts, setProductGroups.
+- `modifier.routes.ts` (new, registered in index.ts): /modifier-groups CRUD, /:id/modifiers,
+  /:id/products, /modifiers/:id, /products/:id/modifier-groups.
+- `api.ts`: `modifiers.*` client + `ModifierGroupFull`/`ModifierItem`/`ModifierSelectionType`.
+- `ModifiersSettingsPage.tsx` (new): accordion groups, inline add/edit/reorder(↑↓)/delete options,
+  default toggle, price delta ($, negative ok), product-assignment checkboxes (pre-checked).
+- `App.tsx`: `/settings/modifiers` route.
+- NOTE: modifier reorder uses ↑/↓ buttons (persists sort_order) rather than drag.
 
 ### Prompt 34 (S1-04) — Business Settings + Tax Config
 /settings/business — restaurant name, address, phone, timezone, currency,
@@ -172,7 +180,7 @@ Payments: Stripe Connect status, payment methods toggle, fee display.
 Full walkthrough all settings screens, fix bugs, tag v0.2.0-beta-1.1.
 
 ## NEXT PROMPT
-Prompt 33 (S1-03) — Modifier Group Management
+Prompt 34 (S1-04) — Business Settings + Tax Config
 
 ## IMPORTANT: Pending Railway Migrations
 Migrations 011, 012, 013 committed but NOT yet run on Railway.
