@@ -339,6 +339,28 @@ export const employees = {
     }),
 };
 
+export interface CashDrop { id: string; amount: number; reason: string | null; created_at: string }
+
+export interface CashDrawerSession {
+  id: string; location_id: string; employee_id: string; employee_name: string;
+  opened_at: string; closed_at: string | null;
+  opening_amount: number; expected_amount: number | null;
+  actual_amount: number | null; discrepancy: number | null; notes: string | null;
+  cash_sales: number; cash_refunds: number; drops_total: number;
+  drops: CashDrop[];
+}
+
+export const cashDrawer = {
+  current: () => apiFetch<{ session: CashDrawerSession | null }>('/cash-drawer/current').then((r) => r.session),
+  history: () => apiFetch<{ sessions: CashDrawerSession[] }>('/cash-drawer/history').then((r) => r.sessions),
+  open: (openingAmount: number) =>
+    apiFetch<{ id: string }>('/cash-drawer/open', { method: 'POST', body: JSON.stringify({ openingAmount }) }),
+  drop: (amount: number, reason?: string) =>
+    apiFetch<{ id: string }>('/cash-drawer/drop', { method: 'POST', body: JSON.stringify({ amount, reason }) }),
+  close: (actualAmount: number, notes?: string) =>
+    apiFetch<{ session: CashDrawerSession }>('/cash-drawer/close', { method: 'POST', body: JSON.stringify({ actualAmount, notes }) }),
+};
+
 export interface LocationRow {
   id:       string;
   name:     string;

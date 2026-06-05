@@ -1,10 +1,10 @@
 # Taproot POS — Claude Project State
 
-> ⚠️ **MIGRATION NEEDED** (run in Railway console to enable hourly-rate storage):
+> ⚠️ **MIGRATIONS NEEDED** (run in Railway console):
 > `npx node-pg-migrate up --migrations-dir migrations`
-> Pending: **014_employee_hourly_rate** (S1-05) — adds `employees.hourly_rate`.
-> Employee management is RESILIENT to this (employee.service detects the column and degrades
-> to hourly_rate=null until migrated) — no 500s; only hourly-rate persistence is unavailable.
+> Pending: **014_employee_hourly_rate** (S1-05), **015_cash_drawer** (S2-04).
+> Both features are RESILIENT to their pending migration (column/table existence checks →
+> graceful degradation, no 500s). Hourly-rate persistence + cash drawer are unavailable until run.
 > Migrations 011/012/013 are CONFIRMED applied on Railway (verified live: product create with
 > default variant + price, tax round-trip, and listProducts all succeed on the deployed API).
 
@@ -169,6 +169,16 @@ employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrade
   Route `GET /reports/tips`. `reports.getTips` + `TipsReportData` in api.ts.
 - `TipsTab.tsx` (new) added to ReportsPage (6th tab "Tips": summary cards, by-day chart,
   by-employee + by-method tables).
+
+### S2-04 — Cash Drawer Management ✅ COMPLETE
+- `migrations/015_cash_drawer.js` ⚠️ NEEDS RAILWAY MIGRATION (cash_drawer_sessions + cash_drops,
+  one-open-per-location partial unique index; money in integer cents/bigint).
+- `cashDrawer.service.ts` (new, resilient to pending migration): open/drop/close/getCurrent/
+  history. Expected = opening + cash sales − cash refunds − drops (computed from payments).
+- `cashDrawer.routes.ts` (new, registered): /cash-drawer/current|history|open|drop|close.
+- `api.ts`: `cashDrawer.*`. `CashDrawerWidget.tsx` (new) in POS cart panel — open/drop/close
+  modals + live expected; close shows discrepancy.
+- NOTE: no-sale button deferred.
 
 ## Sprint 1 Queue — Beta 1.1: Settings & Admin
 See full roadmap at docs/ROADMAP.md

@@ -41,6 +41,7 @@ import { CategoryTileGrid } from '../pos/CategoryTileGrid';
 import { DayPartToggle } from '../pos/DayPartToggle';
 import { ModifierSheet, type ModifierSheetProduct } from '../pos/ModifierSheet';
 import { EmployeeSelect } from '../pos/EmployeeSelect';
+import { CashDrawerWidget } from '../pos/CashDrawerWidget';
 import { PaymentSheet } from '../pos/PaymentSheet';
 import { MobileCart } from '../pos/MobileCart';
 import { SyncStatus } from '../ui/SyncStatus';
@@ -871,6 +872,7 @@ export function POSLayout({ user }: POSLayoutProps) {
             )}
           </div>
           <CustomerSearch />
+          <div className="mt-3"><CashDrawerWidget /></div>
         </div>
 
         {/* Cart items */}
