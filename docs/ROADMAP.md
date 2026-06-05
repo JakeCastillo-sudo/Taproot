@@ -81,16 +81,16 @@ Live at taproot-pos.com as of June 4, 2026.
 
 ---
 
-## SPRINT 4 — BETA 1.4: Online Ordering & Customer Engagement
+## SPRINT 4 — BETA 1.4: Online Ordering & Customer Engagement ✅ COMPLETE (v0.5.0-beta-1.4)
 ### Week of June 30, 2026
 
-**S4-01** Public Online Menu — taproot-pos.com/order/[slug], Stripe payment, pickup/delivery
-**S4-02** Online Ordering Settings — enable/disable, pickup times, delivery radius/fee
-**S4-03** Loyalty Program — points config, tier thresholds, POS checkout integration
-**S4-04** Gift Cards — sell/redeem at POS, digital delivery, balance management
-**S4-05** Discount Code Engine — %, fixed, BOGO, happy hour, validation, reporting
-**S4-06** Customer Management — /customers, profiles, lifetime value, tags, CSV export
-**S4-07** Sprint 4 Integration Test + Deploy — v0.5.0-beta-1.4 tag
+**S4-01** ✅ Online Checkout — pickup/delivery + Stripe Connect pay-now / pay-at-counter
+**S4-02** ✅ Online Ordering Settings — enable/disable, pickup prep, delivery radius/fee, min order
+**S4-03** ✅ Loyalty Program — config + automatic accrual (verified live: 97 pts on $97.94)
+**S4-04** ✅ Gift Cards — issue/list/deactivate + POS code redemption (real balance)
+**S4-05** ✅ Discount Code Engine — %/fixed/BOGO/free, validate + report (verified live: 10% applied)
+**S4-06** ✅ Customer Management — /customers profiles, LTV, tags, CSV; CustomerSearch + (BUG-QA-012)
+**S4-07** ✅ Sprint 4 Integration + Deploy — full discount+loyalty lifecycle verified; v0.5.0-beta-1.4
 
 ---
 

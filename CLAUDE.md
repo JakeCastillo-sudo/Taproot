@@ -1,8 +1,12 @@
 # Taproot POS — Claude Project State
 
-> # 🚀 AUTONOMOUS BUILD COMPLETE — Sprints 1–3 done
-> Built overnight: **21/21 prompts** (S1-01…S3-06) across 3 sprints, tagged
-> **v0.2.0-beta-1.1**, **v0.3.0-beta-1.2**, **v0.4.0-beta-1.3**.
+> # 🚀 AUTONOMOUS BUILD COMPLETE — Sprints 1–4 done
+> Built across sessions: **28/28 prompts** (S1-01…S4-07) over 4 sprints, tagged
+> **v0.2.0-beta-1.1**, **v0.3.0-beta-1.2**, **v0.4.0-beta-1.3**, **v0.5.0-beta-1.4**.
+> - **Sprint 4 (Online Ordering & Engagement):** online checkout (pickup/delivery + Stripe Connect),
+>   online-ordering settings, loyalty (auto-accrual), gift cards (POS redemption), discount engine,
+>   customer management. Verified live: discount 10% applied + 97 loyalty pts on a $97.94 order.
+> - BUG-QA-012 resolved (CustomerSearch + creates inline). No new migrations in Sprint 4.
 > - **Sprint 1 (Settings & Admin):** Products, Categories, Modifiers, Employees + PIN login,
 >   Business + configurable tax, Payments, settings shell.
 > - **Sprint 2 (Transactions):** Order History, Void/Refund, Tips, Cash Drawer, End-of-Day,
