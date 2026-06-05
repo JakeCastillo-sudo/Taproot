@@ -18,14 +18,11 @@
 
 /** @param {import('node-pg-migrate').MigrationBuilder} pgm */
 exports.up = (pgm) => {
-  pgm.addColumns('organizations', {
-    settings: {
-      type:    'jsonb',
-      notNull: false,
-      default: null,
-      comment: 'Organization-level settings JSONB (dashboardLayout, etc.)',
-    },
-  });
+  // Idempotent: the settings column may already exist on some environments.
+  pgm.sql(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS
+    settings jsonb DEFAULT NULL`);
+  pgm.sql(`COMMENT ON COLUMN organizations.settings IS
+    'Organization-level settings JSONB (dashboardLayout, etc.)'`);
 };
 
 /** @param {import('node-pg-migrate').MigrationBuilder} pgm */
