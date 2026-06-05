@@ -54,6 +54,11 @@ export function OnlineOrderingSettingsPage() {
               <Toggle on={cfg.deliveryEnabled} onClick={() => set({ deliveryEnabled: !cfg.deliveryEnabled })} label="Delivery" />
             </section>
 
+            <section className="border border-gray-100 rounded-lg p-4">
+              <Toggle on={cfg.textEnabled ?? false} onClick={() => set({ textEnabled: !(cfg.textEnabled ?? false) })} label="📱 AI text ordering (SMS)" />
+              <p className="text-xs text-gray-500 mt-2">Customers text their order to your Twilio number; AI parses it, matches items, and fires the ticket to the POS. Configure the Twilio webhook to <code>/webhook/sms/&lt;your-slug&gt;</code> and set the Twilio env vars on the API.</p>
+            </section>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Pickup prep (minutes)</label>

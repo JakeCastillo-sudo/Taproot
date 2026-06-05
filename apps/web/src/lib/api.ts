@@ -707,6 +707,7 @@ export interface OnlineOrderingConfig {
   deliveryRadiusMiles: number;
   deliveryFeeCents:    number;
   minOrderCents:       number;
+  textEnabled?:        boolean;
 }
 
 export interface LoyaltyConfig {

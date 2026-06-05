@@ -90,6 +90,11 @@ export const config = {
    */
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? '',
 
+  /** Twilio SMS (text ordering). Optional — when unset, SMS is logged to console (dev). */
+  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ?? '',
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN ?? '',
+  TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER ?? '',
+
   /**
    * Webhook signing secret for direct Stripe events (charges, refunds).
    * Production: must start with 'whsec_'.

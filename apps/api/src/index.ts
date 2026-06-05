@@ -38,6 +38,7 @@ import reservationRoutes from './routes/reservation.routes';
 import discountRoutes from './routes/discount.routes';
 import intelligenceRoutes from './routes/intelligence.routes';
 import integrationsRoutes from './routes/integrations.routes';
+import smsRoutes from './routes/sms.routes';
 import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
 import { checkSubscription } from './middleware/subscription';
@@ -85,6 +86,17 @@ async function buildApp(): Promise<any> {
     },
     genReqId: () => crypto.randomUUID(),
     trustProxy: true,
+  });
+
+  // Parse application/x-www-form-urlencoded (Twilio SMS webhooks post form bodies).
+  fastify.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => {
+    try {
+      const params: Record<string, string> = {};
+      for (const [k, v] of new URLSearchParams(body as string)) params[k] = v;
+      done(null, params);
+    } catch (err) {
+      done(err as Error, undefined);
+    }
   });
 
   // ─── Security headers ─────────────────────────────────────────────────────────
@@ -243,6 +255,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(discountRoutes);
   await fastify.register(intelligenceRoutes);
   await fastify.register(integrationsRoutes);
+  await fastify.register(smsRoutes);
 
   // ─── Dev-only utilities (never registered in production) ──────────────────────
   //
@@ -348,6 +361,8 @@ async function buildApp(): Promise<any> {
     'POST /public/:orgSlug/payment-intent',
     'POST /public/:orgSlug/order/:orderId/confirm',
     'GET /public/:orgSlug/order/:orderId/status',
+    // Twilio inbound SMS — verified via Twilio signature, not JWT
+    'POST /webhook/sms/:orgSlug',
     // Dev-only — this route is not registered in production so this entry is harmless
     ...(config.NODE_ENV === 'development' ? ['POST /api/v1/dev/reset-rate-limits'] : []),
   ]);
