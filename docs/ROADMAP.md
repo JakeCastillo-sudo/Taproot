@@ -121,13 +121,16 @@ Pattern: deterministic SQL compute + optional Claude narrative (graceful without
 
 ---
 
-## SPRINT 7 — V1.0: Go-To-Market Polish
+## SPRINT 7 — V1.0: Go-To-Market Polish ✅ COMPLETE (v1.0.0) 🌿
 ### Week of July 21, 2026
 
-**S7-01** AI Phone/Text Ordering — Twilio number, Claude parses SMS orders, confirmation text
-**S7-02** Kiosk Mode — locked full-screen, customer-facing, upsell prompts, PIN exit
-**S7-03** Onboarding Wizard Rewrite — 7-step guided setup, < 5 min per step
-**S7-04** Product Hunt + Marketing Assets — landing page, pricing comparison, blog post
+**S7-01** ✅ AI Text Ordering — Twilio SMS webhook, Claude parse + fuzzy match, TwiML reply (opt-in)
+**S7-02** ✅ Kiosk Mode — full-screen self-serve, upsell, idle reset, PIN exit
+**S7-03** ✅ Onboarding Wizard Rewrite — 7-step (welcome/menu/review/team/payments/tax/done)
+**S7-04** ✅ Landing Page + Marketing — V1.0 hero, comparison table, FAQ
+**S7-05** ✅ Error Monitoring + Analytics — logger, process handlers, ErrorBoundary, Plausible/Sentry
+**S7-06** ✅ Performance + Polish Pass — favicon/PWA verified, build green, patterns confirmed
+**S7-07** ✅ V1.0 Release — live verified (health v1.0.0), docs, LAUNCH.md, tag v1.0.0
 
 ---
 

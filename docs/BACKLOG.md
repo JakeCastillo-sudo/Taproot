@@ -261,3 +261,10 @@
      instead of {} — isComplete survives rehydration correctly
   4. `useOnboardingGate.ts`: Added !loading guard to shouldShow + mounted ref
 - Status: RESOLVED
+
+## DEP-AUDIT-001 — npm audit advisories (post-V1.0)
+Found during S7-07. 5 advisories, **no criticals**, all in build/transitive deps:
+- `esbuild` (moderate) — dev-only via vite; fix = vite@8 (breaking).
+- `nodemailer` (high) — SMTP injection class; fix = nodemailer@8 (breaking). Audit before bumping.
+- `tar`, `uuid` (high/moderate) — transitive; revisit on next dep sweep.
+Action: schedule a dependency-bump pass with build verification. Not a launch blocker.

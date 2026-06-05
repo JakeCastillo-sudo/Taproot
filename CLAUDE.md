@@ -1,6 +1,15 @@
 # Taproot POS — Claude Project State
 
-> # 🚀 AUTONOMOUS BUILD — Sprints 1–6 done (Sprint 7 in progress → V1.0)
+> # 🌿 V1.0 COMPLETE — Sprints 1–7 done
+> **49/49 prompts** (S1-01…S7-07) over 7 sprints, tagged **v0.2.0** → **v1.0.0**.
+> - Migrations needed: **none** (001–016 all applied on Railway).
+> - Bugs found this build: 0 new blockers; **5 npm audit advisories** (build/transitive deps — esbuild
+>   dev-only, nodemailer, tar, uuid) need breaking major bumps → logged in BACKLOG, no criticals.
+> - Blocked prompts: **none**.
+> - API timing from remote ~1.0–1.2s (Railway RTT + small instance) — over the 500ms target; candidate
+>   for index/caching tuning post-launch (not a blocker).
+> - Next: Jake reviews, does a final live click-through, then **LAUNCHES** (see docs/LAUNCH.md).
+>
 > **41/49 prompts** (S1-01…S6-07) over 6 sprints, tagged **v0.2.0** → **v0.7.0**.
 > - **Sprints 1–3:** Settings/Admin (products, categories, modifiers, employees+PIN, tax, payments);
 >   Transactions (order history, void/refund, tips, cash drawer, EOD, split check — fixed P0 BUG-ORD-001);
