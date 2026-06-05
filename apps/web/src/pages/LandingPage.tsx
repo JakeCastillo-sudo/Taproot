@@ -188,6 +188,24 @@ export function LandingPage() {
               No credit card required to start your trial
             </p>
           </div>
+
+          {/* Third-party pass-through disclaimer */}
+          <div className="mt-5 text-left px-1">
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">
+              Third-party fees we don&apos;t control and don&apos;t profit from
+            </p>
+            <ul className="space-y-1">
+              <li className="text-xs italic text-gray-400">
+                <strong className="not-italic text-gray-500">Credit card processing</strong> — Stripe charges 2.7% + $0.05 per transaction, billed directly by Stripe. Taproot keeps $0.
+              </li>
+              <li className="text-xs italic text-gray-400">
+                <strong className="not-italic text-gray-500">Sales tax</strong> — collected at checkout and remitted in full to your state / local tax authority.
+              </li>
+              <li className="text-xs italic text-gray-400">
+                <strong className="not-italic text-gray-500">AI usage</strong> — included within fair-use limits (menu imports, NL queries, forecasting). Unusually high volume may be passed through at cost with 30-day notice.
+              </li>
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -228,6 +246,7 @@ export function LandingPage() {
               ['Can I import from Toast or Square?', 'Yes. Upload a menu export (PDF/CSV) or use the migration wizard and we\'ll bring your catalog over.'],
               ['What happens to my data if I cancel?', 'You own it. Export anytime — orders, customers, products, and accounting CSVs are always available.'],
               ['Is there a setup fee?', 'No setup fee, and no credit card required to start your 14-day trial.'],
+              ['What does "$199 flat" actually mean?', 'Your Taproot subscription is $199/month — that\'s it from us. Three pass-through costs exist that we don\'t control and don\'t profit from: (1) Credit card processing at 2.7% + $0.05 per transaction, billed directly by Stripe to your bank account. (2) Sales tax collected from customers and remitted in full to your tax authority. (3) AI features (menu import, forecasting, NL queries) included within fair-use limits — heavy usage beyond standard thresholds may be passed through at cost with 30 days\' notice. The vast majority of restaurants never exceed those limits.'],
             ].map(([q, a]) => (
               <div key={q} className="bg-white rounded-xl border border-gray-100 p-5">
                 <h3 className="font-semibold text-gray-900 mb-1">{q}</h3>
