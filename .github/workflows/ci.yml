@@ -67,6 +67,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # apps/api resolves @taproot/shared via its built dist/ (package "main"/"types").
+      # npm ci does not build workspaces, so build shared before typecheck + tests —
+      # otherwise tsc reports "Cannot find module '@taproot/shared'" (and cascading
+      # implicit-any errors). Mirrors the root `dev` script's build-shared-first step.
+      - name: Build shared package
+        run: npm run build --workspace=@taproot/shared
+
       - name: Typecheck API
         run: npx tsc --noEmit
         working-directory: apps/api
@@ -195,6 +202,12 @@ jobs:
           git secrets --add --allowed 'sk_test_'
           git secrets --add --allowed 'sk-ant-placeholder'
           git secrets --add --allowed 'whsec_placeholder'
+          # Allow documented placeholders / examples in committed files (not real secrets):
+          #   apps/api/.env.production.example  -> STRIPE_SECRET_KEY=sk_live_CHANGE_ME
+          #   apps/api/src/config.ts @example   -> ANTHROPIC_API_KEY=sk-ant-api03-...
+          # Scoped tightly so real keys (sk_live_<chars>, sk-ant-api03-<chars>) still trip.
+          git secrets --add --allowed 'sk_live_CHANGE_ME'
+          git secrets --add --allowed 'sk-ant-api03-\.\.\.'
 
       - name: Scan repository for secrets
         run: git secrets --scan-history
