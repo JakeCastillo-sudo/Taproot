@@ -213,7 +213,17 @@ Shell was built in S1-01 (`SettingsLayout.tsx`): desktop sidebar + mobile horizo
 `/settings`. This prompt added the `/settings/payments` route + stub page so all 7 nav links
 resolve (Products, Categories, Modifiers, Employees, Business, Payments, Dashboard).
 
-### Prompt 37 (S1-07) — Payments Settings
+### Prompt 37 (S1-07) — Payments Settings ✅ COMPLETE
+/settings/payments — full page (replaced S1-06 stub).
+- Reuses existing `GET /payments/connect/status`, `POST /payments/connect/account`,
+  `POST /payments/connect/refresh-link`. Status 400s when no account → client catches → null
+  → "Not connected".
+- `settings.routes.ts`: GET/PATCH `/settings/payments` (org settings.paymentMethods; cash forced on).
+- `api.ts`: `settings.getPayments/savePayments`, `stripeConnect.status/start/refreshLink`.
+- `PaymentsSettingsPage.tsx`: Connect status card (masked account, payouts, manage link / connect
+  button), payment-method toggles (cash locked on; card/wallets gated on Stripe), fee display.
+
+### Prompt 37b — (was S1-07, now done above)
 
 ### Prompt 37 (S1-08) — Sprint 1 Integration Test + Deploy
 Full walkthrough all settings screens, fix bugs, tag v0.2.0-beta-1.1.

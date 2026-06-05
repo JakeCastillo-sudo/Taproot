@@ -561,6 +561,37 @@ export const settings = {
     apiFetch<{ success: boolean }>('/settings/receipt', {
       method: 'PATCH', body: JSON.stringify({ receiptConfig }),
     }),
+
+  getPayments: () =>
+    apiFetch<{ paymentMethods: Record<string, boolean>; stripeEnabled: boolean }>('/settings/payments'),
+
+  savePayments: (paymentMethods: Record<string, boolean>) =>
+    apiFetch<{ success: boolean }>('/settings/payments', {
+      method: 'PATCH', body: JSON.stringify({ paymentMethods }),
+    }),
+};
+
+export interface ConnectAccountStatus {
+  accountId:           string;
+  chargesEnabled:      boolean;
+  payoutsEnabled:      boolean;
+  requiresInformation: boolean;
+  requirementsDue:     string[];
+}
+
+export const stripeConnect = {
+  /** Returns null when no Stripe account is connected (endpoint 400s in that case). */
+  status: () =>
+    apiFetch<ConnectAccountStatus>('/payments/connect/status', {}, true, { noRedirect: true })
+      .catch(() => null),
+
+  start: (input: { businessType: 'individual' | 'company'; email: string; country: string; businessName?: string }) =>
+    apiFetch<{ accountId: string; onboardingUrl: string }>('/payments/connect/account', {
+      method: 'POST', body: JSON.stringify(input),
+    }),
+
+  refreshLink: () =>
+    apiFetch<{ onboardingUrl: string }>('/payments/connect/refresh-link', { method: 'POST' }),
 };
 
 // ─── Categories ───────────────────────────────────────────────────────────────

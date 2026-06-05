@@ -54,6 +54,35 @@ export default async function settingsRoutes(fastify: FastifyInstance): Promise<
     return reply.send({ success: true });
   });
 
+  // ── GET /api/v1/settings/payments — payment method toggles ─────────────────
+  fastify.get('/api/v1/settings/payments', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { rows: [org] } = await query<{
+      settings: { paymentMethods?: Record<string, boolean> };
+      payment_processing_enabled: boolean;
+    }>(`SELECT settings, payment_processing_enabled FROM organizations WHERE id = $1`, [user.orgId]);
+    const defaults = { cash: true, card: false, apple_pay: false, google_pay: false, gift_card: false, account_credit: false };
+    return reply.send({
+      paymentMethods: { ...defaults, ...(org?.settings?.paymentMethods ?? {}), cash: true },
+      stripeEnabled: Boolean(org?.payment_processing_enabled),
+    });
+  });
+
+  // ── PATCH /api/v1/settings/payments ────────────────────────────────────────
+  fastify.patch('/api/v1/settings/payments', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const body = req.body as { paymentMethods: Record<string, boolean> };
+    const methods = { ...(body.paymentMethods ?? {}), cash: true }; // cash can't be disabled
+    await query(
+      `UPDATE organizations
+          SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{paymentMethods}', $2::jsonb),
+              updated_at = now()
+        WHERE id = $1`,
+      [user.orgId, JSON.stringify(methods)],
+    );
+    return reply.send({ success: true });
+  });
+
   // ── GET /api/v1/locations — list org locations (for pickers) ───────────────
   fastify.get('/api/v1/locations', async (req: FastifyRequest, reply: FastifyReply) => {
     const { user } = req as AuthedRequest;
