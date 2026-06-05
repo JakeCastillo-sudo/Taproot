@@ -349,6 +349,48 @@ export interface ArchivedProductRow {
   archive_reason: string | null;
 }
 
+// ─── Dashboard layout types ───────────────────────────────────────────────────
+
+/** Per-category layout config stored in the dashboard layout. */
+export interface CategoryLayoutConfig {
+  categoryId:   string;
+  displayOrder: number;       // 0-based sort position
+  color:        string | null; // hex color — null = auto (hash-based)
+  icon:         string | null; // emoji or 2-char string — null = use initials
+  isPinned:     boolean;       // pinned categories appear first
+  isHidden:     boolean;       // hide from POS without deleting
+}
+
+/** Full dashboard layout saved in organizations.settings.dashboardLayout */
+export interface DashboardLayout {
+  categoryConfigs:   CategoryLayoutConfig[];
+  showAllItemsTile:  boolean;
+  allItemsTileColor: string;
+  gridColumns:       2 | 3 | 4;
+}
+
+export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
+  categoryConfigs:   [],
+  showAllItemsTile:  true,
+  allItemsTileColor: '#1D9E75',
+  gridColumns:       3,
+};
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+export const settings = {
+  getDashboardLayout: () =>
+    apiFetch<{ dashboardLayout: DashboardLayout | null }>(
+      '/settings/dashboard-layout',
+    ).then((r) => r.dashboardLayout),
+
+  saveDashboardLayout: (layout: DashboardLayout) =>
+    apiFetch<{ success: boolean }>('/settings/dashboard-layout', {
+      method: 'PATCH',
+      body:   JSON.stringify(layout),
+    }),
+};
+
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export const categories = {

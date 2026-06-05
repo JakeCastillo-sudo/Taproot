@@ -27,6 +27,7 @@ import migrationRoutes from './routes/migration.routes';
 import registrationRoutes from './routes/registration.routes';
 import billingRoutes from './routes/billing.routes';
 import onboardingRoutes from './routes/onboarding.routes';
+import settingsRoutes from './routes/settings.routes';
 import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
 import { checkSubscription } from './middleware/subscription';
@@ -221,6 +222,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(migrationRoutes);
   await fastify.register(billingRoutes);
   await fastify.register(onboardingRoutes);
+  await fastify.register(settingsRoutes);
 
   // ─── Dev-only utilities (never registered in production) ──────────────────────
   //

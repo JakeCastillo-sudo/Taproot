@@ -218,6 +218,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'import',    icon: <Upload size={18} />,       label: 'Import',    path: '/import' },
   { id: 'migrate',   icon: <ArrowRightLeft size={18}/>,label: 'Migrate',   path: '/migrate' },
   { id: 'settings',  icon: <Settings size={18} />,     label: 'Settings',  path: '/settings' },
+  { id: 'customize', icon: <LayoutGrid size={18} />,   label: 'Customize', path: '/settings/dashboard' },
 ];
 
 // ─── Collapsible Sidebar (desktop lg+) ───────────────────────────────────────

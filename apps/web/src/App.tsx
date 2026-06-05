@@ -19,6 +19,7 @@ import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { ReceiptPage } from './pages/ReceiptPage';
+import { DashboardEditorPage } from './pages/DashboardEditorPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -280,6 +281,16 @@ export default function App() {
             element={
               <RequireAuth>
                 <PlaceholderPage title="Settings" icon={<Settings2 size={28} />} />
+              </RequireAuth>
+            }
+          />
+
+          {/* Dashboard layout editor — customize POS register tiles */}
+          <Route
+            path="/settings/dashboard"
+            element={
+              <RequireAuth>
+                <DashboardEditorPage />
               </RequireAuth>
             }
           />

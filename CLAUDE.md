@@ -80,13 +80,38 @@ Three-state product model: Active / Archived / Deleted.
 
 **Demo**: Inventory → Stock Levels → Classic Burger → Archive icon → enter reason → POS no longer shows it → Inventory → Archived → Restore → back on POS
 
-### Prompt 29 — Fix import bugs (P1 backlog)
+### Prompt 29 — Dashboard Layout Editor ✅ COMPLETE
+Fixes BUG-NAV-001 (non-uniform tiles, no color/order control).
+
+- `migrations/013_org_settings.js`: adds `settings JSONB` to organizations table
+  ⚠️ Needs `npx node-pg-migrate up --migrations-dir migrations` on Railway
+- `settings.routes.ts` (new): `GET /api/v1/settings/dashboard-layout` reads from
+  `organizations.settings->'dashboardLayout'`; `PATCH` uses `jsonb_set` to store
+- `index.ts`: registers `settingsRoutes`
+- `api.ts`: `DashboardLayout`, `CategoryLayoutConfig`, `DEFAULT_DASHBOARD_LAYOUT`
+  types; `settings.getDashboardLayout` / `saveDashboardLayout` API methods
+- `layout.store.ts` (new): Zustand persist store; `fetchLayout()`, `saveLayout()`,
+  `resetLayout()`; persists to `taproot-dashboard-layout` localStorage key
+- `CategoryTileGrid.tsx` rewrite: **BUG-NAV-001 fixed** — all tiles now `aspect-square`
+  (uniform size); reads `useLayoutStore`; applies color/icon/order/hidden/pinned from
+  config; respects `gridColumns` (2/3/4); safe-default rule (null layout → original behavior)
+- `DashboardEditorPage.tsx` (new): `/settings/dashboard` — live preview (left 55%) +
+  sortable category list (right 45%); drag-to-reorder via `@dnd-kit/sortable` (touch
+  + mouse); `ColorPicker` (10 presets + hex input); `IconPicker` (20 food emojis);
+  pin/hide per category; grid columns selector; All Items tile toggle + color; Save / Reset
+- `App.tsx`: `/settings/dashboard` route (RequireAuth)
+- `POSLayout.tsx`: "Customize" nav item → `/settings/dashboard`
+- Installed: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`
+
+**Demo**: POS → sidebar Customize → change Classic Burger to red + 🍔 icon → drag Food to top → Save → POS tiles update immediately
+
+### Prompt 30 — Fix import bugs (P1 backlog)
 Fix BUG-IMP-001 through 004.
 - BUG-IMP-003: fix ImportReview.tsx height/scroll so buttons are reachable without zoom
 - BUG-IMP-004: verify confirm flow end-to-end; test with real CSV/PDF upload
 - BUG-IMP-001/002: diagnose CSV parser path and PDF price extraction
 
-### Prompt 28 — Settings page
+### Prompt 31 — Settings page
 - Location settings: name, address, phone, timezone, currency
 - Tax configuration UI (reads/writes `locations.tax_config JSONB`)
 - Printer configuration (receipt footer text, kitchen ticket options)
