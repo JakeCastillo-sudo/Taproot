@@ -314,7 +314,7 @@ export function PaymentSheet({ onClose }: Props) {
           quantity:  c.quantity,
           unitPrice: c.unitPrice,
           notes:     c.notes || undefined,
-          modifiers: (c.modifiers ?? []).map((m) => ({ modifierId: m.modifierId, priceDelta: m.priceDelta })),
+          modifiers: (c.modifiers ?? []).map((m) => ({ modifierId: m.modifierId, name: m.name, priceDelta: m.priceDelta })),
         })),
         notes: orderNotes || undefined,
       });

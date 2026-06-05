@@ -2,6 +2,19 @@
 
 ## P0 — Critical (blocks production)
 
+### BUG-ORD-001: Order creation 500s from the POS — frontend/backend contract mismatch ✅ RESOLVED
+- Symptom: clicking Charge (cash, or card in production) → `POST /locations/:id/orders` returns
+  500 "Cannot read properties of undefined (reading 'length')". Real orders never created via UI;
+  demo only worked because orders were seeded and DEV card payments are simulated.
+- Root cause: frontend `ordersApi.create` sent `{ items: [{..., unitPrice}] }` but the backend
+  `createOrder` expects `{ orderType, lineItems: [{..., unitPriceOverride}] }` (required orderType).
+  `resolveLineItems(input.lineItems)` → undefined.length.
+- Fix applied (S2-07): `orders.create` in `api.ts` now translates the cart body → backend contract
+  (orderType default 'in_store', items→lineItems, unitPrice→unitPriceOverride, modifiers carry name).
+  PaymentSheet + SplitCheckModal pass modifier `name` through. Verified live: `lineItems`+`orderType`
+  creates an order (id returned).
+- Status: RESOLVED
+
 ### BUG-PAY-001: Payment crashes with undefined length error ✅ RESOLVED
 - Symptom: "Cannot read properties of undefined (reading 'length')" error modal
   after clicking Charge button

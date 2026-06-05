@@ -132,7 +132,15 @@ business/tax/receipt/payments settings endpoints, `/auth/pin-login`, `/api/v1/lo
 Live-verified S1-08: product create (default variant+price), tax round-trip, all routes 401-gated,
 employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrades gracefully.
 
-## 🚧 Sprint 2 — Beta 1.2: Transaction Management (in progress)
+## ✅ Sprint 2 COMPLETE — Beta 1.2 (tag v0.3.0-beta-1.2)
+Order History, Void/Refund, Tips, Cash Drawer, End-of-Day, Split Check. **Found + fixed
+BUG-ORD-001** (P0): the POS order-create body shape didn't match the backend, so live cash/card
+order creation 500'd — `orders.create` now translates items→lineItems + orderType. Live-verified:
+full create→pay(+tip)→void lifecycle, all Sprint 2 endpoints 200, resilience fixes (employees,
+cash-drawer) confirmed in prod. Migrations 014 + 015 still pending on Railway (code degrades
+gracefully).
+
+## 🚧 Sprint 2 — Beta 1.2: Transaction Management (detail)
 
 ### S2-01 — Order History Screen ✅ COMPLETE
 - `order.service.ts`: `listOrderHistory()` — org-wide enriched list (employee + customer name,

@@ -223,7 +223,7 @@ export interface OrderCreateBody {
     quantity: number;
     unitPrice: number;
     notes?: string;
-    modifiers?: Array<{ modifierId: string; priceDelta: number }>;
+    modifiers?: Array<{ modifierId: string; name?: string; priceDelta: number }>;
   }>;
   discountIds?: string[];
   notes?: string;
@@ -761,10 +761,27 @@ export interface ReceiptData {
 }
 
 export const orders = {
+  // BUG-ORD-001: the backend expects { orderType, lineItems[] } with unitPriceOverride —
+  // translate the cart-shaped body (items[] + unitPrice) here so the POS payment flow works.
   create: (locationId: string, body: Omit<OrderCreateBody, 'locationId'>) =>
     apiFetch<Order>(`/locations/${locationId}/orders`, {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        orderType:  body.orderType ?? 'in_store',
+        customerId: body.customerId ?? null,
+        notes:      body.notes,
+        discountIds: body.discountIds,
+        lineItems:  body.items.map((i) => ({
+          productId:         i.productId,
+          variantId:         i.variantId ?? null,
+          quantity:          i.quantity,
+          unitPriceOverride: i.unitPrice,
+          notes:             i.notes,
+          modifiers:         (i.modifiers ?? []).map((m) => ({
+            modifierId: m.modifierId, name: m.name ?? '', priceDelta: m.priceDelta,
+          })),
+        })),
+      }),
     }),
 
   getById: (locationId: string, orderId: string) =>

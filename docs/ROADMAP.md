@@ -56,16 +56,16 @@ Live at taproot-pos.com as of June 4, 2026.
 
 ---
 
-## SPRINT 2 — BETA 1.2: Transaction Management
+## SPRINT 2 — BETA 1.2: Transaction Management ✅ COMPLETE (v0.3.0-beta-1.2)
 ### Week of June 16, 2026
 
-**S2-01** Order History Screen — /orders, full list, filter, search, detail drawer, print receipt
-**S2-02** Void & Refund — void (manager PIN), full/partial refund, Stripe refund integration
-**S2-03** Tip Management — tip entry UI, post-payment adjustment, tip pool, tip reports
-**S2-04** Cash Drawer Management — open/close shift, cash drop, discrepancy report
-**S2-05** End of Day Report — one-click EOD, PDF export, email to owner
-**S2-06** Split Check — even split, by item, custom; multiple payment methods per split
-**S2-07** Sprint 2 Integration Test + Deploy — v0.3.0-beta-1.2 tag
+**S2-01** ✅ Order History Screen — /orders, filter/search, detail drawer
+**S2-02** ✅ Void & Refund — order void + full/partial/by-item refund, Stripe-aware
+**S2-03** ✅ Tip Management — tip entry, adjust-tip, tip reports (fixed tip double-count)
+**S2-04** ✅ Cash Drawer Management — open/close/drop, discrepancy (migration 015)
+**S2-05** ✅ End of Day Report — one-click EOD, CSV, print
+**S2-06** ✅ Split Check — even + custom (by-item deferred)
+**S2-07** ✅ Sprint 2 Integration + Deploy — fixed BUG-ORD-001 (order-create contract); v0.3.0-beta-1.2
 
 ---
 
