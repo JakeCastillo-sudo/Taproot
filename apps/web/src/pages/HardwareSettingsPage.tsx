@@ -4,7 +4,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Printer, CheckCircle2, XCircle, ScanLine } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Printer, CheckCircle2, XCircle, ScanLine, Monitor } from 'lucide-react';
 import { clsx } from 'clsx';
 import {
   getPrintServerUrl, setPrintServerUrl, checkPrintServer, printReceiptThermal,
@@ -30,6 +31,7 @@ export function HardwareSettingsPage() {
   const [checking, setChecking] = useState(false);
   const [model, setModel] = useState(() => { try { return localStorage.getItem('taproot_printer_model') || PRINTER_MODELS[0]; } catch { return PRINTER_MODELS[0]; } });
   const [scanner, setScanner] = useState(getScannerEnabled());
+  const navigate = useNavigate();
 
   const probe = async () => { setChecking(true); setStatus(await checkPrintServer()); setChecking(false); };
   useEffect(() => { void probe(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
@@ -87,6 +89,13 @@ export function HardwareSettingsPage() {
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-2">USB/Bluetooth scanners work as keyboard input — no driver needed. When enabled, fast scans at the POS add products to the cart; in Inventory they jump to the item.</p>
+        </section>
+
+        {/* Kiosk mode */}
+        <section className="border border-gray-100 rounded-lg p-4">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-2"><Monitor size={16} /> Self-serve kiosk</h2>
+          <p className="text-xs text-gray-500 mb-3">Launch full-screen self-serve ordering on this device. Exit with a 3-tap on the top-right corner + manager PIN (default 1234).</p>
+          <button onClick={() => navigate('/kiosk')} className="px-3 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary-dark">Open Kiosk Mode</button>
         </section>
       </div>
     </div>

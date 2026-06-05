@@ -191,6 +191,20 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
   `/settings/integrations`): date range + QuickBooks/Xero download + Mailchimp/Gusto/OpenTable/
   DoorDash "coming soon" stubs. Nav item.
 
+## 🚧 Sprint 7 — V1.0 Go-To-Market Polish (in progress)
+
+### S7-01 — AI Text Ordering ✅ COMPLETE
+- `sms.service.ts` (Twilio REST via fetch, logs in dev) + `textOrdering.service.ts` (Claude parse →
+  fuzzy product match → `createPublicOrder` pickup → SMS reply). `config.ts`: Twilio vars.
+- `POST /webhook/sms/:orgSlug` (public, Twilio-signature checked, TwiML reply); urlencoded body parser
+  added to Fastify. Online-ordering `textEnabled` opt-in toggle (UI + service requires `=== true`).
+
+### S7-02 — Kiosk Mode ✅ COMPLETE
+- `KioskPage.tsx` (new, `/kiosk`, RequireAuth): full-screen self-serve — category chips → product
+  grid → cart → "Pay at Counter" (in_store order) → thank-you screen. Large touch targets, upsell
+  prompt, 90s idle auto-reset (30s warning), 3-tap top-right + manager PIN (default 1234) to exit.
+- HardwareSettingsPage: "Open Kiosk Mode" launcher. Uses authenticated product/order API.
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

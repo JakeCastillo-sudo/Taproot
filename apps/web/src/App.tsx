@@ -42,6 +42,7 @@ import { KitchenDisplayPage } from './pages/KitchenDisplayPage';
 import { ReservationsPage } from './pages/ReservationsPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { InsightsPage } from './pages/InsightsPage';
+import { KioskPage } from './pages/KioskPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -280,6 +281,15 @@ export default function App() {
             element={
               <RequireAuth>
                 <InsightsPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/kiosk"
+            element={
+              <RequireAuth>
+                <KioskPage />
               </RequireAuth>
             }
           />
