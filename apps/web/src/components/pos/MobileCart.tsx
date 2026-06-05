@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { ShoppingCart, Tag, AlertTriangle } from 'lucide-react';
-import { usePOSStore, type CartItem } from '../../store/pos.store';
+import { usePOSStore, getPosTaxRate, type CartItem } from '../../store/pos.store';
 import { BottomSheet, BottomSheetFooter } from '../ui/BottomSheet';
 import { useHaptic } from '../../hooks/useHaptic';
 
@@ -169,7 +169,7 @@ export function MobileCart({ open, onOpen, onClose }: MobileCartProps) {
                 </div>
               )}
               <div className="flex justify-between text-gray-500">
-                <span>Tax (8.5%)</span><span>{fmt(tax)}</span>
+                <span>Tax ({(getPosTaxRate() * 100).toFixed(getPosTaxRate() * 100 % 1 === 0 ? 0 : 2)}%)</span><span>{fmt(tax)}</span>
               </div>
               <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-100 text-base">
                 <span>Total</span><span>{fmt(ttl)}</span>

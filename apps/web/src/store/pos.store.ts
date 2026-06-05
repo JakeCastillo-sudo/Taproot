@@ -123,6 +123,19 @@ function calcLineTotal(item: Omit<CartItem, 'id' | 'lineTotal'>): number {
   return Math.round((item.unitPrice + modSum) * item.quantity);
 }
 
+// ─── Configurable display tax rate ────────────────────────────────────────────
+// The authoritative tax is computed server-side from locations.tax_config on order
+// create. This module-level rate is only the cart-preview estimate; the Business
+// settings page loads the real rate and calls setPosTaxRate(). Default 8.5%.
+
+let _posTaxRate = 0.085;
+export function setPosTaxRate(rate: number): void {
+  if (isFinite(rate) && rate >= 0) _posTaxRate = rate;
+}
+export function getPosTaxRate(): number {
+  return _posTaxRate;
+}
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 
 export const usePOSStore = create<POSStore>()(
@@ -283,7 +296,7 @@ export const usePOSStore = create<POSStore>()(
 
       taxTotal: () => {
         const sub = get().subtotal();
-        return Math.round(sub * 0.085); // 8.5% default — real rate from org config
+        return Math.round((sub - get().discountTotal()) * _posTaxRate);
       },
 
       total: () => {

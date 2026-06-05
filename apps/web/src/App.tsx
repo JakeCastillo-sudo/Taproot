@@ -24,6 +24,7 @@ import { SettingsLayout } from './components/layout/SettingsLayout';
 import { ProductsSettingsPage } from './pages/ProductsSettingsPage';
 import { CategoriesSettingsPage } from './pages/CategoriesSettingsPage';
 import { ModifiersSettingsPage } from './pages/ModifiersSettingsPage';
+import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -293,6 +294,7 @@ export default function App() {
             <Route path="products" element={<ProductsSettingsPage />} />
             <Route path="categories" element={<CategoriesSettingsPage />} />
             <Route path="modifiers" element={<ModifiersSettingsPage />} />
+            <Route path="business" element={<BusinessSettingsPage />} />
           </Route>
 
           {/* Dashboard layout editor — full-screen, customize POS register tiles */}

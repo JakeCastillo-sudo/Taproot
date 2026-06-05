@@ -32,7 +32,8 @@ import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
 import { usePOSStore, type CartItem } from '../../store/pos.store';
 import { useUIStore } from '../../store/ui.store';
-import { products as productsApi, categories as categoriesApi, type ProductWithModifiers } from '../../lib/api';
+import { products as productsApi, categories as categoriesApi, settings as settingsApi, type ProductWithModifiers } from '../../lib/api';
+import { setPosTaxRate } from '../../store/pos.store';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
@@ -403,6 +404,19 @@ export function POSLayout({ user }: POSLayoutProps) {
   });
   const allCats = categoriesData?.categories ?? [];
   const totalProductCount = allCats.reduce((s, c) => s + c.product_count, 0);
+
+  // Load configured tax rate so the cart preview matches what the server charges.
+  const { data: taxData } = useQuery({
+    queryKey: ['settings', 'tax'],
+    queryFn:  () => settingsApi.getTax(),
+    staleTime: 5 * 60_000,
+  });
+  const exclusiveTaxRate = !taxData || taxData.taxInclusive
+    ? 0
+    : taxData.taxRates.reduce((s, r) => s + (Number(r.rate) || 0), 0);
+  // Keep the pos.store estimate in sync (no-op when unchanged)
+  if (taxData) setPosTaxRate(exclusiveTaxRate);
+  const taxRatePct = exclusiveTaxRate * 100;
 
   const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: QK.products({ categoryId: selectedCategoryId, search: searchQuery, dayPart: activeDayPart }),
@@ -862,7 +876,7 @@ export function POSLayout({ user }: POSLayoutProps) {
                 </div>
               )}
               <div className="flex justify-between text-gray-500">
-                <span>Tax (8.5%)</span><span>{fmt(tax)}</span>
+                <span>Tax ({taxRatePct.toFixed(taxRatePct % 1 === 0 ? 0 : 2)}%)</span><span>{fmt(tax)}</span>
               </div>
             </div>
             <div className="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-100">

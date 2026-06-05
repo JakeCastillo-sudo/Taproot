@@ -271,6 +271,12 @@ export const auth = {
       method: 'POST',
       body: JSON.stringify({ refreshToken: getRefreshToken() }),
     }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<{ success: boolean }>('/auth/password/change', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
 };
 
 // ─── Products ─────────────────────────────────────────────────────────────────
@@ -404,6 +410,49 @@ export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
+export interface LocationAddress {
+  line1?:   string;
+  city?:    string;
+  state?:   string;
+  zip?:     string;
+  country?: string;
+}
+
+export interface BusinessSettings {
+  orgName:  string;
+  website:  string;
+  logoUrl:  string;
+  location: {
+    id:       string;
+    name:     string;
+    address:  LocationAddress;
+    phone:    string | null;
+    timezone: string;
+    currency: string;
+  } | null;
+}
+
+export interface TaxRateConfig {
+  name:      string;
+  rate:      number;  // decimal, e.g. 0.0825
+  appliesTo: 'all' | 'food' | 'alcohol' | 'merchandise';
+}
+
+export interface TaxSettings {
+  locationId:   string | null;
+  taxRates:     TaxRateConfig[];
+  taxInclusive: boolean;
+}
+
+export interface ReceiptConfig {
+  message?:     string;
+  footerText?:  string;
+  showLogo?:    boolean;
+  showAddress?: boolean;
+  showPhone?:   boolean;
+  showWebsite?: boolean;
+}
+
 export const settings = {
   getDashboardLayout: () =>
     apiFetch<{ dashboardLayout: DashboardLayout | null }>(
@@ -414,6 +463,32 @@ export const settings = {
     apiFetch<{ success: boolean }>('/settings/dashboard-layout', {
       method: 'PATCH',
       body:   JSON.stringify(layout),
+    }),
+
+  getBusiness: () => apiFetch<BusinessSettings>('/settings/business'),
+
+  saveBusiness: (body: {
+    name?: string; website?: string; logoUrl?: string;
+    locationName?: string; address?: LocationAddress;
+    phone?: string; timezone?: string; currency?: string;
+  }) =>
+    apiFetch<{ success: boolean }>('/settings/business', {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
+
+  getTax: () => apiFetch<TaxSettings>('/settings/tax'),
+
+  saveTax: (body: { taxRates: TaxRateConfig[]; taxInclusive: boolean }) =>
+    apiFetch<{ success: boolean }>('/settings/tax', {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
+
+  getReceipt: () =>
+    apiFetch<{ locationId: string | null; receiptConfig: ReceiptConfig }>('/settings/receipt'),
+
+  saveReceipt: (receiptConfig: ReceiptConfig) =>
+    apiFetch<{ success: boolean }>('/settings/receipt', {
+      method: 'PATCH', body: JSON.stringify({ receiptConfig }),
     }),
 };
 

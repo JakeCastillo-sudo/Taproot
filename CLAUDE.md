@@ -37,7 +37,7 @@ Auto-deploy: push to `main` → Railway (API) + Vercel (frontend) redeploy autom
 |---|---|---|
 | BUG-QA-011 | MFA enforcement UI step missing (LoginPage.tsx TODO) | OPEN |
 | BUG-QA-012 | "+" in CustomerSearch doesn't open create modal | OPEN |
-| BUG-QA-013 | No UI to set tax rate (tax_config JSONB exists but no settings page) | OPEN |
+| BUG-QA-013 | No UI to set tax rate (tax_config JSONB exists but no settings page) | ✅ RESOLVED (S1-04) |
 | BUG-QA-014 | Top customers report empty (seed orders have customer_id = NULL) | OPEN |
 
 ---
@@ -133,7 +133,7 @@ Full product create/edit/delete at /settings/products.
   restore/delete actions.
 - `App.tsx`: nested `/settings` → SettingsLayout with `/settings/products` child; index → products.
 
-### Prompt 34 (S1-04) — Business Settings + Tax Config ✅ COMPLETE
+### Prompt 35 (S1-05) — Employee Management + PIN Login ✅ COMPLETE
 /settings/categories — create/edit/delete, drag-to-reorder, color/icon picker, product count.
 - `category.service.ts` (new): createCategory, updateCategory, deleteCategory (detaches products
   → category_id NULL, then soft-delete), reorderCategories.
@@ -145,7 +145,7 @@ Full product create/edit/delete at /settings/products.
   icon picker + "use initials", product counts; reorder persists + invalidates layout store.
 - `App.tsx`: `/settings/categories` route.
 
-### Prompt 34 (S1-04) — Business Settings + Tax Config ✅ COMPLETE
+### Prompt 35 (S1-05) — Employee Management + PIN Login ✅ COMPLETE
 /settings/modifiers — full CRUD groups + options + product assignment.
 - `modifier.service.ts` (new): listModifierGroups (groups + modifiers[] + productIds via JSON_AGG),
   create/update/delete group (soft-delete cascades modifiers + clears assignments), add/update/
@@ -158,12 +158,25 @@ Full product create/edit/delete at /settings/products.
 - `App.tsx`: `/settings/modifiers` route.
 - NOTE: modifier reorder uses ↑/↓ buttons (persists sort_order) rather than drag.
 
-### Prompt 34 (S1-04) — Business Settings + Tax Config
-/settings/business — restaurant name, address, phone, timezone, currency,
-receipt footer text, logo URL.
-TAX CRITICAL: Replace hardcoded 8.5% with configurable rate from locations.tax_config.
-UI to set tax rates per location. Legal liability without this.
-Backend: PATCH /api/v1/settings/business + PATCH /api/v1/locations/:id.
+### Prompt 35 (S1-05) — Employee Management + PIN Login ✅ COMPLETE
+/settings/business — General | Tax | Receipt | Hours tabs. **Resolves BUG-QA-013.**
+- TAX: server-side `calculateTax` already read `locations.tax_config` (BUG-QA-005); the 8.5%
+  was only a frontend cart-preview estimate in `pos.store.ts`. Now configurable.
+- `settings.routes.ts`: GET/PATCH `/settings/business` (org name + settings.businessProfile
+  website/logo + location name/address/phone/timezone/currency), GET/PATCH `/settings/tax`
+  (writes `tax_config.rates[{name,rate,included,appliesTo}]`), GET/PATCH `/settings/receipt`
+  (locations.receipt_config). `resolveLocationId` helper picks the requested/first org location.
+- `pos.store.ts`: module-level `setPosTaxRate`/`getPosTaxRate`; `taxTotal` now uses it on
+  (subtotal − discount). Default still 8.5% until settings load.
+- `POSLayout.tsx`: loads `/settings/tax`, calls `setPosTaxRate`, label shows live rate.
+  `MobileCart.tsx` label uses `getPosTaxRate()`.
+- `api.ts`: `settings.getBusiness/saveBusiness/getTax/saveTax/getReceipt/saveReceipt`,
+  `auth.changePassword` (→ existing `POST /auth/password/change`).
+- `BusinessSettingsPage.tsx` (new): General (org/location/address/tz/currency + change password),
+  Tax (rate list + inclusive toggle + live preview + empty warning), Receipt (message/footer +
+  show toggles), Hours (placeholder — note below).
+- `App.tsx`: `/settings/business` route.
+- NOTE: Hours tab is a placeholder; no business-hours backend yet (logged for a later prompt).
 
 ### Prompt 35 (S1-05) — Employee Management + PIN Login
 /settings/employees — add/edit/deactivate employees, set PIN, assign locations.
@@ -180,7 +193,7 @@ Payments: Stripe Connect status, payment methods toggle, fee display.
 Full walkthrough all settings screens, fix bugs, tag v0.2.0-beta-1.1.
 
 ## NEXT PROMPT
-Prompt 34 (S1-04) — Business Settings + Tax Config
+Prompt 35 (S1-05) — Employee Management + PIN Login
 
 ## IMPORTANT: Pending Railway Migrations
 Migrations 011, 012, 013 committed but NOT yet run on Railway.
