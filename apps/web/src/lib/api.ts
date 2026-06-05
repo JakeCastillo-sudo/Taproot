@@ -657,6 +657,14 @@ export interface OnlineOrderingConfig {
   minOrderCents:       number;
 }
 
+export interface LoyaltyConfig {
+  enabled:           boolean;
+  pointsPerDollar:   number;
+  redeemRate:        number;   // dollars per point
+  minimumRedemption: number;
+  tiers:             { none: number; bronze: number; silver: number; gold: number; platinum: number };
+}
+
 export const settings = {
   getDashboardLayout: () =>
     apiFetch<{ dashboardLayout: DashboardLayout | null }>(
@@ -700,6 +708,11 @@ export const settings = {
 
   saveOnlineOrdering: (cfg: Partial<OnlineOrderingConfig>) =>
     apiFetch<{ success: boolean }>('/settings/online-ordering', { method: 'PATCH', body: JSON.stringify(cfg) }),
+
+  getLoyalty: () => apiFetch<{ loyalty: LoyaltyConfig }>('/settings/loyalty').then((r) => r.loyalty),
+
+  saveLoyalty: (cfg: Partial<LoyaltyConfig>) =>
+    apiFetch<{ success: boolean }>('/settings/loyalty', { method: 'PATCH', body: JSON.stringify(cfg) }),
 
   getPayments: () =>
     apiFetch<{ paymentMethods: Record<string, boolean>; stripeEnabled: boolean }>('/settings/payments'),

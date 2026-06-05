@@ -30,6 +30,7 @@ import { Permission, requirePermissions } from '../auth/permissions';
 import { AppError } from '../errors';
 import * as CustomerSvc from '../services/customer.service';
 import * as GiftCardSvc from '../services/giftcard.service';
+import * as LoyaltySvc from '../services/loyalty.service';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
 
@@ -219,6 +220,27 @@ export default async function customerRoutes(fastify: FastifyInstance): Promise<
           user.orgId, id, amount, reason ?? '', user.sub,
         );
         return reply.send(customer);
+      } catch (err) {
+        if (err instanceof AppError) return reply.code(err.statusCode).send({ code: err.code, message: err.message });
+        throw err;
+      }
+    },
+  );
+
+  // ── POST /api/v1/customers/:id/loyalty/adjust ───────────────────────────────
+  fastify.post(
+    '/api/v1/customers/:id/loyalty/adjust',
+    { preHandler: [requirePermissions(Permission.CUSTOMER_CREATE)] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user } = req as AuthedRequest;
+      const { id }   = req.params as { id: string };
+      const { delta, notes } = req.body as { delta: number; notes?: string };
+      if (typeof delta !== 'number' || delta === 0) {
+        return reply.code(422).send({ code: 'VALIDATION_ERROR', message: 'delta (non-zero number) is required' });
+      }
+      try {
+        const txn = await LoyaltySvc.adjustPoints(user.orgId, id, Math.round(delta), notes ?? 'Manual adjustment', user.sub);
+        return reply.send(txn);
       } catch (err) {
         if (err instanceof AppError) return reply.code(err.statusCode).send({ code: err.code, message: err.message });
         throw err;

@@ -50,6 +50,18 @@
 - `OnlineOrderingSettingsPage.tsx` (new, `/settings/online-ordering`): toggles + prep/min/radius/fee.
   Online Ordering nav item.
 
+### S4-03 — Loyalty Program ✅ COMPLETE
+- `loyalty.service.ts`: was dead code reading a non-existent `loyalty_config` column —
+  rewired to `organizations.settings.loyalty` (enabled/pointsPerDollar/redeemRate/minimumRedemption/
+  tiers). Configurable tier thresholds.
+- **Automatic accrual:** `payment.service.processPayment` awards points when an order is paid in
+  full AND has a customer attached (non-fatal, never blocks payment).
+- `settings.routes.ts`: GET/PATCH `/settings/loyalty`. `customer.routes.ts`: POST
+  `/customers/:id/loyalty/adjust` (manual). `api.ts`: `settings.getLoyalty/saveLoyalty` + type.
+- `LoyaltySettingsPage.tsx` (new, `/settings/loyalty`): earn/redeem rates + tier thresholds. Nav item.
+- NOTE: redeem-at-checkout UI in PaymentSheet DEFERRED (POS payment flow is sacred); redeemPoints +
+  manual adjust are available programmatically. Points/tier shown on the customer record (S4-06).
+
 ## 🚀 Live Deployment (Current)
 
 | Service | URL |

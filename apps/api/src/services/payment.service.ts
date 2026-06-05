@@ -4,6 +4,7 @@ import { config } from '../config';
 import type { Payment, Order, GiftCard, PaymentMethod, PaymentStatus } from '@taproot/shared';
 import { createAuditLog } from '../auth/audit';
 import { getStripeClient } from '../payments/stripe.config';
+import * as LoyaltySvc from './loyalty.service';
 
 // ─── Input types ──────────────────────────────────────────────────────────────
 
@@ -238,7 +239,7 @@ export async function processPayment(
       // Balance + change are based on `amount` only; tips are tracked separately so a
       // card tip never shows up as "change due".
       const { rows: [totals] } = await client.query<{
-        amount_paid: number; amount_only: number; tip_total: number; total: number;
+        amount_paid: number; amount_only: number; tip_total: number; total: number; customer_id: string | null;
       }>(
         `SELECT
            (SELECT COALESCE(SUM(amount + tip_amount), 0)
@@ -250,7 +251,7 @@ export async function processPayment(
            (SELECT COALESCE(SUM(tip_amount), 0)
             FROM payments
             WHERE order_id = $1 AND status IN ('completed','offline_queued')) AS tip_total,
-           total
+           total, customer_id
          FROM orders WHERE id = $1`,
         [orderId],
       );
@@ -261,6 +262,7 @@ export async function processPayment(
       const changeDue = Math.max(0, amountOnly - Number(totals.total));
 
       const fullyPaid = amountOnly >= Number(totals.total);
+      const justCompleted = fullyPaid && totals.customer_id;
       await client.query(
         `UPDATE orders
          SET amount_paid = $1, tip_total = $2, change_due = $3,
@@ -270,6 +272,13 @@ export async function processPayment(
          WHERE id = $5`,
         [newAmountPaid, tipTotal, changeDue, fullyPaid, orderId],
       );
+
+      // Accrue loyalty points when the order completes with a customer attached (non-fatal).
+      if (justCompleted) {
+        try {
+          await LoyaltySvc.awardPoints(orgId, totals.customer_id as string, orderId, Number(totals.total) / 100, employeeId);
+        } catch { /* loyalty accrual must never block payment */ }
+      }
 
       return p;
     });

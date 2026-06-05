@@ -81,6 +81,34 @@ export default async function settingsRoutes(fastify: FastifyInstance): Promise<
     return reply.send({ success: true });
   });
 
+  // ── GET /api/v1/settings/loyalty ───────────────────────────────────────────
+  fastify.get('/api/v1/settings/loyalty', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const { rows: [org] } = await query<{ settings: { loyalty?: Record<string, unknown> } }>(
+      `SELECT settings FROM organizations WHERE id = $1`, [user.orgId]);
+    const defaults = {
+      enabled: true, pointsPerDollar: 1, redeemRate: 0.01, minimumRedemption: 100,
+      tiers: { none: 0, bronze: 0, silver: 500, gold: 2000, platinum: 5000 },
+    };
+    const saved = org?.settings?.loyalty ?? {};
+    return reply.send({ loyalty: { ...defaults, ...saved, tiers: { ...defaults.tiers, ...((saved as { tiers?: object }).tiers ?? {}) } } });
+  });
+
+  // ── PATCH /api/v1/settings/loyalty ─────────────────────────────────────────
+  fastify.patch('/api/v1/settings/loyalty', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const body = req.body as Record<string, unknown>;
+    await query(
+      `UPDATE organizations
+          SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{loyalty}',
+                COALESCE(settings->'loyalty', '{}'::jsonb) || $2::jsonb),
+              updated_at = now()
+        WHERE id = $1`,
+      [user.orgId, JSON.stringify(body)],
+    );
+    return reply.send({ success: true });
+  });
+
   // ── GET /api/v1/settings/payments — payment method toggles ─────────────────
   fastify.get('/api/v1/settings/payments', async (req: FastifyRequest, reply: FastifyReply) => {
     const { user } = req as AuthedRequest;

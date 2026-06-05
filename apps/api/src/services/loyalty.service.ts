@@ -24,8 +24,31 @@ export function getTierThresholds(): TierConfig {
   return { ...DEFAULT_TIER_THRESHOLDS };
 }
 
-function pointsToTier(points: number): LoyaltyTier {
-  const t = DEFAULT_TIER_THRESHOLDS;
+// ─── Config (organizations.settings.loyalty) ──────────────────────────────────
+
+export interface LoyaltyConfig {
+  enabled:           boolean;
+  pointsPerDollar:   number;   // points earned per $1
+  redeemRate:        number;   // dollars per point (e.g. 0.01 = 1¢/pt)
+  minimumRedemption: number;   // min points to redeem
+  tiers:             TierConfig;
+}
+
+export async function getLoyaltyConfig(orgId: string): Promise<LoyaltyConfig> {
+  const { rows: [org] } = await query<{ settings: { loyalty?: Partial<LoyaltyConfig> } }>(
+    `SELECT settings FROM organizations WHERE id = $1`, [orgId],
+  );
+  const c = org?.settings?.loyalty ?? {};
+  return {
+    enabled:           c.enabled ?? true,
+    pointsPerDollar:   c.pointsPerDollar ?? 1,
+    redeemRate:        c.redeemRate ?? 0.01,
+    minimumRedemption: c.minimumRedemption ?? 100,
+    tiers:             { ...DEFAULT_TIER_THRESHOLDS, ...(c.tiers ?? {}) },
+  };
+}
+
+function pointsToTier(points: number, t: TierConfig): LoyaltyTier {
   if (points >= t.platinum) return 'platinum';
   if (points >= t.gold)     return 'gold';
   if (points >= t.silver)   return 'silver';
@@ -42,16 +65,16 @@ export async function awardPoints(
   orderTotal: number,
   employeeId: string,
 ): Promise<LoyaltyTransaction> {
-  // Load org loyalty config (points_per_dollar)
-  const { rows: [org] } = await query<{
-    loyalty_config: { points_per_dollar?: number } | null;
-  }>(
-    `SELECT loyalty_config FROM organizations WHERE id = $1`,
-    [orgId],
-  );
-
-  const pointsPerDollar = org?.loyalty_config?.points_per_dollar ?? 1;
-  const pointsDelta = Math.floor(orderTotal * pointsPerDollar);
+  // Load org loyalty config from settings.loyalty
+  const cfg = await getLoyaltyConfig(orgId);
+  if (!cfg.enabled) {
+    return {
+      id: '', organization_id: orgId, customer_id: customerId, order_id: orderId,
+      transaction_type: 'earn', points_delta: 0, points_before: 0, points_after: 0,
+      notes: 'Loyalty disabled', created_at: new Date().toISOString(),
+    };
+  }
+  const pointsDelta = Math.floor(orderTotal * cfg.pointsPerDollar);
 
   if (pointsDelta <= 0) {
     // Zero-value orders — still return a no-op transaction placeholder
@@ -102,10 +125,8 @@ export async function redeemPoints(
   if (points <= 0) throw new ValidationError('Points to redeem must be greater than 0');
 
   // Load org redemption rate + customer current points
-  const [{ rows: [org] }, { rows: [customer] }] = await Promise.all([
-    query<{ loyalty_config: { redemption_rate?: number; minimum_redemption?: number } | null }>(
-      `SELECT loyalty_config FROM organizations WHERE id = $1`, [orgId],
-    ),
+  const [cfg, { rows: [customer] }] = await Promise.all([
+    getLoyaltyConfig(orgId),
     query<{ loyalty_points: number }>(
       `SELECT loyalty_points FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
       [customerId, orgId],
@@ -119,8 +140,8 @@ export async function redeemPoints(
     );
   }
 
-  const redemptionRate = org?.loyalty_config?.redemption_rate ?? 0.01; // $0.01 per point
-  const minRedemption  = org?.loyalty_config?.minimum_redemption ?? 100; // 100 points min
+  const redemptionRate = cfg.redeemRate;
+  const minRedemption  = cfg.minimumRedemption;
 
   if (points < minRedemption) {
     throw new ValidationError(`Minimum redemption is ${minRedemption} points`);
@@ -163,7 +184,8 @@ export async function checkTierUpgrade(
   );
   if (!customer) return false;
 
-  const newTier = pointsToTier(customer.loyalty_points);
+  const cfg = await getLoyaltyConfig(orgId);
+  const newTier = pointsToTier(customer.loyalty_points, cfg.tiers);
   if (newTier === customer.loyalty_tier) return false;
 
   await query(
