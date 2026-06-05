@@ -44,6 +44,7 @@ import { EmployeeSelect } from '../pos/EmployeeSelect';
 import { CashDrawerWidget } from '../pos/CashDrawerWidget';
 import { SplitCheckModal } from '../pos/SplitCheckModal';
 import { TableView } from '../pos/TableView';
+import { OnlineOrdersBell } from '../pos/OnlineOrdersBell';
 import { PaymentSheet } from '../pos/PaymentSheet';
 import { MobileCart } from '../pos/MobileCart';
 import { SyncStatus } from '../ui/SyncStatus';
@@ -754,6 +755,9 @@ export function POSLayout({ user }: POSLayoutProps) {
               <Utensils size={15} />
             </button>
           </div>
+
+          {/* Online orders bell */}
+          <OnlineOrdersBell />
 
           {/* Day-part toggle */}
           <DayPartToggle

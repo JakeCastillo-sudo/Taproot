@@ -559,6 +559,7 @@ export interface LocationAddress {
 
 export interface BusinessSettings {
   orgName:  string;
+  orgSlug:  string;
   website:  string;
   logoUrl:  string;
   location: {
@@ -1629,6 +1630,43 @@ export const billingApi = {
         body:   JSON.stringify({ paymentMethodId, locationCount }),
       },
     ),
+};
+
+// ─── Public storefront (QR ordering, no auth) ─────────────────────────────────
+
+const PUBLIC_BASE = `${import.meta.env.VITE_API_URL ?? ''}/public`;
+
+export interface PublicMenu {
+  org: { name: string; logo: string | null; address: Record<string, unknown> | null };
+  categories: Array<{
+    id: string; name: string; color: string | null; icon: string | null;
+    products: Array<{ id: string; variantId: string | null; name: string; description: string | null; price: number }>;
+  }>;
+}
+
+async function publicFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${PUBLIC_BASE}${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...(init?.headers as Record<string, string>) },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { message?: string; code?: string };
+    throw new ApiError(res.status, body.code ?? 'PUBLIC_ERROR', body.message ?? `HTTP ${res.status}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+export const publicApi = {
+  menu: (slug: string) => publicFetch<PublicMenu>(`/${encodeURIComponent(slug)}/menu`),
+  createOrder: (slug: string, body: {
+    tableId?: string | null;
+    items: Array<{ productId: string; variantId?: string | null; quantity: number; specialInstructions?: string }>;
+    customerName?: string; customerPhone?: string;
+  }) => publicFetch<{ orderId: string; orderNumber: string; estimatedMinutes: number }>(
+    `/${encodeURIComponent(slug)}/order`, { method: 'POST', body: JSON.stringify(body) }),
+  orderStatus: (slug: string, orderId: string) =>
+    publicFetch<{ status: string; orderNumber: string; estimatedMinutes: number }>(`/${encodeURIComponent(slug)}/order/${orderId}/status`),
 };
 
 // ─── Registration ─────────────────────────────────────────────────────────────

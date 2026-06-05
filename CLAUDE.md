@@ -155,6 +155,19 @@ employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrade
 - NOTE: "Move table" reassignment UI deferred (endpoint exists). Occupied-table tap shows summary
   rather than loading the order into the cart (quick-service cart model).
 
+### S3-03 — QR Code Ordering ✅ COMPLETE
+- `public.service.ts` + `public.routes.ts` (new, NO auth — keys added to PUBLIC_ROUTES, registered
+  before auth plugin): `GET /public/:slug/menu`, `POST /public/:slug/order`, `GET /public/:slug/order/:id/status`.
+  Online orders attributed to a system employee (prefer owner), orderType 'online', fires realtime event.
+- `settings.routes.ts`: GET /settings/business now returns `orgSlug`.
+- `api.ts`: `publicApi.menu/createOrder/orderStatus` (uses `/public` base, no JWT); `orgSlug` on BusinessSettings.
+- `PublicMenuPage.tsx` (new, routes `/order/:slug` + `/order/:slug/table/:tableId`, no auth): branded menu,
+  cart, checkout (name/phone), place order (pay at counter), confirmation w/ order # + ETA.
+- `QrCodesSettingsPage.tsx` (new, `/settings/qr-codes`): per-table + general-menu QR via
+  api.qrserver.com (no dependency), PNG download, Print all. QR Codes nav item.
+- `OnlineOrdersBell.tsx` (new) in POS top bar: polls history 15s, badges open online orders, toasts on new.
+- NOTE deferred: Stripe "Pay Now" (pay-at-counter only), modifiers on public menu, PDF-all (print used).
+
 ## ✅ Sprint 2 COMPLETE — Beta 1.2 (tag v0.3.0-beta-1.2)
 Order History, Void/Refund, Tips, Cash Drawer, End-of-Day, Split Check. **Found + fixed
 BUG-ORD-001** (P0): the POS order-create body shape didn't match the backend, so live cash/card

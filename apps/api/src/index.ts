@@ -32,6 +32,7 @@ import modifierRoutes from './routes/modifier.routes';
 import employeeRoutes from './routes/employee.routes';
 import cashDrawerRoutes from './routes/cashDrawer.routes';
 import tableRoutes from './routes/table.routes';
+import publicRoutes from './routes/public.routes';
 import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
 import { checkSubscription } from './middleware/subscription';
@@ -210,8 +211,9 @@ async function buildApp(): Promise<any> {
   // ─── Sentry request context hooks ────────────────────────────────────────────
   registerSentryHooks(fastify);
 
-  // ─── Public registration routes (before auth middleware) ─────────────────────
+  // ─── Public routes (before auth middleware) ──────────────────────────────────
   await fastify.register(registrationRoutes);
+  await fastify.register(publicRoutes);
 
   await fastify.register(authPlugin);
   await fastify.register(inventoryRoutes);
@@ -330,6 +332,10 @@ async function buildApp(): Promise<any> {
     // Registration — public
     'POST /api/v1/register',
     'POST /api/v1/register/check-email',
+    // Public QR-code storefront
+    'GET /public/:orgSlug/menu',
+    'POST /public/:orgSlug/order',
+    'GET /public/:orgSlug/order/:orderId/status',
     // Dev-only — this route is not registered in production so this entry is harmless
     ...(config.NODE_ENV === 'development' ? ['POST /api/v1/dev/reset-rate-limits'] : []),
   ]);

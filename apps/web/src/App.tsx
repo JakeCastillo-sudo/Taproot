@@ -29,6 +29,8 @@ import { PaymentsSettingsPage } from './pages/PaymentsSettingsPage';
 import { OrderHistoryPage } from './pages/OrderHistoryPage';
 import { EndOfDayPage } from './pages/EndOfDayPage';
 import { FloorPlanEditorPage } from './pages/FloorPlanEditorPage';
+import { PublicMenuPage } from './pages/PublicMenuPage';
+import { QrCodesSettingsPage } from './pages/QrCodesSettingsPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -201,6 +203,10 @@ export default function App() {
           <Route path="/privacy"  element={<PrivacyPage />} />
           <Route path="/terms"    element={<TermsPage />} />
 
+          {/* ── Public QR storefront (no auth) ────────────────────────────── */}
+          <Route path="/order/:orgSlug" element={<PublicMenuPage />} />
+          <Route path="/order/:orgSlug/table/:tableId" element={<PublicMenuPage />} />
+
           {/* ── Onboarding wizard ─────────────────────────────────────────── */}
           <Route
             path="/onboarding"
@@ -311,6 +317,7 @@ export default function App() {
             <Route path="employees" element={<EmployeesSettingsPage />} />
             <Route path="payments" element={<PaymentsSettingsPage />} />
             <Route path="floor-plan" element={<FloorPlanEditorPage />} />
+            <Route path="qr-codes" element={<QrCodesSettingsPage />} />
           </Route>
 
           {/* Dashboard layout editor — full-screen, customize POS register tiles */}

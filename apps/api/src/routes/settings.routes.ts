@@ -117,8 +117,8 @@ export default async function settingsRoutes(fastify: FastifyInstance): Promise<
     const { user } = req as AuthedRequest;
     const locationId = await resolveLocationId(user.orgId, (req.query as { locationId?: string }).locationId);
 
-    const { rows: [org] } = await query<{ name: string; settings: { businessProfile?: { website?: string; logoUrl?: string } } }>(
-      `SELECT name, settings FROM organizations WHERE id = $1`, [user.orgId],
+    const { rows: [org] } = await query<{ name: string; slug: string; settings: { businessProfile?: { website?: string; logoUrl?: string } } }>(
+      `SELECT name, slug, settings FROM organizations WHERE id = $1`, [user.orgId],
     );
     const loc = locationId ? (await query<{
       id: string; name: string; address: Record<string, unknown>; phone: string | null;
@@ -127,6 +127,7 @@ export default async function settingsRoutes(fastify: FastifyInstance): Promise<
 
     return reply.send({
       orgName:  org?.name ?? '',
+      orgSlug:  org?.slug ?? '',
       website:  org?.settings?.businessProfile?.website ?? '',
       logoUrl:  org?.settings?.businessProfile?.logoUrl ?? '',
       location: loc ?? null,
