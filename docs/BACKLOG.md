@@ -144,6 +144,24 @@
 - Root cause: Check should be `SUM(payments) > total + change_due + 0.01`
 - Status: INFORMATIONAL — not a real bug, just overly strict check script
 
+### BUG-NAV-001: Category tile grid visual polish needed
+- Symptom: Category tiles are different sizes, colors are auto-generated with no admin
+  control, tile order cannot be rearranged, grid alignment is inconsistent
+- Expected:
+  * Uniform tile sizes in a consistent grid
+  * Admin ability to set category color
+  * Admin ability to set category sort order
+  * Admin ability to set category icon
+  * Grid alignment consistent across screen sizes
+- Files:
+  apps/web/src/components/pos/CategoryTileGrid.tsx
+  apps/web/src/lib/categoryColors.ts
+  Category admin settings UI (not yet built)
+- Note: Will be addressed in Prompt 29 (Dashboard Layout Editor) which gives owners
+  control over category appearance and ordering
+- Priority: P3
+- Status: OPEN
+
 ---
 
 ## Import Feature — P1 Bugs
