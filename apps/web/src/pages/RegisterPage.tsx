@@ -100,7 +100,10 @@ export function RegisterPage() {
     const timer = setTimeout(async () => {
       try {
         const res = await apiFetch<{ available: boolean }>(
-          '/api/v1/register/check-email',
+          // apiFetch already prepends BASE (".../api/v1") — path must be BASE-relative.
+          // Passing the full "/api/v1/..." here double-prefixes the URL → 404 →
+          // emailAvailable stays null → the "Continue" button never enables.
+          '/register/check-email',
           { method: 'POST', body: JSON.stringify({ email }) },
         );
         setEmailAvailable(res.available);
@@ -136,7 +139,7 @@ export function RegisterPage() {
         org:      { id: string; name: string; slug: string };
         location: { id: string };
         trialDays: number;
-      }>('/api/v1/register', {
+      }>('/register', {
         method: 'POST',
         body: JSON.stringify({
           firstName, lastName, email, password, businessName, businessType,

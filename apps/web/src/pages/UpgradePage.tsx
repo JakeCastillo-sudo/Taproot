@@ -89,7 +89,7 @@ function UpgradeForm() {
       }
 
       // Start subscription on backend
-      await apiFetch('/api/v1/billing/subscribe', {
+      await apiFetch('/billing/subscribe', {
         method: 'POST',
         body: JSON.stringify({ paymentMethodId: paymentMethod.id }),
       });

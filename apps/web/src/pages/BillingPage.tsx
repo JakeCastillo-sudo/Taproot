@@ -59,13 +59,13 @@ export function BillingPage() {
 
   const { data: sub, isLoading } = useQuery({
     queryKey: QK.billing(),
-    queryFn:  () => apiFetch<SubscriptionInfo>('/api/v1/billing/subscription'),
+    queryFn:  () => apiFetch<SubscriptionInfo>('/billing/subscription'),
     staleTime: 60_000,
   });
 
   const { data: invoices } = useQuery({
     queryKey: QK.billingInvoices(),
-    queryFn:  () => apiFetch<{ invoices: Invoice[] }>('/api/v1/billing/invoices'),
+    queryFn:  () => apiFetch<{ invoices: Invoice[] }>('/billing/invoices'),
     enabled:  !!sub?.stripeCustomerId,
     staleTime: 300_000,
   });
@@ -73,7 +73,7 @@ export function BillingPage() {
   const openPortal = async () => {
     setPortalLoading(true);
     try {
-      const { url } = await apiFetch<{ url: string }>('/api/v1/billing/portal', { method: 'POST' });
+      const { url } = await apiFetch<{ url: string }>('/billing/portal', { method: 'POST' });
       window.location.href = url;
     } catch {
       // fallback: just show an error

@@ -185,6 +185,12 @@ class ErrorBoundary extends React.Component<{ children: ReactNode }, EBState> {
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  // Subscribe to navigation so this component re-renders on every route change.
+  // `loggedIn`/`user` are read from localStorage below (not React state); without
+  // this, navigating to '/' right after login does NOT re-render App, so the '/'
+  // route keeps its stale <LandingPage/> element and the user appears bounced back
+  // to the landing screen until a hard refresh (the demo-login "cycles back" bug).
+  useLocation();
   const user = getStoredUser();
   const loggedIn = isLoggedIn();
 
