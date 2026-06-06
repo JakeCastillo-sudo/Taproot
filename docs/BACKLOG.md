@@ -52,7 +52,17 @@
     from `min-h-[600px]` to `flex-1 min-h-0`; GenericImportReview root gets `min-h-0`
   - Other audited screens (StockCountSheet, OnboardingPage, ReportsPage) already had
     correct overflow handling — no changes needed
-- Status: RESOLVED
+- Global scroll audit (2026-06-06, post-V1.0): every page + modal re-audited.
+  Root cause for the remaining broken pages: `html, body, #root { overflow: hidden }`
+  (design-system.css PWA shell) means the document NEVER scrolls — any page using bare
+  `min-h-screen` was clipped at the viewport. All such pages now own their scroll region
+  (`h-screen overflow-y-auto`, or fixed-shell + `flex-1 overflow-y-auto min-h-0` body):
+  Landing, Login, Register, Terms, Privacy, Billing, Placeholder, Receipt, PublicMenu,
+  DashboardEditor, ImportPage (upload state). `min-h-0` added to every flex scroll body
+  (POSLayout nav/content/cart, sheets, modals, drawers); unconstrained modals got
+  `max-h-[90vh]`; sticky table headers added on Order History / Customers / Gift Cards /
+  Archived Products (`overflow-clip` card wrappers so sticky tracks the page scroller).
+- Status: RESOLVED (re-verified app-wide)
 
 ### BUG-002: Inventory table shows — for category names ✅ RESOLVED
 - Symptom: Category column blank in inventory stock levels table

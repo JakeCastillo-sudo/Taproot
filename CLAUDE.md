@@ -15,6 +15,17 @@
 > TypeScript errors resolved. Taproot POS ready for first real customers.** (BUG-AUTH-002 fixed —
 > `.env.production` host + hardcoded CORS domains; registration verified live with businessName/businessType.)
 >
+> ✅ **GLOBAL SCROLL FIX COMPLETE (2026-06-06)** — BUG-UX-001/002 re-verified app-wide. Root cause:
+> `html, body, #root { overflow: hidden }` (PWA shell, design-system.css) means the document NEVER
+> scrolls — any page on bare `min-h-screen` was clipped. Every page now owns its scroll region:
+> marketing/auth/legal/public pages use `h-screen overflow-y-auto`; app pages keep the fixed-shell
+> pattern (`h-screen overflow-hidden flex flex-col` + `flex-1 overflow-y-auto min-h-0` body, or
+> `ScrollablePage`). `min-h-0` added to all flex scroll bodies (POSLayout nav/content/cart, all
+> sheets/modals/drawers); unconstrained modals got `max-h-[90vh]`; sticky theads on Order History /
+> Customers / Gift Cards / Archived Products via `overflow-clip` card wrappers; `.no-scrollbar`
+> utility defined (was referenced but missing); motion-safe smooth scrolling added. 43 files,
+> tsc 0 errors both apps, vite build green.
+>
 > **41/49 prompts** (S1-01…S6-07) over 6 sprints, tagged **v0.2.0** → **v0.7.0**.
 > - **Sprints 1–3:** Settings/Admin (products, categories, modifiers, employees+PIN, tax, payments);
 >   Transactions (order history, void/refund, tips, cash drawer, EOD, split check — fixed P0 BUG-ORD-001);

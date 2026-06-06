@@ -67,7 +67,7 @@ export function SettingsLayout() {
           </button>
           <h1 className="mt-3 text-lg font-bold text-gray-900">Settings</h1>
         </div>
-        <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto min-h-0 px-2 py-2 space-y-0.5">
           {NAV.map((item) => (
             <NavLink
               key={item.to}
@@ -118,7 +118,7 @@ export function SettingsLayout() {
       </div>
 
       {/* ── Active page ───────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <main className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
         <Outlet />
       </main>
     </div>

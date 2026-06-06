@@ -179,8 +179,10 @@ export function RegisterPage() {
       businessType, phone, referralSource, partnerCodeInput, navigate]);
 
   return (
-    <div className="min-h-screen bg-surface-2 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    // m-auto (not items-center/justify-center) so the form centers when it fits but
+    // the top stays reachable by scroll when it overflows on small screens.
+    <div className="h-screen overflow-y-auto bg-surface-2 flex p-4">
+      <div className="w-full max-w-md m-auto py-8">
 
         {/* LegalZoom welcome banner */}
         {isLegalZoom && (

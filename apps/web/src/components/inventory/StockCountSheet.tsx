@@ -142,7 +142,7 @@ export function StockCountSheet({ locationId, onClose }: StockCountSheetProps) {
         </div>
 
         {/* Rows */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 size={20} className="animate-spin text-gray-400" />

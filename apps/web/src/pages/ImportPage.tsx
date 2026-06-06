@@ -355,7 +355,7 @@ export function ImportPage() {
   ).length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen overflow-y-auto bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
         <button

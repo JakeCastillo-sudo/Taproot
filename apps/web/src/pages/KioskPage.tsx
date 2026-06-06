@@ -128,7 +128,7 @@ export function KioskPage() {
 
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Menu */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto min-h-0 p-5">
           {/* Category chips */}
           <div className="flex gap-3 flex-wrap mb-5">
             <button onClick={() => setCatId(null)} className={clsx('px-5 py-3 rounded-2xl text-lg font-semibold', !catId ? 'bg-primary text-white' : 'bg-white text-gray-700 border border-gray-200')}>All</button>
@@ -152,7 +152,7 @@ export function KioskPage() {
         {/* Cart */}
         <aside className="w-96 bg-white border-l border-gray-200 flex flex-col shrink-0">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2"><ShoppingCart size={22} className="text-primary" /><h2 className="text-xl font-bold">Your Order</h2></div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-2">
             {cart.length === 0 ? <p className="text-gray-400 text-center py-12 text-lg">Tap items to add them</p> : cart.map((i) => (
               <div key={i.productId} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
                 <div className="flex-1 min-w-0"><p className="font-semibold text-gray-800 truncate">{i.name}</p><p className="text-sm text-gray-500">{money(i.unitPrice)}</p></div>

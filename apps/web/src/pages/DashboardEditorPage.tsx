@@ -443,7 +443,7 @@ export function DashboardEditorPage() {
   );
 
   return (
-    <div className="min-h-screen bg-surface-2 flex flex-col">
+    <div className="h-screen overflow-hidden bg-surface-2 flex flex-col">
 
       {/* ── Header ── */}
       <header className="bg-white border-b border-gray-100 shrink-0">
@@ -488,10 +488,11 @@ export function DashboardEditorPage() {
       </header>
 
       {/* ── Main content ── */}
-      <div className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 flex flex-col lg:flex-row gap-6 min-h-0">
+      {/* Mobile: one page-level scroller; lg: columns scroll independently */}
+      <div className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 flex flex-col lg:flex-row gap-6 min-h-0 overflow-y-auto lg:overflow-hidden">
 
         {/* Left: Live Preview */}
-        <div className="w-full lg:w-[55%] shrink-0 space-y-4">
+        <div className="w-full lg:w-[55%] shrink-0 space-y-4 lg:overflow-y-auto lg:min-h-0">
           <LivePreview layout={localLayout} categories={allCats} />
 
           {/* Global settings */}
@@ -556,7 +557,7 @@ export function DashboardEditorPage() {
             <p className="text-xs text-gray-400">Drag to reorder</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+          <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1">
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}

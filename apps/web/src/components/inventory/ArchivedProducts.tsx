@@ -94,9 +94,9 @@ export function ArchivedProducts({ locationId }: ArchivedProductsProps) {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-lg overflow-clip">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="border-b border-gray-100 bg-gray-50">
               <th className="text-left px-4 py-2.5 font-medium text-gray-500">Product</th>
               <th className="text-left px-4 py-2.5 font-medium text-gray-500 hidden sm:table-cell">Category</th>

@@ -46,7 +46,7 @@ export function OnlinePaymentSheet({ slug, body, onClose, onSuccess }: Props) {
           <h2 className="text-base font-bold text-gray-900">Pay {intent ? `$${(intent.amount / 100).toFixed(2)}` : ''}</h2>
           <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100"><X size={16} className="text-gray-500" /></button>
         </div>
-        <div className="px-5 py-4 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4">
           {error ? <p className="text-sm text-red-600">{error}</p>
             : !intent || !stripePromise ? <p className="text-sm text-gray-400">Loading payment…</p>
             : (

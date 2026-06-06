@@ -76,7 +76,7 @@ function EmployeeModal({ state, locations, onClose, onSaved }: {
           <h2 className="text-base font-bold text-gray-900">{form.id ? 'Edit Employee' : 'Add Employee'}</h2>
           <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100"><X size={16} className="text-gray-500" /></button>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div><label className="block text-xs font-semibold text-gray-600 mb-1">First name *</label>
               <input autoFocus value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}

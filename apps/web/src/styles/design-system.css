@@ -87,6 +87,22 @@ body {
   background: var(--color-text-tertiary);
 }
 
+/* Smooth scrolling on every scroll container (respects reduced-motion) */
+@media (prefers-reduced-motion: no-preference) {
+  * {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Hide the scrollbar but keep the element scrollable (mobile tab bars etc.) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* ─── Touch feedback ─────────────────────────────────────────────────────── */
 
 .tap-highlight {

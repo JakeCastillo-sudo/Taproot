@@ -129,7 +129,7 @@ function RefundModal({ orderId, onClose, onDone }: { orderId: string; onClose: (
 
   return (
     <ModalShell title="Issue refund" onClose={onClose}>
-      <div className="px-5 py-4 space-y-3 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-3">
         <div className="flex gap-1.5">
           {(['full', 'partial', 'items'] as const).map((t) => (
             <button key={t} onClick={() => setType(t)}

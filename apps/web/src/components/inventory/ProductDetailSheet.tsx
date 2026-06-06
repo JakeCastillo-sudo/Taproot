@@ -141,7 +141,7 @@ export function ProductDetailSheet({ row, locationId, onClose }: ProductDetailSh
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           {/* Stock summary cards */}
           <div className="px-5 py-4 grid grid-cols-3 gap-3">
             <div className="bg-gray-50 rounded-lg p-3 text-center">

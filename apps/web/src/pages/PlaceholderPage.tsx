@@ -7,7 +7,7 @@ interface Props { title: string; icon: ReactNode }
 export function PlaceholderPage({ title, icon }: Props) {
   const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-surface-2 flex flex-col items-center justify-center p-8 text-center">
+    <div className="h-screen overflow-y-auto bg-surface-2 flex flex-col items-center justify-center p-8 text-center">
       <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-300 mb-4">
         {icon}
       </div>

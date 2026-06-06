@@ -55,8 +55,10 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-2 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
+    // m-auto (not items-center/justify-center) so the form centers when it fits but
+    // the top stays reachable by scroll when it overflows on small screens.
+    <div className="h-screen overflow-y-auto bg-surface-2 flex p-4">
+      <div className="w-full max-w-sm m-auto py-8">
 
         {/* Logo */}
         <div className="text-center mb-8">

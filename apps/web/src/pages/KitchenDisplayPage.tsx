@@ -53,7 +53,7 @@ export function KitchenDisplayPage() {
         <button onClick={() => setBig((v) => !v)} className={clsx('ml-2 p-2 rounded hover:bg-gray-700', big && 'bg-gray-700')} title="Large text"><Type size={18} /></button>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4">
+      <main className="flex-1 overflow-y-auto min-h-0 p-4">
         {isLoading ? (
           <p className="text-center text-gray-400 py-16">Loading tickets…</p>
         ) : tickets.length === 0 ? (

@@ -24,7 +24,7 @@ export class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (!this.state.hasError) return this.props.children;
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-surface-2 p-6 text-center">
+      <div className="h-screen overflow-y-auto flex flex-col items-center justify-center bg-surface-2 p-6 text-center">
         <div className="text-5xl mb-4">🌿</div>
         <h1 className="text-xl font-bold text-gray-900 mb-2">Something went wrong</h1>
         <p className="text-gray-500 mb-6 max-w-sm">We've been notified. Refreshing the page usually fixes it.</p>

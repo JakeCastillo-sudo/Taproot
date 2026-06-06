@@ -145,9 +145,11 @@ export function OrderHistoryPage() {
               <p className="text-sm font-medium text-gray-400">No orders in this range</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
+            // overflow-clip (not -hidden) keeps the rounded clipping without creating a
+            // scroll container, so the sticky thead tracks <main>'s scroll
+            <div className="bg-white rounded-lg border border-gray-100 overflow-clip">
               <table className="w-full text-sm">
-                <thead className="bg-surface-2 border-b border-gray-100 text-xs text-gray-400">
+                <thead className="sticky top-0 z-10 bg-surface-2 border-b border-gray-100 text-xs text-gray-400">
                   <tr>
                     <th className="text-left font-medium px-4 py-2">Order #</th>
                     <th className="text-left font-medium px-3 py-2 hidden sm:table-cell">Date / Time</th>
@@ -221,7 +223,7 @@ function OrderDetailDrawer({ orderId, order, onClose, onChanged }: {
           <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100"><X size={16} className="text-gray-500" /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 receipt-content">
+        <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 receipt-content">
           {isLoading ? (
             <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-8 bg-gray-100 rounded animate-shimmer" />)}</div>
           ) : receipt ? (

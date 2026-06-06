@@ -147,7 +147,7 @@ export function CustomerSearch() {
       {open && query.length >= 2 && (
         <div
           ref={listRef}
-          className="absolute top-full left-0 right-0 mt-1 bg-white rounded-md shadow-lg border border-gray-100 overflow-hidden z-50 animate-fade-in"
+          className="absolute top-full left-0 right-0 mt-1 bg-white rounded-md shadow-lg border border-gray-100 max-h-72 overflow-y-auto z-50 animate-fade-in"
         >
           {results.length === 0 && !isFetching && (
             <div className="px-4 py-3 text-xs text-gray-400 text-center">

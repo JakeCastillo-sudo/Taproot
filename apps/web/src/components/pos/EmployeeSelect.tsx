@@ -104,7 +104,7 @@ export function EmployeeSelect({ onClose }: { onClose: () => void }) {
       </div>
 
       {!selected ? (
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto min-h-0 p-6">
           {list.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <p className="text-sm text-gray-400">No PIN-enabled employees.</p>

@@ -406,7 +406,7 @@ export function PaymentSheet({ onClose }: Props) {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto min-h-0 p-5">
 
           {/* ── Step 1: Tip ──────────────────────────────────────────────── */}
           {step === 'tip' && (

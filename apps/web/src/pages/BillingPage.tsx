@@ -96,14 +96,14 @@ export function BillingPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface-2 flex items-center justify-center">
+      <div className="h-screen bg-surface-2 flex items-center justify-center">
         <Loader2 size={28} className="animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface-2">
+    <div className="h-screen overflow-y-auto bg-surface-2">
       <div className="max-w-2xl mx-auto px-4 py-8">
 
         {/* Header */}

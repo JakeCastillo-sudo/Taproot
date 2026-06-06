@@ -250,7 +250,7 @@ export function OnboardingPage() {
       )}
 
       {/* ── Step content ─────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         <div className={clsx('max-w-lg mx-auto px-4 py-6', contentClass)}>
           {displayStep === 'welcome' && (
             <WelcomeStep

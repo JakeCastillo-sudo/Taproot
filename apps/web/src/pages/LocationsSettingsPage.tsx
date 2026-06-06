@@ -87,7 +87,7 @@ function LocationModal({ state, timezones, currencies, onClose, onSaved }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100"><h2 className="text-base font-bold text-gray-900">{form.id ? 'Edit Location' : 'Add Location'}</h2><button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100"><X size={16} className="text-gray-500" /></button></div>
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+        <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-3">
           <div><label className="block text-xs font-semibold text-gray-600 mb-1">Name *</label><input autoFocus className={field} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Downtown" /></div>
           <div><label className="block text-xs font-semibold text-gray-600 mb-1">Address</label><input className={field} value={form.address.line1 ?? ''} onChange={(e) => addr('line1', e.target.value)} placeholder="123 Main St" /></div>
           <div className="grid grid-cols-3 gap-2">

@@ -142,7 +142,7 @@ export function RecipeEditor({ productId, productName, onClose }: RecipeEditorPr
             <Loader2 size={20} className="animate-spin text-gray-400" />
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          <div className="flex-1 overflow-y-auto min-h-0 p-5 space-y-5">
 
             {/* Basic fields */}
             <div className="grid grid-cols-2 gap-4">

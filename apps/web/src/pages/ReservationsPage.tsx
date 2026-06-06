@@ -162,7 +162,7 @@ function AddModal({ type, onClose, onSaved }: { type: ReservationType; onClose: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100"><h2 className="text-base font-bold text-gray-900">{type === 'waitlist' ? 'Add to waitlist' : 'New reservation'}</h2></div>
         <div className="px-5 py-4 space-y-3">
           <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm" />

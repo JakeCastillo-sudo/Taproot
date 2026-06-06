@@ -75,7 +75,10 @@ export function LandingPage() {
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
   return (
-    <div className="min-h-screen bg-white">
+    // Page owns its scroll — the document body is overflow:hidden (PWA shell), so
+    // marketing sections stack inside this h-screen scroll container. Sticky header
+    // + scrollIntoView both work against this scrolling ancestor.
+    <div className="h-screen overflow-y-auto bg-white">
 
       {/* Nav */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100">

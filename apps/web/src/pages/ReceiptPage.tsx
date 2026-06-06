@@ -221,7 +221,7 @@ export function ReceiptPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="h-screen overflow-hidden bg-gray-100 flex flex-col">
       {/* ── Toolbar (no-print) ─────────────────────────────────────────── */}
       <div className="no-print bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 shrink-0">
         <button
@@ -236,7 +236,7 @@ export function ReceiptPage() {
       </div>
 
       {/* ── Receipt card ───────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto min-h-0 p-4">
         <div className="max-w-sm mx-auto">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
             <ReceiptContent order={order} apiReceipt={apiReceipt} />

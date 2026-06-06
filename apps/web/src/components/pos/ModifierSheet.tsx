@@ -173,7 +173,7 @@ export function ModifierSheet({ product, cartItemId, onClose, onArchive }: Props
         </div>
 
         {/* Scrollable modifier groups */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        <div className="flex-1 overflow-y-auto min-h-0 p-5 space-y-5">
           {product.modifierGroups.map((group) => (
             <div key={group.id}>
               <div className="flex items-center gap-2 mb-2.5">

@@ -121,7 +121,7 @@ export function SplitCheckModal({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100"><X size={16} className="text-gray-500" /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-4">
           {splits.length === 0 ? (
             <>
               <div className="flex gap-1.5">

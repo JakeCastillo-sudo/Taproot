@@ -70,14 +70,14 @@ export function PublicMenuPage() {
   const allProducts = useMemo(() => menu?.categories ?? [], [menu]);
 
   if (error) {
-    return <div className="min-h-screen flex items-center justify-center bg-surface-2 text-center p-6">
+    return <div className="h-screen overflow-y-auto flex items-center justify-center bg-surface-2 text-center p-6">
       <div><p className="text-lg font-bold text-gray-900">Restaurant not found</p><p className="text-sm text-gray-500 mt-1">Check the link and try again.</p></div>
     </div>;
   }
 
   if (placed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-2 p-6">
+      <div className="h-screen overflow-y-auto flex items-center justify-center bg-surface-2 p-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center max-w-sm w-full">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4"><Check size={28} className="text-green-600" /></div>
           <h1 className="text-xl font-bold text-gray-900">Order placed!</h1>
@@ -90,7 +90,7 @@ export function PublicMenuPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-2 pb-28">
+    <div className="h-screen overflow-y-auto bg-surface-2 pb-28">
       {/* Header */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
@@ -142,7 +142,7 @@ export function PublicMenuPage() {
               <h2 className="text-base font-bold text-gray-900">Your order</h2>
               <button onClick={() => setCheckout(false)} className="p-1.5 rounded-full hover:bg-gray-100"><X size={16} className="text-gray-500" /></button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-3">
+            <div className="flex-1 overflow-y-auto min-h-0 px-5 py-3">
               {cart.map((l) => (
                 <div key={l.productId} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0">
                   <span className="flex-1 text-sm text-gray-700">{l.name}</span>

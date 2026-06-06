@@ -908,7 +908,7 @@ function GenericImportReview({ job, onDone, onCancel }: ImportReviewProps) {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-5">
         {/* Detected type */}
         <div className="flex flex-wrap items-center gap-3">
           <div>

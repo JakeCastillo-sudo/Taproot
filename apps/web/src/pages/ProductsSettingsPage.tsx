@@ -144,7 +144,7 @@ function ProductModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-4">
           {/* Name */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Name *</label>
