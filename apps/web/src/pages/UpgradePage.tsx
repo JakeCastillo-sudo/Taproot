@@ -13,6 +13,7 @@ import { clsx } from 'clsx';
 import { apiFetch } from '../lib/api';
 import { analytics } from '../lib/analytics';
 import { stripePromise, hasStripe } from '../lib/stripe';
+import { ScrollablePage } from '../components/layout/ScrollablePage';
 
 const CARD_ELEMENT_OPTIONS = {
   style: {
@@ -175,7 +176,7 @@ export function UpgradePage() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-surface-2">
+    <ScrollablePage>
       <div className="max-w-xl mx-auto px-4 py-8">
 
         {/* Header */}
@@ -242,6 +243,6 @@ export function UpgradePage() {
         </p>
 
       </div>
-    </div>
+    </ScrollablePage>
   );
 }

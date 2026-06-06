@@ -28,6 +28,7 @@ import { StaffTab }       from '../components/reports/StaffTab';
 import { TipsTab }        from '../components/reports/TipsTab';
 import { HeatmapTab }     from '../components/reports/HeatmapTab';
 import { ToastContainer } from '../components/ui/Toast';
+import { ScrollablePage } from '../components/layout/ScrollablePage';
 import { useQuery }       from '@tanstack/react-query';
 import { locations as locationsApi } from '../lib/api';
 
@@ -91,10 +92,10 @@ export function ReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-2 flex flex-col">
-
-      {/* ── Top bar ── */}
-      <header className="bg-white border-b border-gray-100 shrink-0">
+    <>
+      <ScrollablePage
+        header={
+          <header className="bg-white border-b border-gray-100 shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3 flex-wrap">
           {/* Back */}
           <button
@@ -217,10 +218,11 @@ export function ReportsPage() {
             );
           })}
         </div>
-      </header>
-
-      {/* ── Content ── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+          </header>
+        }
+      >
+        {/* ── Content ── */}
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
         {/* NL Query bar — always visible */}
         <NLQueryBar />
 
@@ -231,9 +233,10 @@ export function ReportsPage() {
         {activeTab === 'staff'      && <StaffTab      params={apiParams} />}
         {activeTab === 'tips'       && <TipsTab       params={apiParams} />}
         {activeTab === 'heatmap'    && <HeatmapTab    params={apiParams} />}
-      </main>
+        </div>
+      </ScrollablePage>
 
       <ToastContainer />
-    </div>
+    </>
   );
 }

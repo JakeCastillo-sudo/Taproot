@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { migrationsApi, type ImportJob, type MigrationResult } from '../lib/api';
 import { showToast } from '../components/ui/Toast';
+import { ScrollablePage } from '../components/layout/ScrollablePage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -816,9 +817,9 @@ export function MigrationPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-surface-2">
-      {/* Top bar */}
-      <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
+    <ScrollablePage
+      header={
+        <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
         <button
           onClick={() => navigate(-1)}
           className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 transition-colors"
@@ -829,8 +830,9 @@ export function MigrationPage() {
           <h1 className="text-sm font-bold text-gray-900">Migration Wizard</h1>
           <p className="text-xs text-gray-400">Import your business data in under 10 minutes</p>
         </div>
-      </div>
-
+        </div>
+      }
+    >
       <div className="max-w-3xl mx-auto px-4 py-8">
         <StepBar current={step} />
 
@@ -876,6 +878,6 @@ export function MigrationPage() {
 
       {/* Suppress unused applying warning */}
       {applying && null}
-    </div>
+    </ScrollablePage>
   );
 }
