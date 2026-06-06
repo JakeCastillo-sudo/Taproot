@@ -298,3 +298,12 @@ rebuild can't reintroduce the dead-host failure.
 **Note (separate, observed during diagnosis):** the demo owner's JWT `locationIds` contains a
 soft-deleted location (`40aef9d7…`, the S6-07 smoke-test loc). `deleteLocation` doesn't strip the id
 from `employees.location_ids`. Not auth-blocking, but can point the POS at a deleted location. → BUG-LOC-002.
+
+## Session 2026-06-06 — verification pass
+- **BUG-AUTH-002** — RESOLVED (prior session): login + registration verified live again this session
+  (login 200+token; register 200+token with businessName/businessType). The earlier "registration fails"
+  was a test-payload field-name mismatch (`organizationName` vs `businessName`+`businessType`) — the app
+  sends the correct fields. No code bug.
+- Landing page rewritten to the new GTM copy ($99 flat, origin story, pain, value props, honest
+  comparison, price promise + pass-through disclaimer, savings, FAQ, closing CTA).
+- TypeScript: 0 errors both apps; production build green. Migrations 001–016 all applied (no pending).

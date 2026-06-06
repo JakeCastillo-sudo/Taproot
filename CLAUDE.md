@@ -10,6 +10,10 @@
 >   for index/caching tuning post-launch (not a blocker).
 > - Next: Jake reviews, does a final live click-through, then **LAUNCHES** (see docs/LAUNCH.md).
 >
+> ✅ **Auth working. Landing page updated ($99 flat, origin story, comparison, price promise). All
+> TypeScript errors resolved. Taproot POS ready for first real customers.** (BUG-AUTH-002 fixed —
+> `.env.production` host + hardcoded CORS domains; registration verified live with businessName/businessType.)
+>
 > **41/49 prompts** (S1-01…S6-07) over 6 sprints, tagged **v0.2.0** → **v0.7.0**.
 > - **Sprints 1–3:** Settings/Admin (products, categories, modifiers, employees+PIN, tax, payments);
 >   Transactions (order history, void/refund, tips, cash drawer, EOD, split check — fixed P0 BUG-ORD-001);
