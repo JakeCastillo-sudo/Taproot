@@ -3,8 +3,9 @@
 > # 🌿 V1.0 COMPLETE — Sprints 1–7 done
 > **49/49 prompts** (S1-01…S7-07) over 7 sprints, tagged **v0.2.0** → **v1.0.0**.
 > - Migrations needed: **none** (001–016 all applied on Railway).
-> - Bugs found this build: 0 new blockers; **5 npm audit advisories** (build/transitive deps — esbuild
->   dev-only, nodemailer, tar, uuid) need breaking major bumps → logged in BACKLOG, no criticals.
+> - Bugs found this build: 0 new blockers. npm audit: **nodemailer high-severity FIXED (→8.0.10)**;
+>   remaining advisories (esbuild dev-only, tar via bcrypt build, uuid via bull) are not
+>   runtime-exploitable in our usage and need breaking major bumps → accepted, see DEP-AUDIT-001.
 > - Blocked prompts: **none**.
 > - API timing from remote ~1.0–1.2s (Railway RTT + small instance) — over the 500ms target; candidate
 >   for index/caching tuning post-launch (not a blocker).
@@ -30,7 +31,7 @@
 > - **Now building Sprint 7 (V1.0 GTM polish):** text ordering, kiosk, onboarding rewrite, landing
 >   page, observability, polish → v1.0.0.
 
-## 🚧 Sprint 4 — Beta 1.4: Online Ordering & Engagement (in progress)
+## ✅ Sprint 4 — Beta 1.4: Online Ordering & Engagement (COMPLETE)
 
 ### S4-01 — Online Checkout + Stripe ✅ COMPLETE
 - `public.service.ts`: getPublicMenu now returns `online` block (enabled/pickup/delivery/fees/
@@ -101,7 +102,7 @@
 - `CustomerSearch.tsx`: **BUG-QA-012 resolved** — "Create new customer" now creates inline from the
   query (email/phone/name heuristic) and attaches to the cart.
 
-## 🚧 Sprint 5 — Beta 1.5: AI Intelligence Layer (in progress)
+## ✅ Sprint 5 — Beta 1.5: AI Intelligence Layer (COMPLETE)
 
 Pattern: every feature computes deterministic numbers from SQL, then layers an optional Claude
 narrative (`aiUsed` flag). `ai.service.ts` (new): `askClaudeJSON`/`askClaudeText` (graceful null on
@@ -149,7 +150,7 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
 - InsightsPage Copilot tab: chat UI (history bubbles), suggested-question chips, data tables + bar
   charts from responses.
 
-## 🚧 Sprint 6 — Beta 2.0: Scale & Infrastructure (in progress)
+## ✅ Sprint 6 — Beta 2.0: Scale & Infrastructure (COMPLETE)
 
 ### S6-01 — Multi-Location ✅ COMPLETE
 - `location.service.ts` (new): create/update/delete/list; createLocation grants access to
@@ -204,7 +205,7 @@ Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API
   `/settings/integrations`): date range + QuickBooks/Xero download + Mailchimp/Gusto/OpenTable/
   DoorDash "coming soon" stubs. Nav item.
 
-## 🚧 Sprint 7 — V1.0 Go-To-Market Polish (in progress)
+## ✅ Sprint 7 — V1.0 Go-To-Market Polish (COMPLETE)
 
 ### S7-01 — AI Text Ordering ✅ COMPLETE
 - `sms.service.ts` (Twilio REST via fetch, logs in dev) + `textOrdering.service.ts` (Claude parse →
@@ -368,7 +369,7 @@ business/tax/receipt/payments settings endpoints, `/auth/pin-login`, `/api/v1/lo
 Live-verified S1-08: product create (default variant+price), tax round-trip, all routes 401-gated,
 employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrades gracefully.
 
-## 🚧 Sprint 3 — Beta 1.3: Table Service (in progress)
+## ✅ Sprint 3 — Beta 1.3: Table Service (COMPLETE)
 
 ### S3-01 — Floor Plan Editor ✅ COMPLETE
 - `table.service.ts` + `table.routes.ts` (new, registered): GET/POST/PATCH/DELETE `/tables`,
@@ -431,7 +432,7 @@ full create→pay(+tip)→void lifecycle, all Sprint 2 endpoints 200, resilience
 cash-drawer) confirmed in prod. Migrations 014 + 015 still pending on Railway (code degrades
 gracefully).
 
-## 🚧 Sprint 2 — Beta 1.2: Transaction Management (detail)
+## ✅ Sprint 2 — Beta 1.2: Transaction Management (COMPLETE)
 
 ### S2-01 — Order History Screen ✅ COMPLETE
 - `order.service.ts`: `listOrderHistory()` — org-wide enriched list (employee + customer name,
@@ -608,12 +609,10 @@ resolve (Products, Categories, Modifiers, Employees, Business, Payments, Dashboa
 Full walkthrough all settings screens, fix bugs, tag v0.2.0-beta-1.1.
 
 ## NEXT PROMPT
-Prompt 36 (S1-06) — Settings Shell + Navigation
+V1.0 shipped (all 7 sprints complete). No queued prompt — Jake-driven from here.
 
 ## IMPORTANT: Pending Railway Migrations
-Migrations 011, 012, 013 committed but NOT yet run on Railway.
-Run before any new code that depends on these columns:
-  npx node-pg-migrate up --migrations-dir migrations
+None. Migrations 001–016 are all applied on Railway (verified live). No pending migrations.
 
 ## Demo Day Scenario (use for testing)
 After completing Sprint 1:

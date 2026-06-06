@@ -307,3 +307,19 @@ from `employees.location_ids`. Not auth-blocking, but can point the POS at a del
 - Landing page rewritten to the new GTM copy ($99 flat, origin story, pain, value props, honest
   comparison, price promise + pass-through disclaimer, savings, FAQ, closing CTA).
 - TypeScript: 0 errors both apps; production build green. Migrations 001–016 all applied (no pending).
+
+## Session 2026-06-06 (pt2) — open-thread cleanup
+- **BUG-LOC-002** — RESOLVED. `deleteLocation` now strips the deleted id from every employee's
+  `location_ids` in a transaction (array_remove), so deleted locations can't linger in a JWT. Also
+  cleaned the existing stale entry on the demo owner via the employees API (location_ids now just the
+  real demo location; verified by fresh login).
+- **DEP-AUDIT-001** — partially resolved:
+  - **nodemailer 6.10.1 → 8.0.10** (high-severity SMTP-injection/DoS class, the one runtime-exploitable
+    prod dep). Verified: tsc + prod build green; API surface unchanged (createTransport/sendMail/jsonTransport).
+  - **Remaining (accepted, not runtime-exploitable in our usage):** `esbuild` (dev-server only, never in
+    prod runtime; fix = vite@8 breaking), `tar` (build-time only via bcrypt→node-pre-gyp extracting its
+    OWN trusted prebuilt binary; fix needs override outside node-pre-gyp's range → risks bcrypt native
+    build on Railway), `uuid` (job-id generation via bull; fix = uuid@14 breaking, risks bull/CJS).
+    Attempted npm `overrides` to patched versions — did not apply without a full lockfile rebuild, which
+    is too risky pre-launch. Deferred to a dedicated dependency-upgrade sweep (bump bcrypt/bull/vite
+    majors together with full regression testing). No criticals; not blocking launch.
