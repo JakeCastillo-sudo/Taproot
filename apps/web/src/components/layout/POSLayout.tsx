@@ -26,7 +26,7 @@ import {
   ChevronRight, ChevronLeft, Plus, Minus, Trash2, Tag,
   FileText, AlertTriangle, User, Layers, BarChart3,
   Upload, ArrowRightLeft, Menu, Terminal, Settings,
-  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles, Network, MonitorSmartphone,
+  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles, Network, MonitorSmartphone, TrendingUp,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
@@ -35,6 +35,7 @@ import { useUIStore } from '../../store/ui.store';
 import { products as productsApi, categories as categoriesApi, settings as settingsApi, discounts as discountsApi, franchise as franchiseApi, type ProductWithModifiers } from '../../lib/api';
 import { setPosTaxRate } from '../../store/pos.store';
 import { initDisplayBroadcast, openCustomerDisplay } from '../../lib/displayChannel';
+import { canAccessSettings } from '../../lib/session';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
@@ -225,6 +226,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'orders',    icon: <FileText size={18} />,     label: 'Orders',    path: '/orders' },
   { id: 'inventory', icon: <Package size={18} />,      label: 'Inventory', path: '/inventory' },
   { id: 'reports',   icon: <BarChart3 size={18} />,    label: 'Reports',   path: '/reports' },
+  { id: 'analytics', icon: <TrendingUp size={18} />,   label: 'Analytics', path: '/analytics' },
   { id: 'insights',  icon: <Sparkles size={18} />,     label: 'Insights',  path: '/insights' },
   { id: 'kitchen',   icon: <Utensils size={18} />,     label: 'Kitchen',   path: '/kitchen' },
   { id: 'reserve',   icon: <CalendarClock size={18} />,label: 'Reservations', path: '/reservations' },
@@ -258,12 +260,15 @@ function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarPr
   });
 
   const navItems = useMemo(() => {
-    if (frInfo?.orgType !== 'franchisor') return NAV_ITEMS;
-    const items = [...NAV_ITEMS];
-    const idx = items.findIndex((i) => i.id === 'import');
-    items.splice(idx === -1 ? items.length : idx, 0, {
-      id: 'franchise', icon: <Network size={18} />, label: 'Franchise', path: '/franchise',
-    });
+    // Analytics is manager/owner only
+    let items = canAccessSettings() ? [...NAV_ITEMS] : NAV_ITEMS.filter((i) => i.id !== 'analytics');
+    if (frInfo?.orgType === 'franchisor') {
+      items = [...items];
+      const idx = items.findIndex((i) => i.id === 'import');
+      items.splice(idx === -1 ? items.length : idx, 0, {
+        id: 'franchise', icon: <Network size={18} />, label: 'Franchise', path: '/franchise',
+      });
+    }
     return items;
   }, [frInfo?.orgType]);
 

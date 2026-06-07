@@ -45,6 +45,24 @@
 - HardwareSettingsPage: "Customer display" section — idle-message input (localStorage), open
   display window + preview buttons. Logo upload deferred (no asset storage).
 
+### S8-03 — Advanced Analytics Dashboard ✅ COMPLETE
+- `analytics.service.ts` (new): `getCohortAnalysis` (signup-month cohorts × M1/M2/M3/M6 retention %),
+  `getMenuEngineeringMatrix` (custom range; units/revenue/foodCost%/margin → star/plow_horse/puzzle/dog
+  + per-quadrant recommendation), `getStaffPerformance` (orders/revenue/avgTicket/tips/voidRate;
+  hoursWorked=null — NO time-clock table yet, documented), `getPeakHours` (7×24 revenue heatmap,
+  intensity normalized, peak/slowest day+hour ignoring closed hours), `getCustomerInsights`
+  (new vs returning [EXISTS prior order], churn risk >30d by LTV, top customers).
+- `analytics.routes.ts` (new, registered): GET /analytics/{cohort,menu-engineering,staff-performance,
+  peak-hours,customer-insights} — REPORTS_VIEW; from/to default last 30d.
+- Web: `api.ts` `analytics.*` client + types; `AnalyticsPage.tsx` (/analytics) — 5 tabs:
+  Overview (KPIs incl. repeat rate, revenue trend line 30/60/90d, top-5, deterministic quick
+  insights from peak+menu data), Menu Engineering (recharts scatter w/ quadrant colors, click→
+  recommendation card, one-click ARCHIVE for dogs — real products.archive; sortable table),
+  Staff (top-performer banner, revenue bars, void-rate red flag >3%), Customers (cohort retention
+  grid, churn list w/ mailto reach-out, new-vs-returning donut, top customers), Peak Hours
+  (7×24 CSS-grid heatmap + staffing recommendation).
+- POSLayout: Analytics nav item (manager/owner only via canAccessSettings). Route in App.tsx.
+
 > # 🌿 V1.0 COMPLETE — Sprints 1–7 done
 > **49/49 prompts** (S1-01…S7-07) over 7 sprints, tagged **v0.2.0** → **v1.0.0**.
 > - Migrations needed: **none** (001–016 all applied on Railway).

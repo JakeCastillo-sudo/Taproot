@@ -45,6 +45,7 @@ import { InsightsPage } from './pages/InsightsPage';
 import { KioskPage } from './pages/KioskPage';
 import { FranchisePage } from './pages/FranchisePage';
 import { CustomerDisplayPage } from './pages/CustomerDisplayPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
 import { FranchiseSettingsPage } from './pages/FranchiseSettingsPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
@@ -321,6 +322,15 @@ export default function App() {
             element={
               <RequireAuth>
                 <FranchisePage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/analytics"
+            element={
+              <RequireAuth>
+                <AnalyticsPage />
               </RequireAuth>
             }
           />

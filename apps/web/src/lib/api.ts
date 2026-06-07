@@ -1505,6 +1505,63 @@ function buildReportQS(params: ReportDateParams, extra?: Record<string, string>)
   return q.toString();
 }
 
+// ─── Advanced analytics (S8-03) ───────────────────────────────────────────────
+
+export interface CohortRow {
+  month: string;
+  newCustomers: number;
+  retention: { month1: number; month2: number; month3: number; month6: number };
+}
+
+export type MenuQuadrant = 'star' | 'plow_horse' | 'puzzle' | 'dog';
+
+export interface MenuItemAnalytics {
+  productId: string; name: string; category: string;
+  salesCount: number; revenue: number; foodCostPct: number; margin: number;
+  quadrant: MenuQuadrant; recommendation: string;
+}
+
+export interface StaffPerformanceRow2 {
+  id: string; name: string;
+  ordersProcessed: number; revenue: number; avgTicket: number; tipsEarned: number;
+  voidCount: number; voidRate: number;
+  hoursWorked: number | null; revenuePerHour: number | null;
+}
+
+export interface PeakHourCell {
+  dayOfWeek: number; hour: number; orderCount: number; revenue: number; intensity: number;
+}
+
+export interface PeakHoursResult {
+  heatmap: PeakHourCell[];
+  peakDay: string; peakHour: string; slowestDay: string; slowestHour: string;
+}
+
+export interface CustomerInsights {
+  totalCustomers: number; newCustomers: number; returningCustomers: number;
+  avgVisitsPerCustomer: number; avgLifetimeValue: number;
+  churnRisk: Array<{ customerId: string; name: string; lastVisit: string; lifetimeValue: number }>;
+  topCustomers: Array<{ customerId: string; name: string; visits: number; totalSpent: number; avgTicket: number }>;
+}
+
+export const analytics = {
+  cohort: (months = 6, locationId?: string) => {
+    const q = new URLSearchParams({ months: String(months) });
+    if (locationId) q.set('location_id', locationId);
+    return apiFetch<{ cohorts: CohortRow[] }>(`/analytics/cohort?${q.toString()}`);
+  },
+  menuEngineering: (params: ReportDateParams) =>
+    apiFetch<{ items: MenuItemAnalytics[]; averagePopularity: number; averageMargin: number }>(
+      `/analytics/menu-engineering?${buildReportQS(params)}`),
+  staffPerformance: (params: ReportDateParams) =>
+    apiFetch<{ employees: StaffPerformanceRow2[] }>(
+      `/analytics/staff-performance?${buildReportQS(params)}`),
+  peakHours: (params: ReportDateParams) =>
+    apiFetch<PeakHoursResult>(`/analytics/peak-hours?${buildReportQS(params)}`),
+  customerInsights: (params: ReportDateParams) =>
+    apiFetch<CustomerInsights>(`/analytics/customer-insights?${buildReportQS(params)}`),
+};
+
 export const reports = {
   getDashboardMetrics: (locationId?: string, timezone = 'UTC') => {
     const q = new URLSearchParams({ timezone });
