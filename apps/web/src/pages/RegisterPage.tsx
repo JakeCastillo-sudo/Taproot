@@ -179,10 +179,30 @@ export function RegisterPage() {
       businessType, phone, referralSource, partnerCodeInput, navigate]);
 
   return (
-    // m-auto (not items-center/justify-center) so the form centers when it fits but
-    // the top stays reachable by scroll when it overflows on small screens.
-    <div className="h-screen overflow-y-auto bg-surface-2 flex p-4">
-      <div className="w-full max-w-md m-auto py-8">
+    <div className="h-screen overflow-y-auto bg-white md:flex">
+
+      {/* ── Left: branding panel (desktop) ── */}
+      <div className="hidden md:flex md:w-1/2 bg-primary text-white flex-col justify-between p-12 shrink-0">
+        <Link to="/" className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white/15">
+            <Leaf size={20} className="text-white" />
+          </span>
+          <span className="text-xl font-bold">Taproot</span>
+        </Link>
+        <div>
+          <h2 className="text-3xl font-extrabold leading-tight">Join thousands of independent restaurants</h2>
+          <ul className="mt-8 space-y-3 text-white/90">
+            <li className="flex items-center gap-2.5">✅ <span>14-day free trial</span></li>
+            <li className="flex items-center gap-2.5">✅ <span>Import your menu in 60 seconds</span></li>
+            <li className="flex items-center gap-2.5">✅ <span>No credit card required</span></li>
+          </ul>
+        </div>
+        <p className="text-white/70 text-sm">$99/month flat. No contracts. Cancel anytime.</p>
+      </div>
+
+      {/* ── Right: form (centers when it fits; scrolls when it overflows) ── */}
+      <div className="md:w-1/2 flex p-4 sm:p-8">
+      <div className="w-full max-w-md m-auto py-4">
 
         {/* LegalZoom welcome banner */}
         {isLegalZoom && (
@@ -470,6 +490,7 @@ export function RegisterPage() {
           {' '}and{' '}
           <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>
         </p>
+      </div>
       </div>
     </div>
   );
