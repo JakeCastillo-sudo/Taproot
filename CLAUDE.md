@@ -7,6 +7,34 @@
 > Pending: **017_franchise**, **018_api_keys**, **019_allergens**, **020_performance_indexes**.
 > All Sprint 8 code degrades gracefully until migrations run (existence guards).
 
+> # 🚀 SPRINT 8 COMPLETE — V1.1.0 (tagged)
+>
+> Built (7/7 prompts, June 7 2026):
+> - **Franchise/chain mode** (017_franchise) — join codes, network dashboard, corporate menu push + locks
+> - **Customer-facing display** (BroadcastChannel, /display — no server)
+> - **Advanced analytics dashboard** (/analytics — cohort, menu matrix, staff, peak hours, customers)
+> - **Public API keys + webhooks** (018_api_keys — scoped taproot_live_* keys, HMAC outbound events)
+> - **Food allergen system** (019_allergens — FDA Big 9, POS alert, kitchen-ticket warnings)
+> - **Performance** (020_performance_indexes + Redis read-through cache + React.lazy chunks)
+>
+> Migrations needed in Railway console: `npx node-pg-migrate up --migrations-dir migrations`
+> (017, 018, 019, 020). Everything degrades gracefully until then.
+>
+> Verified: **tsc 0 errors both apps · 206/206 jest tests (fixed 7 stale loyalty mocks) ·
+> vite build green (4 lazy chunks) · live endpoint sweep green** (franchise/api-keys/webhooks
+> respond resiliently pre-migration; all 5 analytics endpoints return real data; Redis cache
+> cuts /products 0.84s→0.33s, /categories 0.62s→0.23s).
+> Bugs found: 1 fixed (TEST-LOY-001 stale tests), 1 enhancement logged (ENH-WH-001
+> inventory.low_stock not yet emitted) — see BACKLOG.md.
+> Blocked prompts: **none.**
+>
+> New URLs: taproot-pos.com/**analytics** · /**franchise** · /**display** · /**settings/franchise**
+> · /**settings/api**
+>
+> Next: **Jake reviews → runs migrations 017–020 → tests live site** (browser flows:
+> customer display window, allergen alert, API key create, franchise enable) →
+> Sprint 9 (AI Intelligence Layer) or go to market with V1.1.
+
 ## ✅ PERFECTION PASS (2026-06-07) — 10-step new-owner flow verified live
 
 Audited the live stack (curl against prod) against the 10-step new-owner journey

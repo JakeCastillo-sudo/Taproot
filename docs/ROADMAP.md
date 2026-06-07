@@ -134,13 +134,16 @@ Pattern: deterministic SQL compute + optional Claude narrative (graceful without
 
 ---
 
-## SPRINT 8 — ENTERPRISE FOUNDATIONS
-### Week of July 28, 2026
+## SPRINT 8 — V1.1: ENTERPRISE FOUNDATIONS ✅ COMPLETE (v1.1.0)
+### Built June 7, 2026
 
-**S8-01** Franchise Mode — corporate menu propagation, roll-up reporting
-**S8-02** Customer-Facing Display — second screen, real-time order confirmation
-**S8-03** Advanced Reporting Suite — P&L, labor %, food cost trending, cohort analysis
-**S8-04** API & Webhooks — public API, webhook subscriptions, developer docs
+**S8-01** ✅ Franchise Mode — org_type/parent_org/franchise_code (017), network dashboard, invite/join, corporate menu push + locks
+**S8-02** ✅ Customer-Facing Display — /display second screen via BroadcastChannel, idle/cart/thank-you states
+**S8-03** ✅ Advanced Analytics — /analytics: cohort retention, menu-engineering scatter, staff void-rates, peak-hours heatmap, customer insights
+**S8-04** ✅ API & Webhooks — taproot_live_* keys (018, scoped, sha256), HMAC outbound webhooks w/ retries + auto-disable, /settings/api
+**S8-05** ✅ Food Allergen System — FDA Big 9 on products + customers (019), POS allergen alert, kitchen-ticket warnings
+**S8-06** ✅ Performance — composite indexes (020), Redis read-through cache + invalidation, React.lazy heavy pages
+**S8-07** ✅ Integration + Release — 206/206 tests (fixed 7 stale loyalty mocks), live endpoint verification, v1.1.0 tag
 
 ---
 

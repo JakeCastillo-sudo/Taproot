@@ -356,3 +356,29 @@ import price path.
   dollars instead of cents; fixing it cleanly needs disambiguation of the model's output, so
   deferred to avoid regressing the common (correct) path.
 - Status: OPEN (documented, not launch-blocking).
+
+## Session 2026-06-07 — Sprint 8 build (v1.1.0)
+
+### TEST-LOY-001: 7 stale loyalty.service unit tests ✅ RESOLVED
+- Symptom: `jest` had 7 failures in loyalty.service.test.ts — mocks still used the
+  pre-S4-03 `loyalty_config` column shape (snake_case keys, no settings read), but the
+  S4-03 rewrite reads `organizations.settings.loyalty` (camelCase) and `checkTierUpgrade`
+  re-reads the config. Failing since Sprint 4 (pre-commit only gates typecheck+lint).
+- Fix (S8-07): mocks updated to the `{ settings: { loyalty: {...} } }` shape + the extra
+  config query per checkTierUpgrade. 206/206 tests green.
+- Status: RESOLVED
+
+### ENH-WH-001: inventory.low_stock webhook event defined but not emitted — OPEN (enhancement)
+- `webhook.service.WEBHOOK_EVENTS` includes `inventory.low_stock` and the UI offers it,
+  but no code path emits it yet (needs a hook in inventory adjustment when quantity_on_hand
+  crosses reorder_point). Other five events (order.completed/voided, payment.completed/
+  refunded, customer.created) are wired.
+- Status: OPEN (enhancement, not a bug).
+
+### NOTE-S8: Sprint 8 deferred items (documented in CLAUDE.md per prompt)
+- Franchise: lock icons on /settings/products for corporate items (server blocks the
+  delete/archive with a clear message); brand-standards PDF upload (no asset storage).
+- Customer display: logo upload (no asset storage); display reads org name from localStorage.
+- Allergens: "Add anyway" on modifier-group items doesn't auto-attach the kitchen note
+  (cashier can type it in the sheet); top-of-ticket banner → per-item ⚠ sub-lines instead.
+- Analytics: hoursWorked/revenuePerHour null until a time-clock ships.

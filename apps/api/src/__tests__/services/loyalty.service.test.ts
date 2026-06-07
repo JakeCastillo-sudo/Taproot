@@ -45,9 +45,10 @@ describe('getTierThresholds', () => {
 
 describe('awardPoints', () => {
 
+  // Config lives in organizations.settings.loyalty (camelCase) since S4-03.
   it('returns a no-op placeholder for a zero-value order', async () => {
     mockQuery.mockResolvedValueOnce({
-      rows: [{ loyalty_config: { points_per_dollar: 1 } }],
+      rows: [{ settings: { loyalty: { pointsPerDollar: 1 } } }],
     });
 
     const result = await awardPoints('org-1', 'cust-1', 'order-1', 0, 'emp-1');
@@ -59,10 +60,10 @@ describe('awardPoints', () => {
 
   it('returns a no-op placeholder when order total rounds to 0 points', async () => {
     mockQuery.mockResolvedValueOnce({
-      rows: [{ loyalty_config: { points_per_dollar: 0.5 } }],
+      rows: [{ settings: { loyalty: { pointsPerDollar: 0.5 } } }],
     });
 
-    // 1 cent * 0.5 = 0.005 → floor = 0
+    // $1 * 0.5 = 0.5 → floor = 0
     const result = await awardPoints('org-1', 'cust-1', 'order-1', 1, 'emp-1');
     expect(result.points_delta).toBe(0);
   });
@@ -82,10 +83,10 @@ describe('awardPoints', () => {
     };
 
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ loyalty_config: { points_per_dollar: 1.5 } }] })
+      .mockResolvedValueOnce({ rows: [{ settings: { loyalty: { pointsPerDollar: 1.5 } } }] })
       .mockResolvedValueOnce({ rows: [txn] })                // CTE INSERT
-      .mockResolvedValueOnce({ rows: [{ loyalty_points: 115, loyalty_tier: 'bronze' }] }) // checkTierUpgrade
-      .mockResolvedValueOnce({ rows: [] });                   // (no tier change)
+      .mockResolvedValueOnce({ rows: [{ loyalty_points: 115, loyalty_tier: 'bronze' }] }) // checkTierUpgrade read
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] });   // checkTierUpgrade config (no tier change → no UPDATE)
 
     const result = await awardPoints('org-1', 'cust-1', 'order-1', 10, 'emp-1');
 
@@ -109,10 +110,11 @@ describe('awardPoints', () => {
     };
 
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ loyalty_config: null }] })
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] })   // no loyalty config → defaults
       .mockResolvedValueOnce({ rows: [txn] })
       .mockResolvedValueOnce({ rows: [{ loyalty_points: 20, loyalty_tier: 'none' }] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] })
+      .mockResolvedValueOnce({ rows: [] });                   // tier sync UPDATE (none → bronze at 20 pts)
 
     const result = await awardPoints('org-1', 'cust-1', 'order-1', 20, 'emp-1');
     expect(result.points_delta).toBe(20);
@@ -135,7 +137,7 @@ describe('redeemPoints', () => {
 
   it('throws ValidationError when customer does not have enough points', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ loyalty_config: null }] })          // org
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] })                  // org config
       .mockResolvedValueOnce({ rows: [{ loyalty_points: 50 }] });           // customer
 
     await expect(
@@ -145,7 +147,7 @@ describe('redeemPoints', () => {
 
   it('throws ValidationError when below minimum redemption threshold', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ loyalty_config: { minimum_redemption: 100 } }] })
+      .mockResolvedValueOnce({ rows: [{ settings: { loyalty: { minimumRedemption: 100 } } }] })
       .mockResolvedValueOnce({ rows: [{ loyalty_points: 500 }] });
 
     await expect(
@@ -155,7 +157,7 @@ describe('redeemPoints', () => {
 
   it('throws ValidationError when customer not found', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ loyalty_config: null }] })
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] })
       .mockResolvedValueOnce({ rows: [] }); // customer not found
 
     await expect(
@@ -165,7 +167,7 @@ describe('redeemPoints', () => {
 
   it('returns correct dollar value at default rate (0.01 per point)', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ loyalty_config: null }] })
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] })
       .mockResolvedValueOnce({ rows: [{ loyalty_points: 500 }] })
       .mockResolvedValueOnce({ rows: [] }); // CTE INSERT
 
@@ -177,7 +179,7 @@ describe('redeemPoints', () => {
 
   it('returns correct dollar value at custom redemption rate', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ loyalty_config: { redemption_rate: 0.02, minimum_redemption: 50 } }] })
+      .mockResolvedValueOnce({ rows: [{ settings: { loyalty: { redeemRate: 0.02, minimumRedemption: 50 } } }] })
       .mockResolvedValueOnce({ rows: [{ loyalty_points: 300 }] })
       .mockResolvedValueOnce({ rows: [] });
 
@@ -198,10 +200,11 @@ describe('checkTierUpgrade', () => {
     expect(upgraded).toBe(false);
   });
 
+  // Call sequence since S4-03: customer read → org settings (tier config) → UPDATE (if changed)
   it('returns false when tier has not changed', async () => {
-    mockQuery.mockResolvedValueOnce({
-      rows: [{ loyalty_points: 250, loyalty_tier: 'bronze' }],
-    });
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ loyalty_points: 250, loyalty_tier: 'bronze' }] })
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] });
     const upgraded = await checkTierUpgrade('org-1', 'cust-1');
     expect(upgraded).toBe(false);
   });
@@ -209,48 +212,51 @@ describe('checkTierUpgrade', () => {
   it('upgrades to silver at 500 points', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ loyalty_points: 500, loyalty_tier: 'bronze' }] })
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] })
       .mockResolvedValueOnce({ rows: [] }); // UPDATE customers
 
     const upgraded = await checkTierUpgrade('org-1', 'cust-1');
     expect(upgraded).toBe(true);
 
-    const updateCall = (mockQuery.mock.calls as any[][])[1];
+    const updateCall = (mockQuery.mock.calls as any[][])[2];
     expect(updateCall[1]).toContain('silver');
   });
 
   it('upgrades to gold at 2000 points', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ loyalty_points: 2000, loyalty_tier: 'silver' }] })
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] })
       .mockResolvedValueOnce({ rows: [] });
 
     const upgraded = await checkTierUpgrade('org-1', 'cust-1');
     expect(upgraded).toBe(true);
 
-    const updateCall = (mockQuery.mock.calls as any[][])[1];
+    const updateCall = (mockQuery.mock.calls as any[][])[2];
     expect(updateCall[1]).toContain('gold');
   });
 
   it('upgrades to platinum at 5000 points', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ loyalty_points: 5000, loyalty_tier: 'gold' }] })
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] })
       .mockResolvedValueOnce({ rows: [] });
 
     const upgraded = await checkTierUpgrade('org-1', 'cust-1');
     expect(upgraded).toBe(true);
 
-    const updateCall = (mockQuery.mock.calls as any[][])[1];
+    const updateCall = (mockQuery.mock.calls as any[][])[2];
     expect(updateCall[1]).toContain('platinum');
   });
 
   it('does not downgrade tiers (stays at correct tier)', async () => {
     // Customer with 4000 points but tier set to platinum (shouldn't downgrade)
-    mockQuery.mockResolvedValueOnce({
-      rows: [{ loyalty_points: 4000, loyalty_tier: 'platinum' }],
-    });
-    // checkTierUpgrade will compute 'gold' !== 'platinum' and attempt an update
-    // This is expected — business logic may or may not allow downgrades.
-    // The function is designed to sync the tier to match the point total.
-    mockQuery.mockResolvedValueOnce({ rows: [] });
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ loyalty_points: 4000, loyalty_tier: 'platinum' }] })
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] })
+      // checkTierUpgrade will compute 'gold' !== 'platinum' and attempt an update
+      // This is expected — business logic may or may not allow downgrades.
+      // The function is designed to sync the tier to match the point total.
+      .mockResolvedValueOnce({ rows: [] });
     await checkTierUpgrade('org-1', 'cust-1'); // No assertion; just ensure no throw
   });
 });
@@ -275,8 +281,8 @@ describe('adjustPoints', () => {
 
     mockQuery
       .mockResolvedValueOnce({ rows: [txn] })                                         // CTE INSERT
-      .mockResolvedValueOnce({ rows: [{ loyalty_points: 300, loyalty_tier: 'bronze' }] }) // checkTierUpgrade
-      .mockResolvedValueOnce({ rows: [] });                                             // (no tier change)
+      .mockResolvedValueOnce({ rows: [{ loyalty_points: 300, loyalty_tier: 'bronze' }] }) // checkTierUpgrade read
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] });                               // config (no tier change)
 
     const result = await adjustPoints('org-1', 'cust-1', 100, 'Goodwill credit', 'emp-1');
 
@@ -303,7 +309,7 @@ describe('adjustPoints', () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [txn] })
       .mockResolvedValueOnce({ rows: [{ loyalty_points: 0, loyalty_tier: 'none' }] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] });
 
     const result = await adjustPoints('org-1', 'cust-1', -500, 'Adjustment', 'emp-1');
 
@@ -327,11 +333,12 @@ describe('adjustPoints', () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [txn] })
       .mockResolvedValueOnce({ rows: [{ loyalty_points: 5000, loyalty_tier: 'none' }] }) // checkTierUpgrade read
+      .mockResolvedValueOnce({ rows: [{ settings: {} }] })                                 // tier config
       .mockResolvedValueOnce({ rows: [] }); // UPDATE tier
 
     await adjustPoints('org-1', 'cust-1', 5000, 'Bonus', 'emp-1');
 
-    // Three calls: CTE insert, checkTierUpgrade read, UPDATE tier
-    expect(mockQuery).toHaveBeenCalledTimes(3);
+    // Four calls: CTE insert, checkTierUpgrade read, config read, UPDATE tier
+    expect(mockQuery).toHaveBeenCalledTimes(4);
   });
 });
