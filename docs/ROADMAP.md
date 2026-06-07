@@ -147,6 +147,19 @@ Pattern: deterministic SQL compute + optional Claude narrative (graceful without
 
 ---
 
+## SPRINT 9 — V1.2: AI INTELLIGENCE LAYER ✅ COMPLETE (v1.2.0)
+### Built June 7, 2026 — the competitive moat: AI that helps operators daily, useful from day one
+
+**S9-01** ✅ AI Demand Forecasting — single-date forecast (revenue range, orders, per-item prep quantities, checklist) via Claude w/ statistical fallback; ForecastWidget on /reports
+**S9-02** ✅ AI Staff Scheduling + Time Clock — migration 021, clock in/out (PIN-screen option + POS clock-out), /schedule week grid, AI schedule suggestion w/ labor tracker
+**S9-03** ✅ AI Menu Engineering — per-item recommendations + suggested actions/prices, quick-win cards w/ one-click archive/reprice
+**S9-04** ✅ Daily Intelligence Feed — owner landing view: yesterday vs last week, alerts, AI insight, prep checklist, reorder ETAs
+**S9-05** ✅ Food Cost Intelligence — recipe-based plate costs vs target, AI fix suggestions, savings potential, 90d trend, Fix modal
+**S9-06** ✅ Enhanced Copilot — context-aware suggested questions, action buttons, copy/CSV export, conversation mode
+**S9-07** ✅ Integration + Release — 206/206 tests, live AI endpoint verification, v1.2.0 tag
+
+---
+
 ## FULL TIMELINE
 
 | Sprint | Theme | Week | Release |

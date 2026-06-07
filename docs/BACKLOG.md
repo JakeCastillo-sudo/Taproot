@@ -382,3 +382,18 @@ import price path.
 - Allergens: "Add anyway" on modifier-group items doesn't auto-attach the kitchen note
   (cashier can type it in the sheet); top-of-ticket banner → per-item ⚠ sub-lines instead.
 - Analytics: hoursWorked/revenuePerHour null until a time-clock ships.
+
+## Session 2026-06-07 — Sprint 9 build (v1.2.0, AI Intelligence Layer)
+
+### NOTE-S9: Sprint 9 deferred items / caveats
+- Graceful degradation is structural: every Claude call goes through askClaudeJSON/askClaudeText
+  (return null on missing key, parse error, or API failure) or a try/catch with a deterministic
+  fallback — verified by code path, not by live key-swap (no Railway env access from the build
+  session). UI shows "AI insights temporarily unavailable" / statistical fallbacks.
+- S9-02: drag-to-move/resize shifts on /schedule deferred (add/remove + AI apply shipped).
+  Employee availability/time-off preferences not modeled yet — AI schedules from roster only.
+- S9-04: 7am scheduled email digest deferred (endpoint is poll-ready; needs a cron worker).
+- S9-06: archive_product / update_price copilot actions navigate to /settings/products rather
+  than executing directly (name→product resolution is ambiguous from free text).
+- Forecast quality note: with sparse history (<7 days) all forecasts are statistical with
+  confidence ≤ 0.5 by design ("useful on day one, honest about accuracy").

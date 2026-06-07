@@ -5,9 +5,41 @@
 > npx node-pg-migrate up --migrations-dir migrations
 > ```
 > Pending: **017_franchise**, **018_api_keys**, **019_allergens**, **020_performance_indexes**, **021_time_clock**.
-> All Sprint 8 code degrades gracefully until migrations run (existence guards).
+> All Sprint 8/9 code degrades gracefully until migrations run (existence guards).
 
-## 🏗️ SPRINT 9 — AI Intelligence Layer (IN PROGRESS, target v1.2.0)
+> # 🚀 V1.2.0 COMPLETE — AI INTELLIGENCE LAYER (tagged)
+>
+> Built (7/7 prompts, June 7 2026) — every feature useful on day one, honest about confidence
+> with sparse data:
+> - **Demand forecasting** — /ai/forecast + ForecastWidget on /reports (revenue range, prep
+>   quantities + checklist; statistical fallback w/ confidence ≤0.5)
+> - **AI staff scheduling + time clock** (021_time_clock) — /schedule week grid, AI suggestion,
+>   labor tracker, PIN-screen clock-in + POS clock-out
+> - **Menu engineering AI** — per-item recommendations + one-click archive/reprice quick wins
+> - **Daily intelligence feed** — owner landing view (/, dismissible per day): yesterday vs last
+>   week, alerts, ONE AI insight, prep checklist, reorder ETAs
+> - **Food cost intelligence** — recipe-based plate costs vs target, AI fix suggestions,
+>   savings potential, Fix modal (/analytics Food Cost tab)
+> - **Enhanced copilot** — context-aware suggested questions, action buttons, copy/CSV export
+>
+> AI rules enforced everywhere: claude-sonnet-4-6 (config.CLAUDE_MODEL), Redis caching
+> (forecast/schedule/menu/food-cost 4h, daily-intel 1h, suggested-q 1h), no per-page-load API
+> calls, structural graceful degradation (askClaude* → null → deterministic fallback;
+> "AI insights temporarily unavailable" in every widget).
+>
+> Migrations needed (Railway console): `npx node-pg-migrate up --migrations-dir migrations`
+> → **017, 018, 019, 020, 021** (017–020 still pending from Sprint 8).
+>
+> Verified: tsc 0 errors both apps · 206/206 jest · live AI endpoint sweep (see below).
+> Blocked prompts: **none.** New URLs: /schedule · /analytics (Food Cost tab) · / (owner feed) ·
+> /reports (forecast widget). Key AI endpoints: /ai/forecast · /ai/daily-intelligence ·
+> /ai/schedule-suggestion · /ai/suggested-questions · /analytics/menu-insights ·
+> /analytics/food-cost(+/summary).
+>
+> Next: **Sprint 10 — Launch Polish.** Jake: run migrations 017–021, click through the AI
+> features (feed on login, forecast on /reports, AI schedule, menu quick wins, food-cost Fix).
+
+## ✅ SPRINT 9 — AI Intelligence Layer (COMPLETE, v1.2.0)
 
 ### S9-01 — AI Demand Forecasting ✅ COMPLETE
 - `aiForecast.service.ts` (new — services/forecast.service.ts is the Prompt-04 INVENTORY

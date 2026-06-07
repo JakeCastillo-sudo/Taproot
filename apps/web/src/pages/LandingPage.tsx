@@ -1,50 +1,329 @@
-import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Check } from 'lucide-react';
-import { analytics } from '../lib/analytics';
+/**
+ * LandingPage — production marketing page (S10-01, V1.3).
+ *
+ * The first thing every potential customer sees. Clean, fast, mobile-first.
+ * Built with only React + TypeScript + Tailwind + lucide-react (no new deps).
+ * System fonts only (no web-font fetch). Taproot green (#1D9E75 = `primary`).
+ * Every CTA links to /register.
+ *
+ * Sections: Nav · Hero · Origin · Pain · Features · AI · Comparison ·
+ *           Pricing · Price Promise · Savings Calculator · FAQ · Closing · Footer
+ */
 
-// ─── Content data ──────────────────────────────────────────────────────────────
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  Leaf, Menu, X, Upload, Tag, Monitor, XCircle, Headphones,
+  LineChart, TrendingUp, DollarSign, Lock, Package, Shield,
+  Check, ChevronDown, ArrowRight, Play, Twitter, Linkedin, Instagram,
+} from 'lucide-react';
+import { clsx } from 'clsx';
 
-const PAIN_POINTS = [
-  "I'm locked into a 2-year contract and they won't even answer my calls.",
-  'Every feature I actually need costs extra. It never ends.',
-  'Setup took 3 weeks and a consultant. I just wanted to take orders.',
+const SYSTEM_FONT =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
+// ─── Logo ───────────────────────────────────────────────────────────────────
+
+function Logo({ light = false }: { light?: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary">
+        <Leaf size={18} className="text-white" />
+      </span>
+      <span className={clsx('text-lg font-bold tracking-tight', light ? 'text-white' : 'text-gray-900')}>
+        Taproot
+      </span>
+    </span>
+  );
+}
+
+// ─── Nav (Section 1) ─────────────────────────────────────────────────────────
+
+function Nav() {
+  const [open, setOpen] = useState(false);
+  return (
+    <nav className="fixed top-0 inset-x-0 z-50 bg-white shadow-sm">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <Link to="/" aria-label="Taproot home"><Logo /></Link>
+
+        {/* Desktop links */}
+        <div className="hidden md:flex items-center gap-6">
+          <a href="#pricing" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Pricing</a>
+          <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Sign in</Link>
+          <Link to="/register" className="text-sm font-semibold text-white bg-primary hover:bg-primary-dark px-4 py-2 rounded-lg transition-colors">
+            Start free trial
+          </Link>
+        </div>
+
+        {/* Mobile toggle */}
+        <button className="md:hidden p-2 -mr-2 text-gray-700" onClick={() => setOpen((v) => !v)} aria-label="Menu">
+          {open ? <X size={22} /> : <Menu size={22} />}
+        </button>
+      </div>
+
+      {open && (
+        <div className="md:hidden border-t border-gray-100 bg-white px-4 py-3 space-y-1">
+          <a href="#pricing" onClick={() => setOpen(false)} className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Pricing</a>
+          <Link to="/login" className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Sign in</Link>
+          <Link to="/register" className="block px-2 py-2 text-sm font-semibold text-white bg-primary rounded-md text-center">Start free trial</Link>
+        </div>
+      )}
+    </nav>
+  );
+}
+
+// ─── Reusable bits ────────────────────────────────────────────────────────────
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs font-bold uppercase tracking-[0.12em] mb-3 text-primary">
+      {children}
+    </p>
+  );
+}
+
+function PrimaryCTA({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <Link
+      to="/register"
+      className={clsx(
+        'inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white font-semibold rounded-lg px-6 py-3.5 text-base transition-colors active:scale-[0.99]',
+        className,
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+// ─── Hero (Section 2) ──────────────────────────────────────────────────────────
+
+function Hero({ onDemo }: { onDemo: () => void }) {
+  return (
+    <section className="min-h-screen flex items-center bg-[#F9FAFB] pt-16">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-16 text-center">
+        <span className="inline-flex items-center gap-1.5 bg-primary-light text-primary-dark text-sm font-semibold px-3 py-1 rounded-full">
+          🌿 Built for independent restaurants
+        </span>
+
+        <h1 className="mt-6 text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.08]">
+          The POS built for the restaurant<br className="hidden sm:block" /> Toast forgot about.
+        </h1>
+
+        <p className="mt-6 text-lg sm:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
+          No contracts. No surprise fees. No being treated like you're too small to matter.
+          Just a POS that works — and gets smarter every day.
+        </p>
+
+        <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <PrimaryCTA className="w-full sm:w-auto">Start free for 14 days <ArrowRight size={18} /></PrimaryCTA>
+          <button
+            onClick={onDemo}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-gray-300 text-gray-700 font-semibold rounded-lg px-6 py-3.5 text-base hover:bg-white transition-colors"
+          >
+            <Play size={16} /> Watch 60-second demo
+          </button>
+        </div>
+
+        <div className="mt-7 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-gray-500">
+          <span className="inline-flex items-center gap-1"><Check size={14} className="text-primary" /> No credit card required</span>
+          <span className="text-gray-300">·</span>
+          <span className="inline-flex items-center gap-1"><Check size={14} className="text-primary" /> Setup in 10 minutes</span>
+          <span className="text-gray-300">·</span>
+          <span className="inline-flex items-center gap-1"><Check size={14} className="text-primary" /> Cancel anytime</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Origin story (Section 3) ──────────────────────────────────────────────────
+
+function Origin() {
+  return (
+    <section className="bg-white py-20 sm:py-24">
+      <div className="max-w-[640px] mx-auto px-4 sm:px-6">
+        <blockquote className="border-l-4 border-primary pl-6 italic text-lg sm:text-xl text-gray-700 leading-relaxed space-y-4">
+          <p>My wife started a food truck. Then grew it into a restaurant. Toast charged her for every new feature. Support disappeared after she signed the contract. She was too small to matter to them.</p>
+          <p>So I built what she actually needed.</p>
+          <p>Taproot is the POS for operators like her — independent, scrappy, and done being ignored.</p>
+        </blockquote>
+        <div className="flex items-center gap-3 mt-6 pl-6">
+          <span className="w-10 h-10 rounded-full bg-primary text-white font-bold flex items-center justify-center">J</span>
+          <span className="text-sm font-semibold text-gray-600">— Jake Castillo, Founder</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Pain points (Section 4) ──────────────────────────────────────────────────
+
+const PAINS = [
+  { q: "I'm locked into a 2-year contract and they won't even answer my calls.", who: '— Restaurant owner, Austin TX' },
+  { q: 'Every feature I actually need costs extra. It never ends.', who: '— Cafe owner, Nashville TN' },
+  { q: 'Setup took 3 weeks and a consultant. I just wanted to take orders.', who: '— Food truck owner, Chicago IL' },
 ];
 
-const VALUE_PROPS = [
-  {
-    title: 'Your menu. Imported in 60 seconds.',
-    body: 'Upload your current menu as a PDF. Taproot reads it, imports every item, and has you ready to take orders before your coffee gets cold.',
-  },
-  {
-    title: 'One price. Forever.',
-    body: '$99/month. Includes everything. Online ordering. Loyalty. Kitchen display. AI insights. Employee management. Not as add-ons. Included.',
-  },
-  {
-    title: 'Works on the iPad you already have.',
-    body: "No proprietary hardware. No $700 terminal you're forced to lease. Your existing iPad. Any Android tablet. Any browser.",
-  },
-  {
-    title: 'Cancel anytime. We mean it.',
-    body: "No 2-year contract. No early termination fee. If Taproot isn't working for you, cancel today and pay nothing tomorrow. Your data exports in one click. Always.",
-  },
-  {
-    title: 'Support that actually shows up.',
-    body: 'We know what it\'s like at 7pm on a Friday when something breaks and 40 people are waiting for their food. We answer. Every time.',
-  },
+function Pain() {
+  return (
+    <section className="bg-[#F9FAFB] py-20 sm:py-24">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
+        <Eyebrow>Why operators switch</Eyebrow>
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900">Sound familiar?</h2>
+
+        <div className="grid gap-5 sm:grid-cols-3 mt-12 text-left">
+          {PAINS.map((p) => (
+            <div key={p.who} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <span className="text-4xl leading-none text-red-300 font-serif">&ldquo;</span>
+              <p className="italic text-gray-700 -mt-3">{p.q}</p>
+              <p className="text-sm text-gray-400 mt-4">{p.who}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-gray-500 mt-10 max-w-2xl mx-auto">
+          We built Taproot because every one of these is a real thing a real restaurant owner told us.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// ─── Features (Section 5) ──────────────────────────────────────────────────────
+
+const FEATURES = [
+  { icon: Upload, title: 'Your menu. Imported in 60 seconds.', body: "Upload your current menu as a PDF. Taproot reads it, imports every item, and has you ready to take orders before your coffee gets cold. No data entry. No consultants." },
+  { icon: Tag, title: 'One price. Everything included.', body: '$99/month includes everything. Online ordering. Loyalty program. Kitchen display. AI insights. Employee management. Not as add-ons. Included.' },
+  { icon: Monitor, title: 'Works on the iPad you already have.', body: "No proprietary hardware. No $700 terminal you're forced to lease. Your existing iPad, any Android tablet, any browser." },
+  { icon: XCircle, title: 'Cancel anytime. We mean it.', body: "No 2-year contract. No early termination fee. If Taproot isn't working for you, cancel today and pay nothing tomorrow. Your data exports in one click. Always." },
+  { icon: Headphones, title: 'Support that actually shows up.', body: 'We know what 7pm on a Friday feels like when something breaks and 40 people are waiting. We answer. Every time.' },
 ];
 
-const COMPARISON: Array<[string, string, string, string]> = [
-  ['Monthly cost', '$400+/mo', 'Varies', '$99 flat'],
-  ['Contract', '2 years', 'None', 'None'],
-  ['Hardware required', 'Yes ($700+)', 'Optional', 'No'],
-  ['Setup time', 'Weeks', 'Days', '10 minutes'],
-  ['AI menu import', '❌', '❌', '✅'],
-  ['Hidden fees', 'Yes', 'Yes', 'Never'],
-  ['Online ordering', '+$50/mo', 'Included', 'Included'],
-  ['Loyalty program', '+$25/mo', '+$45/mo', 'Included'],
-  ['Support after signup', 'Poor', 'Poor', 'Always'],
-  ['True monthly cost', '$174-320+', '$194+', '$99'],
+function Features() {
+  return (
+    <section className="bg-white py-20 sm:py-24">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6">
+        <div className="text-center">
+          <Eyebrow>What makes us different</Eyebrow>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900">Here's what different looks like.</h2>
+        </div>
+
+        <div className="mt-14 space-y-12 sm:space-y-16">
+          {FEATURES.map((f, i) => {
+            const Icon = f.icon;
+            const flip = i % 2 === 1;
+            return (
+              <div key={f.title} className={clsx('flex flex-col sm:flex-row items-center gap-6 sm:gap-10', flip && 'sm:flex-row-reverse')}>
+                <div className="shrink-0 w-20 h-20 rounded-2xl bg-primary-light flex items-center justify-center">
+                  <Icon size={34} className="text-primary" strokeWidth={1.8} />
+                </div>
+                <div className={clsx('text-center', flip ? 'sm:text-right' : 'sm:text-left')}>
+                  <h3 className="text-xl font-bold text-gray-900">{f.title}</h3>
+                  <p className="text-gray-500 mt-2 leading-relaxed max-w-xl">{f.body}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── AI features (Section 6) ───────────────────────────────────────────────────
+
+const AI_CARDS = [
+  { icon: LineChart, title: 'Daily Intelligence', body: "Every morning: what sold, what to prep, who's scheduled, what to reorder. Your restaurant's overnight analyst." },
+  { icon: TrendingUp, title: 'Demand Forecasting', body: 'Predict busy hours before they happen. Prep the right amount. Schedule the right staff. Stop running out of your best items.' },
+  { icon: DollarSign, title: 'Menu Engineering', body: "Know which items make money and which don't. AI spots your Stars, Plowhorses, Puzzles, and Dogs. One-click to fix what's hurting your margins." },
 ];
+
+function AIFeatures() {
+  return (
+    <section className="bg-[#111827] py-20 sm:py-24">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
+        <Eyebrow>AI-powered</Eyebrow>
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-white">The POS that gets smarter while you sleep.</h2>
+        <p className="text-gray-400 mt-4 max-w-2xl mx-auto">
+          Most POS systems just record what happened. Taproot tells you what to do about it.
+        </p>
+
+        <div className="grid gap-5 sm:grid-cols-3 mt-12 text-left">
+          {AI_CARDS.map((c) => {
+            const Icon = c.icon;
+            return (
+              <div key={c.title} className="bg-[#1F2937] rounded-2xl p-6 border border-white/5">
+                <div className="w-11 h-11 rounded-xl bg-primary/20 flex items-center justify-center mb-4">
+                  <Icon size={22} className="text-primary" />
+                </div>
+                <h3 className="text-lg font-bold text-white">{c.title}</h3>
+                <p className="text-gray-400 mt-2 text-sm leading-relaxed">{c.body}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Comparison (Section 7) ────────────────────────────────────────────────────
+
+const COMPARE: Array<{ feature: string; toast: string; square: string; taproot: string; toastBad?: boolean; squareBad?: boolean }> = [
+  { feature: 'Monthly cost', toast: '$400+/mo', square: 'Varies', taproot: '$99 flat' },
+  { feature: 'Contract', toast: '2 years', square: 'None', taproot: 'None', toastBad: true },
+  { feature: 'Hardware required', toast: 'Yes ($700+)', square: 'Optional', taproot: 'No', toastBad: true },
+  { feature: 'Setup time', toast: 'Weeks', square: 'Days', taproot: '10 min', toastBad: true },
+  { feature: 'AI menu import', toast: 'No', square: 'No', taproot: 'Yes', toastBad: true, squareBad: true },
+  { feature: 'Hidden fees', toast: 'Yes', square: 'Yes', taproot: 'Never', toastBad: true, squareBad: true },
+  { feature: 'Online ordering', toast: '+$50/mo', square: 'Included', taproot: 'Included', toastBad: true },
+  { feature: 'Loyalty program', toast: '+$25/mo', square: '+$45/mo', taproot: 'Included', toastBad: true, squareBad: true },
+  { feature: 'Support quality', toast: 'Poor', square: 'Poor', taproot: 'Always', toastBad: true, squareBad: true },
+  { feature: 'True monthly cost', toast: '$174–320+', square: '$194+', taproot: '$99' },
+];
+
+function Comparison() {
+  return (
+    <section className="bg-white py-20 sm:py-24">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+        <div className="text-center">
+          <Eyebrow>The honest comparison</Eyebrow>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900">See how we stack up.</h2>
+        </div>
+
+        <div className="mt-10 overflow-x-auto">
+          <table className="w-full min-w-[560px] border-collapse text-sm">
+            <thead>
+              <tr className="text-left">
+                <th className="py-3 px-3 font-semibold text-gray-500">Feature</th>
+                <th className="py-3 px-3 font-semibold text-gray-500 text-center">Toast</th>
+                <th className="py-3 px-3 font-semibold text-gray-500 text-center">Square</th>
+                <th className="py-3 px-3 font-bold text-primary-dark text-center bg-primary-light rounded-t-lg">Taproot</th>
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARE.map((r, i) => (
+                <tr key={r.feature} className={clsx('border-t border-gray-100', i === COMPARE.length - 1 && 'font-semibold')}>
+                  <td className="py-3 px-3 text-gray-700">{r.feature}</td>
+                  <td className={clsx('py-3 px-3 text-center', r.toastBad ? 'text-danger' : 'text-gray-500')}>{r.toast}{r.toastBad && ' ✕'}</td>
+                  <td className={clsx('py-3 px-3 text-center', r.squareBad ? 'text-danger' : 'text-gray-500')}>{r.square}{r.squareBad && ' ✕'}</td>
+                  <td className="py-3 px-3 text-center bg-primary-light/60 text-primary-dark font-semibold">{r.taproot} ✓</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="text-xs text-gray-400 text-center mt-5 max-w-xl mx-auto">
+          *Competitor pricing based on published rates, June 2026. True monthly cost includes common add-ons.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// ─── Pricing (Section 8) ───────────────────────────────────────────────────────
 
 const PLAN_FEATURES = [
   'Unlimited locations', 'Unlimited employees', 'AI menu import', 'Online ordering',
@@ -53,262 +332,304 @@ const PLAN_FEATURES = [
   'No hidden fees', 'No per-device fees', 'No transaction fees',
 ];
 
-const FAQS: Array<[string, string]> = [
-  ['Do I need new hardware?', 'No. Taproot works on any iPad, Android tablet, or laptop. If you have a device, you have a POS.'],
-  ['Can I import my menu from Toast or Square?', 'Yes. Upload your menu as a PDF or CSV and Taproot imports it automatically.'],
-  ['What happens to my data if I cancel?', "It's yours. Always. Export everything in one click. We never hold your data hostage."],
-  ['Is there a setup fee?', 'No. No setup fee. No onboarding fee. No implementation consultant. Just sign up and go.'],
-  ['Are there any fees beyond $99/month?', 'Three third-party pass-through costs exist: Stripe processing (2.7% + $0.05 per card transaction), sales tax (remitted to your tax authority), and AI features (included up to fair use limits). None of these go to Taproot.'],
-  ['What if I need help?', 'We answer. Email, chat, or call. Especially on Friday nights when things get real.'],
-  ['Can I use my own payment processor?', "Taproot uses Stripe Connect. You keep your own Stripe account and your own processing rates. We don't take a cut of your transactions."],
+function Pricing() {
+  const [annual, setAnnual] = useState(false);
+  return (
+    <section id="pricing" className="bg-[#F9FAFB] py-20 sm:py-24">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+        <Eyebrow>Pricing</Eyebrow>
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900">Simple pricing for real restaurants.</h2>
+        <p className="text-gray-500 mt-3">One price. Everything included. Locked forever.</p>
+
+        <div className="max-w-[480px] mx-auto mt-10 bg-white rounded-3xl border border-gray-100 shadow-md p-7 text-left relative">
+          <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-xs font-bold px-3 py-1 rounded-full">Most popular</span>
+
+          {/* Toggle */}
+          <div className="flex items-center justify-center gap-1 bg-gray-100 rounded-lg p-1 w-fit mx-auto mb-6">
+            <button onClick={() => setAnnual(false)} className={clsx('px-4 py-1.5 rounded-md text-sm font-semibold transition-colors', !annual ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500')}>Monthly</button>
+            <button onClick={() => setAnnual(true)} className={clsx('px-4 py-1.5 rounded-md text-sm font-semibold transition-colors', annual ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500')}>Annual</button>
+          </div>
+
+          <div className="text-center">
+            <div className="flex items-end justify-center gap-1">
+              <span className="text-5xl font-extrabold text-gray-900">${annual ? 82 : 99}</span>
+              <span className="text-gray-400 mb-1.5">/month</span>
+            </div>
+            <p className="text-sm text-gray-400 mt-1">{annual ? 'Billed $990/year (2 months free)' : 'or $990/year (2 months free)'}</p>
+          </div>
+
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mt-6">
+            {PLAN_FEATURES.map((f) => (
+              <li key={f} className="flex items-center gap-2 text-sm text-gray-700">
+                <Check size={15} className="text-primary shrink-0" /> {f}
+              </li>
+            ))}
+          </ul>
+
+          <PrimaryCTA className="w-full mt-7">Start free for 14 days <ArrowRight size={18} /></PrimaryCTA>
+          <p className="text-center text-xs text-gray-400 mt-3">No credit card required · Cancel anytime</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Price promise (Section 9) ─────────────────────────────────────────────────
+
+const PROMISES = [
+  { icon: Lock, title: 'Your price is locked.', body: 'We will never raise your rate more than the official US inflation rate (CPI). 90-day advance notice of any change. No surprise bills. Ever.' },
+  { icon: Package, title: 'Everything included.', body: 'Every feature on our roadmap comes to you at no additional charge. No tiers. No premium features. No add-on packages. One price. Forever.' },
+  { icon: Shield, title: 'No Taproot fees on transactions.', body: 'We make money when you subscribe. Not when you sell. No cut of your revenue. Ever.' },
 ];
 
-// ─── LandingPage ──────────────────────────────────────────────────────────────
+function PricePromise() {
+  return (
+    <section className="bg-white py-20 sm:py-24">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900">The Taproot Price Promise</h2>
+        <div className="grid gap-8 sm:grid-cols-3 mt-12 text-left">
+          {PROMISES.map((p) => {
+            const Icon = p.icon;
+            return (
+              <div key={p.title}>
+                <div className="w-12 h-12 rounded-xl bg-primary-light flex items-center justify-center mb-4">
+                  <Icon size={24} className="text-primary" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">{p.title}</h3>
+                <p className="text-gray-500 mt-2 text-sm leading-relaxed">{p.body}</p>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-xs text-gray-400 mt-10 max-w-2xl mx-auto leading-relaxed">
+          Third-party pass-through costs (not Taproot charges): Stripe processing: 2.7% + $0.05/in-person
+          transaction • Sales tax: remitted directly to tax authority • AI features: included up to fair use limits
+        </p>
+      </div>
+    </section>
+  );
+}
 
-export function LandingPage() {
-  const navigate = useNavigate();
+// ─── Savings calculator (Section 10) ───────────────────────────────────────────
 
-  const handleStartTrial = () => {
-    analytics.upgradePageViewed();
-    navigate('/register');
-  };
-  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+const COMPETITORS = [
+  { label: '$69/mo (Toast Starter)', value: 69 },
+  { label: '$165/mo (Toast Point of Sale)', value: 165 },
+  { label: '$400/mo (Toast + add-ons)', value: 400 },
+  { label: '$49/mo (Square Plus)', value: 49 },
+  { label: '$149/mo (Square Premium)', value: 149 },
+  { label: '$194/mo (Square + add-ons)', value: 194 },
+  { label: '$84/mo (Clover)', value: 84 },
+  { label: '$233/mo (Clover + add-ons)', value: 233 },
+];
+
+function SavingsCalculator() {
+  const [sel, setSel] = useState(165);
+  const [other, setOther] = useState('');
+  const current = sel === -1 ? (parseFloat(other) || 0) : sel;
+  const monthly = Math.max(0, current - 99);
+  const fmt = (n: number) => '$' + n.toLocaleString('en-US');
 
   return (
-    // Page owns its scroll — the document body is overflow:hidden (PWA shell), so
-    // marketing sections stack inside this h-screen scroll container. Sticky header
-    // + scrollIntoView both work against this scrolling ancestor.
-    <div className="h-screen overflow-y-auto bg-white">
+    <section className="bg-[#F9FAFB] py-20 sm:py-24">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900">What you actually save</h2>
 
-      {/* Nav */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-white text-xs font-bold">T</span>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mt-10 text-left">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">I currently pay:</label>
+          <select
+            value={sel}
+            onChange={(e) => setSel(Number(e.target.value))}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/40"
+          >
+            {COMPETITORS.map((c) => <option key={c.label} value={c.value}>{c.label}</option>)}
+            <option value={-1}>Other…</option>
+          </select>
+          {sel === -1 && (
+            <input
+              type="number"
+              value={other}
+              onChange={(e) => setOther(e.target.value)}
+              placeholder="Enter your monthly cost ($)"
+              className="w-full mt-3 px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          )}
+
+          <div className="mt-6 grid grid-cols-3 gap-3 text-center">
+            <div className="bg-primary-light rounded-xl py-4">
+              <p className="text-2xl font-extrabold text-primary-dark">{fmt(monthly)}</p>
+              <p className="text-xs text-gray-500 mt-0.5">/ month</p>
             </div>
-            <span className="font-bold text-gray-900">Taproot POS</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/login')} className="text-sm text-gray-600 hover:text-gray-900 transition-colors">Sign in</button>
-            <button onClick={handleStartTrial} className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark transition-colors">Start free trial</button>
+            <div className="bg-primary-light rounded-xl py-4">
+              <p className="text-2xl font-extrabold text-primary-dark">{fmt(monthly * 12)}</p>
+              <p className="text-xs text-gray-500 mt-0.5">/ year</p>
+            </div>
+            <div className="bg-primary-light rounded-xl py-4">
+              <p className="text-2xl font-extrabold text-primary-dark">{fmt(monthly * 60)}</p>
+              <p className="text-xs text-gray-500 mt-0.5">over 5 years</p>
+            </div>
           </div>
         </div>
-      </header>
 
-      {/* Hero */}
-      <section className="max-w-3xl mx-auto px-4 pt-16 pb-12 text-center">
-        <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 leading-tight mb-5 tracking-tight">
-          The POS built for the restaurant<br className="hidden sm:block" />
-          <span className="text-primary"> Toast forgot about.</span>
-        </h1>
-        <p className="text-lg text-gray-500 max-w-xl mx-auto mb-8 leading-relaxed">
-          No contracts. No surprise fees. No being treated like you're too small to matter.
-          Just a POS that works — and gets smarter every day.
-        </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <button onClick={handleStartTrial} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-primary text-white font-semibold rounded-xl hover:bg-primary-dark active:scale-[0.98] transition-all shadow-md shadow-primary/20">
-            Start free for 14 days <ArrowRight size={16} />
-          </button>
-          <button onClick={() => scrollTo('how')} className="w-full sm:w-auto px-6 py-3.5 border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors">
-            Watch demo (60s)
-          </button>
+        <div className="mt-8 bg-primary text-white rounded-2xl p-6">
+          <p className="text-lg font-bold">$99/month. Everything included. No surprises.</p>
+          <Link to="/register" className="inline-flex items-center gap-2 mt-4 bg-white text-primary-dark font-semibold rounded-lg px-5 py-3 hover:bg-gray-50 transition-colors">
+            Start free for 14 days <ArrowRight size={18} />
+          </Link>
         </div>
-        <p className="text-xs text-gray-400 mt-5">No credit card required · Cancel anytime · Setup in 10 minutes</p>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* Origin story */}
-      <section className="bg-gray-50 border-y border-gray-100 py-14">
-        <div className="max-w-2xl mx-auto px-4 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-5">Why we built this</h2>
-          <div className="text-gray-600 leading-relaxed space-y-2 text-[15px]">
-            <p>My wife started a food truck.</p>
-            <p>Then grew it into a restaurant.</p>
-            <p>Toast charged her for every new feature.</p>
-            <p>Support disappeared after she signed the contract.</p>
-            <p>She was too small to matter to them.</p>
-            <p>So I built what she actually needed.</p>
-            <p>Taproot is the POS for operators like her — independent, scrappy, and done being ignored.</p>
-          </div>
-          <p className="mt-5 font-semibold text-gray-900">— Jake, Founder</p>
-        </div>
-      </section>
+// ─── FAQ (Section 11) ──────────────────────────────────────────────────────────
 
-      {/* Pain */}
-      <section className="max-w-5xl mx-auto px-4 py-14">
-        <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Sound familiar?</h2>
-        <div className="grid sm:grid-cols-3 gap-5">
-          {PAIN_POINTS.map((p, i) => (
-            <div key={i} className="bg-gray-50 rounded-xl p-5 border border-gray-100">
-              <p className="text-gray-700 leading-relaxed italic">&ldquo;{p}&rdquo;</p>
+const FAQS = [
+  { q: 'Do I need new hardware?', a: 'No. Taproot works on any iPad, Android tablet, or laptop. If you have a device, you have a POS.' },
+  { q: 'Can I import my menu from Toast or Square?', a: 'Yes. Upload your menu as a PDF or CSV and Taproot imports it automatically. Or use our migration wizard to pull directly from your old system.' },
+  { q: 'What happens to my data if I cancel?', a: "It's yours. Always. Export everything in one click — orders, customers, products, reports. We never hold your data hostage." },
+  { q: 'Is there a setup fee?', a: 'No. No setup fee. No onboarding fee. No implementation consultant. Just sign up and go.' },
+  { q: 'Are there any fees beyond $99/month?', a: 'Three third-party pass-through costs exist: Stripe processing (2.7% + $0.05 per card transaction), sales tax (remitted to your tax authority), and AI features (included up to fair use limits). None of these go to Taproot.' },
+  { q: 'What if I need help?', a: 'We answer. Email, chat, or call. Especially on Friday nights when things get real.' },
+  { q: 'Can I use my own payment processor?', a: "Taproot uses Stripe Connect. You keep your own Stripe account and your own processing rates. We don't take a cut of your transactions." },
+  { q: 'How long does setup actually take?', a: '10 minutes if you have your menu as a PDF. Upload it, Taproot imports every item, connect Stripe, add your employees, done.' },
+];
+
+function FAQ() {
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <section className="bg-white py-20 sm:py-24">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6">
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 text-center mb-10">Questions we hear a lot</h2>
+        <div className="divide-y divide-gray-100 border-y border-gray-100">
+          {FAQS.map((f, i) => (
+            <div key={f.q}>
+              <button
+                onClick={() => setOpen(open === i ? null : i)}
+                className="w-full flex items-center justify-between gap-4 py-4 text-left"
+                aria-expanded={open === i}
+              >
+                <span className="font-semibold text-gray-900">{f.q}</span>
+                <ChevronDown size={18} className={clsx('shrink-0 text-gray-400 transition-transform', open === i && 'rotate-180')} />
+              </button>
+              {open === i && <p className="text-gray-500 leading-relaxed pb-4 -mt-1">{f.a}</p>}
             </div>
           ))}
         </div>
-        <p className="text-center text-sm text-gray-500 mt-6 max-w-2xl mx-auto">
-          We built Taproot because every one of these is a real thing a real restaurant owner said.
-          About Toast. About Square. About Clover.
-        </p>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* Value props */}
-      <section id="how" className="bg-gray-50 border-y border-gray-100 py-14">
-        <div className="max-w-3xl mx-auto px-4">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Here's what different looks like.</h2>
-          <div className="space-y-4">
-            {VALUE_PROPS.map((v, i) => (
-              <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 flex gap-4">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0">{i + 1}</div>
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-1">{v.title}</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">{v.body}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+// ─── Closing CTA (Section 12) ──────────────────────────────────────────────────
 
-      {/* Comparison */}
-      <section className="max-w-3xl mx-auto px-4 py-14">
-        <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">The honest comparison</h2>
-        <div className="overflow-x-auto rounded-2xl border border-gray-100">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500">
-              <tr>
-                <th className="text-left font-medium px-4 py-3">Feature</th>
-                <th className="font-medium px-4 py-3">Toast</th>
-                <th className="font-medium px-4 py-3">Square</th>
-                <th className="font-bold px-4 py-3 text-primary">Taproot</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {COMPARISON.map(([feature, toast, square, taproot], i) => (
-                <tr key={i}>
-                  <td className="px-4 py-3 text-gray-600">{feature}</td>
-                  <td className="text-center text-gray-500">{toast}</td>
-                  <td className="text-center text-gray-500">{square}</td>
-                  <td className="text-center font-semibold text-gray-900">{taproot}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <section className="bg-gray-50 border-y border-gray-100 py-14">
-        <div className="max-w-md mx-auto px-4 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Simple pricing for real restaurants.</h2>
-          <p className="text-gray-500 mb-8">One price. Everything included. Locked forever.</p>
-
-          <div className="bg-white rounded-2xl border border-primary/20 shadow-sm p-7 text-left">
-            <div className="text-center mb-5">
-              <div className="flex items-baseline justify-center gap-1">
-                <span className="text-4xl font-extrabold text-gray-900">$99</span>
-                <span className="text-gray-400 text-sm">/ month</span>
-              </div>
-              <p className="text-xs text-gray-400 mt-1">or $990/year (2 months free)</p>
-            </div>
-
-            <ul className="space-y-2 mb-6">
-              {PLAN_FEATURES.map((f) => (
-                <li key={f} className="flex items-center gap-2.5 text-sm text-gray-700">
-                  <Check size={14} className="text-primary shrink-0" /> {f}
-                </li>
-              ))}
-            </ul>
-
-            <button onClick={handleStartTrial} className="w-full py-3.5 bg-primary text-white font-semibold rounded-xl hover:bg-primary-dark transition-colors flex items-center justify-center gap-2">
-              Start free for 14 days <ArrowRight size={16} />
-            </button>
-            <p className="text-xs text-gray-400 mt-3 text-center">No credit card required</p>
-          </div>
-
-          {/* Price Promise */}
-          <div className="mt-8 text-left">
-            <h3 className="text-lg font-bold text-gray-900 mb-2">The Taproot Price Promise</h3>
-            <div className="text-sm text-gray-600 leading-relaxed space-y-3">
-              <p>Your price is locked. We will never raise your rate more than the official US inflation rate (CPI). We'll notify you 90 days before any change. You'll never wake up to a surprise bill.</p>
-              <p>Everything we build is included. Every feature on our roadmap comes to you at no additional charge. No tiers. No premium features. No add-on packages. One price. Everything. Forever.</p>
-              <p>No Taproot transaction fees. Ever. We make money when you subscribe. Not when you sell.</p>
-            </div>
-
-            {/* Disclaimer */}
-            <div className="mt-4">
-              <p className="text-xs font-semibold text-gray-500 mb-1">What's not a Taproot charge</p>
-              <p className="text-xs italic text-gray-400 leading-relaxed">
-                Third-party fees collected on our platform are pass-through costs we don't control and don't profit from:
-              </p>
-              <ul className="mt-1 space-y-1">
-                <li className="text-xs italic text-gray-400 leading-relaxed"><strong className="not-italic text-gray-500">Credit card processing:</strong> Stripe charges 2.7% + $0.05 per in-person transaction. Goes directly to Stripe.</li>
-                <li className="text-xs italic text-gray-400 leading-relaxed"><strong className="not-italic text-gray-500">Sales tax:</strong> Collected on behalf of your local tax authority. Taproot never touches this money.</li>
-                <li className="text-xs italic text-gray-400 leading-relaxed"><strong className="not-italic text-gray-500">AI usage:</strong> Included up to fair use limits. Heavy commercial usage may incur a small pass-through charge at cost. We'll always notify you before this applies.</li>
-              </ul>
-              <p className="text-xs italic text-gray-400 leading-relaxed mt-1">
-                These are industry-standard third-party costs. We list them here because you deserve to know exactly where every dollar goes.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Savings */}
-      <section className="max-w-2xl mx-auto px-4 py-14 text-center">
-        <h2 className="text-2xl font-bold text-gray-900 mb-5">What you actually save</h2>
-        <div className="text-gray-600 leading-relaxed space-y-3 text-[15px]">
-          <p>The average independent restaurant pays $2,400/year for a basic Toast setup. Add online ordering, loyalty, and a kitchen display and you're at $4,800/year before hardware.</p>
-          <p><strong className="text-gray-900">Taproot is $1,188/year. With everything included.</strong></p>
-          <p>That's $3,600/year back in your pocket.<br />Over 5 years: <strong className="text-primary">$18,000 saved</strong>.<br />Over 10 years: <strong className="text-primary">$36,000 saved</strong>.</p>
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section className="bg-gray-50 border-t border-gray-100 py-14">
-        <div className="max-w-2xl mx-auto px-4">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Questions we hear a lot</h2>
-          <div className="space-y-4">
-            {FAQS.map(([q, a]) => (
-              <div key={q} className="bg-white rounded-xl border border-gray-100 p-5">
-                <h3 className="font-semibold text-gray-900 mb-1">{q}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{a}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Closing CTA */}
-      <section className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-5">Your restaurant deserves better than being ignored.</h2>
-        <div className="text-gray-600 leading-relaxed space-y-3 text-[15px] mb-8">
+function Closing() {
+  return (
+    <section className="bg-primary py-20 sm:py-24">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
+          Your restaurant deserves better than being ignored.
+        </h2>
+        <div className="text-white/90 mt-6 space-y-4 leading-relaxed">
           <p>Toast built a great product for large restaurants. We built Taproot for everyone else. The food trucks. The neighborhood cafes. The family restaurants that have been running for 20 years and just need something that works.</p>
           <p>No contract. No surprises. No being treated like you're too small to matter.</p>
-          <p className="font-semibold text-gray-900">You're not too small. You're exactly who we built this for.</p>
+          <p className="font-semibold">You're not too small. You're exactly who we built this for.</p>
         </div>
-        <button onClick={handleStartTrial} className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-primary text-white font-semibold rounded-xl hover:bg-primary-dark active:scale-[0.98] transition-all shadow-md shadow-primary/20">
-          Start your free trial <ArrowRight size={16} />
-        </button>
-        <p className="text-xs text-gray-400 mt-3">No credit card. 10-minute setup. Cancel anytime.</p>
-      </section>
+        <Link to="/register" className="inline-flex items-center gap-2 mt-8 bg-white text-gray-900 font-bold rounded-lg px-7 py-4 text-base hover:bg-gray-50 transition-colors">
+          Start your free trial <ArrowRight size={18} />
+        </Link>
+        <p className="text-white/80 text-sm mt-4">No credit card. 10-minute setup. Cancel anytime.</p>
+      </div>
+    </section>
+  );
+}
 
-      {/* Footer */}
-      <footer className="max-w-5xl mx-auto px-4 py-8 border-t border-gray-100">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-400">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-primary flex items-center justify-center">
-              <span className="text-white text-xs font-bold">T</span>
+// ─── Footer (Section 13) ───────────────────────────────────────────────────────
+
+const FOOTER_COLS = [
+  { title: 'Product', links: ['Features', 'Pricing', 'Demo', 'Changelog'] },
+  { title: 'Company', links: ['About', 'Blog', 'Press', 'Careers'] },
+  { title: 'Support', links: ['Help Center', 'Contact', 'Status', 'Security'] },
+  { title: 'Legal', links: ['Privacy Policy', 'Terms of Service', 'Cookie Policy'] },
+];
+
+function Footer() {
+  return (
+    <footer className="bg-[#111827] text-gray-300 py-14">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="lg:col-span-1">
+            <Logo light />
+            <p className="text-sm text-gray-400 mt-3 max-w-[14rem]">The POS built for independent restaurants.</p>
+          </div>
+          {FOOTER_COLS.map((col) => (
+            <div key={col.title}>
+              <h4 className="text-sm font-semibold text-white mb-3">{col.title}</h4>
+              <ul className="space-y-2">
+                {col.links.map((l) => (
+                  <li key={l}><span className="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">{l}</span></li>
+                ))}
+              </ul>
             </div>
-            <span>© {new Date().getFullYear()} Taproot POS</span>
-          </div>
-          <div className="flex items-center gap-5">
-            <a href="mailto:support@taprootpos.com" className="hover:text-gray-700 transition-colors">Support</a>
-            <button onClick={() => navigate('/privacy')} className="hover:text-gray-700 transition-colors">Privacy</button>
-            <button onClick={() => navigate('/terms')} className="hover:text-gray-700 transition-colors">Terms</button>
-            <a href="https://docs.taprootpos.com" target="_blank" rel="noopener noreferrer" className="hover:text-gray-700 transition-colors">Docs</a>
+          ))}
+        </div>
+
+        <div className="border-t border-white/10 mt-12 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-gray-500">© 2026 Taproot POS. All rights reserved.</p>
+          <div className="flex items-center gap-4 text-gray-400">
+            <span className="hover:text-white transition-colors cursor-pointer" aria-label="Twitter"><Twitter size={18} /></span>
+            <span className="hover:text-white transition-colors cursor-pointer" aria-label="LinkedIn"><Linkedin size={18} /></span>
+            <span className="hover:text-white transition-colors cursor-pointer" aria-label="Instagram"><Instagram size={18} /></span>
           </div>
         </div>
-      </footer>
+      </div>
+    </footer>
+  );
+}
 
+// ─── Demo modal ────────────────────────────────────────────────────────────────
+
+function DemoModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl overflow-hidden w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+          <span className="font-semibold text-gray-900">Taproot — 60-second demo</span>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500" aria-label="Close"><X size={18} /></button>
+        </div>
+        <div className="aspect-video bg-[#111827] flex flex-col items-center justify-center text-center text-white px-6">
+          <Play size={40} className="text-primary mb-3" />
+          <p className="font-semibold">Demo video coming soon.</p>
+          <p className="text-sm text-gray-400 mt-1">In the meantime, try the live demo with the credentials on the sign-in page.</p>
+          <Link to="/login" onClick={onClose} className="mt-4 bg-primary text-white text-sm font-semibold rounded-lg px-4 py-2 hover:bg-primary-dark transition-colors">Open live demo</Link>
+        </div>
+      </div>
     </div>
   );
 }
+
+// ─── Page ────────────────────────────────────────────────────────────────────
+
+export function LandingPage() {
+  const [demo, setDemo] = useState(false);
+  return (
+    <div className="h-screen overflow-y-auto bg-white" style={{ fontFamily: SYSTEM_FONT }}>
+      <Nav />
+      <Hero onDemo={() => setDemo(true)} />
+      <Origin />
+      <Pain />
+      <Features />
+      <AIFeatures />
+      <Comparison />
+      <Pricing />
+      <PricePromise />
+      <SavingsCalculator />
+      <FAQ />
+      <Closing />
+      <Footer />
+      {demo && <DemoModal onClose={() => setDemo(false)} />}
+    </div>
+  );
+}
+
+export default LandingPage;
