@@ -197,8 +197,8 @@ export async function depleteForOrder(
       } else {
         // Non-recipe product — deplete directly
         const { rows: prodRows } = await client.query<{ track_inventory: boolean }>(
-          `SELECT track_inventory FROM products WHERE id = $1 AND deleted_at IS NULL`,
-          [item.productId],
+          `SELECT track_inventory FROM products WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+          [item.productId, orgId],
         );
         if (!prodRows.length || !prodRows[0].track_inventory) continue;
 

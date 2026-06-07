@@ -57,6 +57,29 @@
 > in both functions; `ImportReview` now invalidates the `['products']`/`['categories']` caches so the
 > POS shows imported items immediately.
 
+> # ✅ COMPREHENSIVE FIX PASS (2026-06-07 pt3)
+>
+> Lookback green (health ok, tsc 0 both apps). Worked the priority list:
+> - **Auth** ✅ live: login 200+token, register 201+token (BUG-AUTH-002 stays RESOLVED).
+> - **Import** ✅ BUG-IMP-004 fixed + live-verified (CSV upload→confirm→product with price).
+> - **Payment** ✅ BUG-PAY-001 modifier `?? []` guards confirmed present.
+> - **BUG-SCHED-001 FIXED** ✅ — `GET /schedules` 500'd (Postgres 42883: `to_char(timetz)` has no
+>   overload). Now slices "HH:MM" via `substring(col::text,1,5)`. This proves **migration 021 IS
+>   applied** (schedules/time_clock tables exist) — the "pending" banner above is stale for 021.
+> - **SEC-ORG-001 PARTIAL** — added `AND organization_id=$org` to the 3 documented by-UUID lookups
+>   (order→customer, inventory→product, receipt→employee). Remaining low-risk lookups noted in BACKLOG.
+> - **Feature Verification Audit — 15/15 working** (live): tables, public menu, kitchen, loyalty,
+>   gift cards, AI forecast, analytics (menu-engineering + menu-insights), api-keys, webhooks,
+>   reservations, cash-drawer, end-of-day (needs `date=`), locations, schedules (post-fix). No broken
+>   features remained → nothing else for Priority 7.
+> - **Scroll** ✅ verified on InventoryPage / ImportReview / OrderHistoryPage (fixed-shell +
+>   `overflow-y-auto min-h-0`; sticky theads on Order History).
+> - **Demo data** — already priced 50/50 (perfection pass); `docs/DEMO_DATA_FIX.sql` is a safe
+>   diagnostic + guarded archive (no blind delete) in case $0 items reappear.
+> - **BUG-IMP-005** (sub-$1 price normalization) stays OPEN (minor).
+>
+> 12-step new-owner flow: all steps verified working at the API level. tsc 0 both apps.
+
 > # 🚀 V1.2.0 COMPLETE — AI INTELLIGENCE LAYER (tagged)
 >
 > Built (7/7 prompts, June 7 2026) — every feature useful on day one, honest about confidence

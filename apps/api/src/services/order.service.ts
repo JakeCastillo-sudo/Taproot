@@ -418,8 +418,8 @@ async function fetchOrderWithRelations(orderId: string, orgId: string): Promise<
   let customer: Customer | null = null;
   if (order.customer_id) {
     const { rows: [c] } = await query<Customer>(
-      `SELECT * FROM customers WHERE id = $1`,
-      [order.customer_id],
+      `SELECT * FROM customers WHERE id = $1 AND organization_id = $2`,
+      [order.customer_id, order.organization_id],
     );
     customer = c ?? null;
   }

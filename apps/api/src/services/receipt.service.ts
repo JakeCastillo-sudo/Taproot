@@ -109,8 +109,8 @@ export async function buildReceipt(orgId: string, orderId: string): Promise<Rece
 
   // Load employee name
   const { rows: [emp] } = await query<{ first_name: string; last_name: string }>(
-    `SELECT first_name, last_name FROM employees WHERE id = $1`,
-    [order.employee_id],
+    `SELECT first_name, last_name FROM employees WHERE id = $1 AND organization_id = $2`,
+    [order.employee_id, order.organization_id],
   );
 
   // Load customer name if present

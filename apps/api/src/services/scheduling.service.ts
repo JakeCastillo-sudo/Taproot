@@ -203,8 +203,10 @@ export async function listSchedules(orgId: string, weekStart: string, locationId
   const { rows } = await query<ShiftRow>(
     `SELECT s.id, s.employee_id, e.first_name || ' ' || e.last_name AS employee_name,
             s.location_id, to_char(s.shift_date, 'YYYY-MM-DD') AS shift_date,
-            to_char(s.shift_start, 'HH24:MI') AS shift_start,
-            to_char(s.shift_end, 'HH24:MI') AS shift_end,
+            -- shift_start/shift_end are timetz; PostgreSQL has no to_char(time with time zone)
+            -- overload (errors 42883), so slice "HH:MM" from the text form instead.
+            substring(s.shift_start::text, 1, 5) AS shift_start,
+            substring(s.shift_end::text, 1, 5)   AS shift_end,
             s.role, s.ai_suggested
        FROM schedules s
        JOIN employees e ON e.id = s.employee_id

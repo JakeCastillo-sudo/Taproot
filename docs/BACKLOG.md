@@ -157,17 +157,17 @@
 - Fix needed: Add /login/mfa step; detect mfa_required in login response
 - Status: OPEN
 
-### BUG-QA-012: Create customer from POS search not wired
+### BUG-QA-012: Create customer from POS search not wired ✅ RESOLVED
 - Symptom: "+" button in CustomerSearch doesn't open create modal
-- Location: CustomerSearch.tsx:180 (TODO comment)
-- Fix needed: Open CustomerCreateModal or navigate to /customers/new
-- Status: OPEN
+- Fix applied (S4-06): `CustomerSearch.tsx` "Create new customer" creates inline from the query
+  (email/phone/name heuristic) and attaches to the cart.
+- Status: RESOLVED (stale entry reconciled 2026-06-07)
 
-### BUG-QA-013: Tax configuration UI missing
+### BUG-QA-013: Tax configuration UI missing ✅ RESOLVED
 - Symptom: No way for restaurant owner to set their tax rate through UI
-- Root cause: tax_config JSONB exists on locations table but no settings UI
-- Fix needed: Add tax rate field to location settings page (Prompt 21 candidate)
-- Status: OPEN
+- Fix applied (S1-04): `/settings/business` → Tax tab reads/writes `locations.tax_config` JSONB
+  (rate list, inclusive toggle, live preview). POS reads the live rate via `setPosTaxRate`.
+- Status: RESOLVED (stale entry reconciled 2026-06-07)
 
 ### BUG-QA-014: Top customers report empty
 - Symptom: GET /api/v1/reports/top-customers returns 0 rows
@@ -449,3 +449,40 @@ Also: `ImportReview.tsx` `onSuccess` now invalidates the `['products']` (30s sta
 - Redis refresh-token blacklist not added — DB-backed revocation already checked on
   every refresh (equivalent control); token-REUSE detection added on top.
 - JWT iss/aud claims deferred (single-consumer deployment) — logged in SECURITY.md.
+
+## Session 2026-06-07 (pt3) — comprehensive fix pass
+Lookback green (health ok, tsc 0 both). Live auth re-verified: login 200+token, register 201+token
+(BUG-AUTH-002 stays RESOLVED). BUG-PAY-001 guards re-confirmed present in PaymentSheet.
+
+### BUG-SCHED-001: GET /schedules returns 500 ✅ RESOLVED
+- Symptom: `GET /api/v1/schedules?week=YYYY-MM-DD` → HTTP 500, Postgres 42883
+  "function to_char(time with time zone, unknown) does not exist".
+- Root cause: `listSchedules` ran `to_char(s.shift_start, 'HH24:MI')` on `shift_start`/`shift_end`,
+  which are `timetz` columns — PostgreSQL has no `to_char` overload for `time with time zone`.
+  (This also proves migration **021_time_clock IS applied** on Railway — the `schedules` table
+  exists with timetz columns; the "021 pending" banner was stale.)
+- Fix: `substring(s.shift_start::text, 1, 5)` / `substring(s.shift_end::text, 1, 5)` → "HH:MM".
+- Status: RESOLVED (verified live after deploy).
+
+### SEC-ORG-001: by-UUID child lookups — PARTIAL (3 of ~11 fixed)
+- Added `AND organization_id = $org` to the three documented highest-traffic lookups:
+  `order.service` customer lookup, `inventory.service` (depleteForOrder) product flag,
+  `receipt.service` employee-name lookup. Remaining low-risk by-UUID lookups (unguessable UUIDs +
+  org-checked parents) enumerated for a follow-up sweep. Severity: low (defense-in-depth).
+- Status: PARTIAL / OPEN (3 fixed).
+
+### BUG-IMP-005: normalizeMenuPrice sub-$1 corruption — still OPEN (minor)
+- Unchanged this pass. `documentParser.normalizeMenuPrice` 100×'s genuine sub-$1 cents prices.
+  Low impact (sub-$1 menu items rare); deferred to avoid regressing the common path.
+
+### Feature Verification Audit (live, 2026-06-07) — 15/15 working
+All endpoints return 2xx with correct params: tables, public menu, kitchen tickets, loyalty,
+gift cards, AI forecast, analytics (menu-engineering + menu-insights), api-keys, webhooks,
+reservations, cash-drawer, end-of-day (needs `date=`), locations, schedules (after the fix above).
+No broken features remain → Priority 7 had nothing to fix beyond BUG-SCHED-001.
+
+### Migration reality check
+Endpoint evidence indicates 017–021 are APPLIED on Railway (schedules+time_clock tables exist →
+021; /api-keys 200 → 018; /reservations 200 → 016; etc.). Confirm authoritatively with
+`SELECT name FROM pgmigrations ORDER BY run_on;` in the Railway console. The top-of-CLAUDE
+"pending" banner predates these and is likely stale.
