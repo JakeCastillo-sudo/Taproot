@@ -547,49 +547,40 @@ export async function applyMenuImport(
           ? await findOrCreateCategory(orgId, item.category)
           : undefined;
 
+        // BUG-IMP-004 fix: createProduct creates the product, its Default variant
+        // (WITH the NOT NULL organization_id), AND the active price in one transaction
+        // when `price` is passed. The previous code did a manual product_variants INSERT
+        // that omitted organization_id → it threw on the NOT NULL constraint, the item
+        // was counted as `failed`, and the product was left priceless. Pass price here.
         const product = await ProductSvc.createProduct(orgId, locationId, {
           name: item.name,
           description: item.description,
           categoryId,
           isActive: true,
           trackInventory: false,
+          price: item.price > 0 ? item.price : undefined,
         }, employeeId);
 
-        // Create default variant + price
-        if (item.price > 0) {
-          const { rows: [variant] } = await query<{ id: string }>(
-            `INSERT INTO product_variants (product_id, name, sort_order, is_active)
-             VALUES ($1, 'Default', 0, true) RETURNING id`,
-            [product.id],
-          );
-
-          await query(
-            `INSERT INTO product_prices (variant_id, price, currency, is_active, price_type)
-             VALUES ($1, $2, 'USD', true, 'fixed')`,
-            [variant.id, item.price],
-          );
-
-          // Create modifier groups
-          if (item.modifiers?.length) {
-            for (const mg of item.modifiers) {
-              const { rows: [group] } = await query<{ id: string }>(
-                `INSERT INTO modifier_groups (organization_id, name, selection_type, is_required)
-                 VALUES ($1, $2, 'single', false) RETURNING id`,
-                [orgId, mg.groupName],
-              );
-              for (const opt of mg.options) {
-                await query(
-                  `INSERT INTO modifier_options (modifier_group_id, name, price_delta)
-                   VALUES ($1, $2, $3)`,
-                  [group.id, opt.name, opt.priceDelta],
-                );
-              }
+        // Modifier groups (attached to the product)
+        if (item.modifiers?.length) {
+          for (const mg of item.modifiers) {
+            const { rows: [group] } = await query<{ id: string }>(
+              `INSERT INTO modifier_groups (organization_id, name, selection_type, is_required)
+               VALUES ($1, $2, 'single', false) RETURNING id`,
+              [orgId, mg.groupName],
+            );
+            for (const opt of mg.options) {
               await query(
-                `INSERT INTO product_modifier_groups (product_id, modifier_group_id, sort_order)
-                 VALUES ($1, $2, 0)`,
-                [product.id, group.id],
+                `INSERT INTO modifier_options (modifier_group_id, name, price_delta)
+                 VALUES ($1, $2, $3)`,
+                [group.id, opt.name, opt.priceDelta],
               );
             }
+            await query(
+              `INSERT INTO product_modifier_groups (product_id, modifier_group_id, sort_order)
+               VALUES ($1, $2, 0)`,
+              [product.id, group.id],
+            );
           }
         }
         result.created++;
@@ -688,27 +679,18 @@ export async function applyGenericCsvImport(
           ? await findOrCreateCategory(orgId, category.trim())
           : undefined;
 
-        const product = await ProductSvc.createProduct(orgId, locationId, {
+        // BUG-IMP-004 fix: pass price to createProduct so it creates the Default
+        // variant (WITH the NOT NULL organization_id) + active price in one transaction.
+        // The prior manual product_variants INSERT omitted organization_id and threw.
+        await ProductSvc.createProduct(orgId, locationId, {
           name:           name.trim(),
           description:    description?.trim() || undefined,
           sku:            sku?.trim()          || undefined,
           categoryId,
           isActive:       true,
           trackInventory: false,
+          price:          price > 0 ? price : undefined,
         }, employeeId);
-
-        if (price > 0) {
-          const { rows: [variant] } = await query<{ id: string }>(
-            `INSERT INTO product_variants (product_id, name, sort_order, is_active)
-             VALUES ($1, 'Default', 0, true) RETURNING id`,
-            [product.id],
-          );
-          await query(
-            `INSERT INTO product_prices (variant_id, price, currency, is_active, price_type)
-             VALUES ($1, $2, 'USD', true, 'fixed')`,
-            [variant.id, price],
-          );
-        }
         result.created++;
       }
     } catch (err: unknown) {

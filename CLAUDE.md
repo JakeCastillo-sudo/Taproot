@@ -25,6 +25,15 @@
 > 4. Review docs/LAUNCH.md → post to Product Hunt + Reddit, send outreach, walk into 3 restaurants.
 > 5. Replace the demo org's placeholder menu prices with real prices when convenient.
 
+> # ✅ BUG-IMP-004 RESOLVED (2026-06-07)
+> Menu (PDF) **and** CSV imports now append products to the POS correctly. Root cause:
+> `applyMenuImport`/`applyGenericCsvImport` did a manual `product_variants` INSERT that omitted the
+> NOT NULL `organization_id`, so every item threw (caught → counted "failed") and products were left
+> priceless — the same priceless-products symptom seen in the perfection pass. Fix: pass `price` to
+> `createProduct` (which creates the variant + price WITH org_id) and delete the broken manual insert
+> in both functions; `ImportReview` now invalidates the `['products']`/`['categories']` caches so the
+> POS shows imported items immediately.
+
 > # 🚀 V1.2.0 COMPLETE — AI INTELLIGENCE LAYER (tagged)
 >
 > Built (7/7 prompts, June 7 2026) — every feature useful on day one, honest about confidence

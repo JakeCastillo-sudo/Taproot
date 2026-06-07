@@ -406,3 +406,24 @@ never swept. tsc 0 errors both apps; web build green.
   error-page support contact + login analytics (S10-04), README + ONBOARDING (S10-05), LAUNCH kit (S10-06).
 - **BUG-IMP-005** (sub-$1 price normalization) remains OPEN — backend file, out of this sprint's scope.
 - No new bugs introduced.
+
+## Session 2026-06-07 (pt2) — BUG-IMP-004 real root cause found & fixed ✅ RESOLVED
+The earlier "RESOLVED" (adding `case 'generic_csv'`) was necessary but INCOMPLETE — a second,
+deeper bug made both menu (PDF) and CSV imports silently fail to create sellable products.
+
+**Root cause:** in `importJob.service.ts`, both `applyMenuImport()` and `applyGenericCsvImport()`
+ran a manual `INSERT INTO product_variants (product_id, name, sort_order, is_active)` that OMITTED
+the **NOT NULL `organization_id`** column (schema 001, line 245). `ProductSvc.createProduct()` had
+ALREADY created the product + a Default variant (with org_id) in its own transaction, so the manual
+insert threw `null value in column "organization_id" violates not-null constraint`. The per-item
+`try/catch` swallowed it → `result.failed++` (never `created`) → job ended `failed`/`partial` and the
+UI never showed success. The product row survived but was **priceless** — this is exactly the 32
+priceless demo products found during the perfection pass.
+
+**Fix:** pass `price` to `createProduct` (which creates the variant WITH org_id + the active price in
+one transaction) and delete the broken manual variant/price INSERT in both functions. Modifier-group
+creation in `applyMenuImport` was moved out of the dead price-gated block so it still runs.
+Also: `ImportReview.tsx` `onSuccess` now invalidates the `['products']` (30s staleTime) and
+`['categories']` queries so the POS shows imported items immediately instead of a stale cache.
+- Verified: tsc 0 errors both apps.
+- Status: RESOLVED.

@@ -454,6 +454,11 @@ function MenuImportReview({ job, onDone, onCancel }: ImportReviewProps) {
     onSuccess: (updatedJob) => {
       qc.setQueryData(QK.importJob(job.id), updatedJob);
       void qc.invalidateQueries({ queryKey: QK.importJobs() });
+      // BUG-IMP-004: products query has a 30s staleTime, so without this the POS
+      // would serve a stale cache and NOT show freshly-imported items. Invalidate
+      // every ['products', ...] query (and categories) so the POS reflects the import.
+      void qc.invalidateQueries({ queryKey: ['products'] });
+      void qc.invalidateQueries({ queryKey: ['categories'] });
       setImportResult({ job: updatedJob, skipped: skippedAtConfirm.current });
       setShowWarning(false);
     },
