@@ -238,8 +238,8 @@ export const config = {
   PIN_BCRYPT_ROUNDS:          10,
   /** Failed login attempts before account lockout. */
   LOCKOUT_MAX_ATTEMPTS:       5,
-  /** Account lockout duration in minutes. */
-  LOCKOUT_DURATION_MINUTES:   15,
+  /** Account lockout duration in minutes (PCI DSS 8.3.4 minimum: 30). */
+  LOCKOUT_DURATION_MINUTES:   30,
   /** Password reset token expiry (1 hour). */
   PASSWORD_RESET_EXPIRY_MS:   60 * 60 * 1000,
 } as const;

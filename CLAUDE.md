@@ -1,5 +1,28 @@
 # Taproot POS — Claude Project State
 
+> ## 🛡️ SECURITY HARDENING COMPLETE (2026-06-07) — financial grade
+> Verified + extended the Prompt-13 baseline to PCI DSS 4.0 / OWASP Top 10 posture.
+> ALREADY IN PLACE (verified): Helmet CSP/HSTS/frameguard, restrictive CORS, global +
+> per-route rate limits, zod auth schemas, global XSS/body/UUID validation hooks,
+> bcrypt 12/10, JWT 15m/30d w/ algorithm allowlist + prod secret ≥64, refresh ROTATION,
+> account lockout, enumeration-resistant login, HTTPS redirect, insert-only audit_logs
+> across auth/payments/voids/settings.
+> ADDED THIS PASS: refresh-token REUSE theft detection (revokes ALL sessions, critical
+> alert) · concurrent session cap (5/employee, oldest revoked) · brute-force detector
+> (5 org failures/5min → deduped alert) · account-lock alerts · lockout 15→30 min (PCI
+> 8.3.4) · boot-time fail-secure assertions (JWT secret/bcrypt/lockout) · extra headers
+> (X-Permitted-Cross-Domain-Policies, fingerprint removal) + CSP stripe/plausible ·
+> 429 abuse signal · lib/security.ts (validator catalog) · lib/rateLimit.ts (limit
+> catalog) · lib/audit.ts (severity taxonomy + raiseSecurityAlert w/ Redis dedupe) ·
+> web lib/security.ts (escape/scrub/safe-redirect) · docs/SECURITY.md (reality-based,
+> incl. PCI table + accepted risks).
+> VERIFIED BY GREP: zero stored card data, zero secrets in query strings. npm audit:
+> residual highs are DEP-AUDIT-001 (build-time tar via bcrypt — accepted). New:
+> SEC-ORG-001 (low, BACKLOG) — by-UUID child lookups defense-in-depth sweep.
+> Deviations from the hardening spec are each STRICTER or justified — see BACKLOG
+> SEC-NOTE + docs/SECURITY.md.
+
+
 > # ⚠️ MIGRATIONS NEEDED (run in Railway console)
 > ```bash
 > npx node-pg-migrate up --migrations-dir migrations

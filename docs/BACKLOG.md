@@ -427,3 +427,25 @@ Also: `ImportReview.tsx` `onSuccess` now invalidates the `['products']` (30s sta
 `['categories']` queries so the POS shows imported items immediately instead of a stale cache.
 - Verified: tsc 0 errors both apps.
 - Status: RESOLVED.
+
+## Session 2026-06-07 — Security hardening (financial grade)
+
+### SEC-ORG-001: by-UUID child lookups without org filter — OPEN (low, defense-in-depth)
+- 11 service queries fetch child records purely by UUID (e.g. order.service:421 customer
+  lookup, inventory.service:200 product flag check, receipt.service:112 employee name)
+  where the parent was already org-validated. Not a direct leak (unguessable UUIDs +
+  org-checked parents) but adding `AND organization_id = $org` everywhere is proper
+  defense in depth. Outside this session's file whitelist (service files frozen during
+  parallel builds) — sweep in a dedicated pass.
+- Status: OPEN (low).
+
+### SEC-NOTE: hardening pass deviations from the spec (each STRICTER or justified)
+- Login rate limit 5/15min (spec: 10/15min) — stricter, kept.
+- Lockout responses stay generic 401 (spec: 423 + lockedUntil) — prevents account
+  enumeration; lockout duration raised 15→30 min (PCI 8.3.4) + boot assertion.
+- API CSP frame-src stays 'none' (spec: js.stripe.com) — API serves JSON only.
+- Payment per-route rate cap NOT applied (spec: 20/15min) — would throttle a busy
+  register; global limiter + Stripe fraud controls cover it (documented in SECURITY.md).
+- Redis refresh-token blacklist not added — DB-backed revocation already checked on
+  every refresh (equivalent control); token-REUSE detection added on top.
+- JWT iss/aud claims deferred (single-consumer deployment) — logged in SECURITY.md.

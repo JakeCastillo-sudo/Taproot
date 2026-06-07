@@ -31,6 +31,7 @@ import {
 } from './jwt';
 import { resolvePermissions } from './permissions';
 import { createAuditLog } from './audit';
+import { logSecurityEvent, raiseSecurityAlert, recordFailedLogin } from '../lib/audit';
 import { sendPasswordResetEmail } from '../email';
 import { authenticate } from './middleware';
 import {
@@ -50,6 +51,9 @@ import { AuthError, TokenInvalidError, TokenExpiredError, ValidationError } from
 // ─── Generic auth error response — identical for all login failures (no enumeration) ──
 
 const AUTH_ERROR = { code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' } as const;
+
+/** Concurrent session cap per employee (Security Hardening L4.7 / PCI Req 8). */
+const MAX_ACTIVE_SESSIONS = 5;
 
 // ─── DB row types ─────────────────────────────────────────────────────────────
 
@@ -177,6 +181,28 @@ async function completeLogin(opts: LoginCompletionOpts): Promise<FastifyReply> {
     const rawRefresh = generateSecureToken(32);
     const tokenHash = hashToken(rawRefresh);
     const expiresAt = new Date(Date.now() + config.REFRESH_TOKEN_EXPIRY_MS);
+
+    // Concurrent session cap (Security Hardening L4.7 / PCI Req 8): at most
+    // MAX_ACTIVE_SESSIONS live sessions per employee — revoke the oldest first.
+    const { rows: excess } = await query<{ id: string }>(
+      `SELECT id FROM refresh_tokens
+        WHERE employee_id = $1 AND revoked_at IS NULL AND expires_at > now()
+        ORDER BY created_at DESC
+        OFFSET $2`,
+      [employee.id, MAX_ACTIVE_SESSIONS - 1],
+    );
+    if (excess.length) {
+      await query(
+        `UPDATE refresh_tokens SET revoked_at = now() WHERE id = ANY($1::uuid[])`,
+        [excess.map((r) => r.id)],
+      );
+      void logSecurityEvent({
+        orgId: org.id, actorId: employee.id, action: 'auth.session.limit_enforced',
+        resourceType: 'employee', resourceId: employee.id, request,
+        metadata: { revokedSessions: excess.length, maxSessions: MAX_ACTIVE_SESSIONS },
+        severity: 'info',
+      });
+    }
 
     await query(
       `INSERT INTO refresh_tokens (id, employee_id, token_hash, device_info, expires_at)
@@ -334,6 +360,21 @@ export async function registerAuthRoutes(fastify: FastifyInstance): Promise<void
         request,
         metadata: { attempt: newAttempts, locked },
       });
+
+      // Brute-force detection + lockout alert (Security Hardening L6/L10)
+      void recordFailedLogin(org.id, { email: body.email, ip: request.ip });
+      if (locked) {
+        void logSecurityEvent({
+          orgId: org.id, actorId: employee.id, action: 'auth.account.locked',
+          resourceType: 'employee', resourceId: employee.id, request,
+          metadata: { attempts: newAttempts, lockoutMinutes: config.LOCKOUT_DURATION_MINUTES },
+          severity: 'critical',
+        });
+        void raiseSecurityAlert({
+          type: 'account_locked', severity: 'high', orgId: org.id,
+          details: { employeeId: employee.id, attempts: newAttempts, ip: request.ip },
+        });
+      }
 
       return reply.code(401).send(AUTH_ERROR);
     }
@@ -540,7 +581,35 @@ export async function registerAuthRoutes(fastify: FastifyInstance): Promise<void
     );
 
     const storedToken = tokenRows[0];
-    if (!storedToken || storedToken.revoked_at || new Date(storedToken.expires_at) < new Date()) {
+
+    // Refresh-token REUSE detection (Security Hardening L4.5): a rotated-out
+    // (revoked) token being presented again is the signature of token theft —
+    // fail secure by revoking EVERY session for that employee.
+    if (storedToken?.revoked_at) {
+      await query(
+        `UPDATE refresh_tokens SET revoked_at = now()
+          WHERE employee_id = $1 AND revoked_at IS NULL`,
+        [storedToken.employee_id],
+      );
+      const emp = await findEmployeeById(storedToken.employee_id);
+      if (emp) {
+        void logSecurityEvent({
+          orgId: emp.organization_id, actorId: emp.id, actorType: 'system',
+          action: 'auth.token.reuse_detected',
+          resourceType: 'employee', resourceId: emp.id, request,
+          metadata: { sessionId: storedToken.id },
+          severity: 'critical',
+        });
+        void raiseSecurityAlert({
+          type: 'token_reuse_detected', severity: 'critical',
+          orgId: emp.organization_id,
+          details: { employeeId: emp.id, ip: request.ip },
+        });
+      }
+      return reply.code(401).send({ code: 'TOKEN_REVOKED', message: 'Session expired. Please login again.' });
+    }
+
+    if (!storedToken || new Date(storedToken.expires_at) < new Date()) {
       return reply.code(401).send({ code: 'TOKEN_INVALID', message: 'Invalid refresh token' });
     }
 

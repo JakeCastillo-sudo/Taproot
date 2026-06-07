@@ -49,9 +49,14 @@ import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
 import { checkSubscription } from './middleware/subscription';
 import { validateStripeMode } from './payments/stripe.config';
+import { assertSecureConfig } from './lib/security';
+import { raiseSecurityAlert } from './lib/audit';
 
 // Validate required env vars at startup — throws immediately if any are missing
 validateConfig();
+
+// Security hardening assertions — fail secure: refuse to boot on weak config
+assertSecureConfig();
 
 // Validate Stripe mode (prevents accidental live charges in dev)
 validateStripeMode();
@@ -112,11 +117,14 @@ async function buildApp(): Promise<any> {
       directives: {
         defaultSrc:  ["'self'"],
         // 'unsafe-inline' required for Stripe.js embedded UI
-        scriptSrc:   ["'self'", "'unsafe-inline'"],
+        scriptSrc:   ["'self'", "'unsafe-inline'", 'https://js.stripe.com', 'https://plausible.io'],
         styleSrc:    ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc:     ["'self'", 'https://fonts.gstatic.com'],
         imgSrc:      ["'self'", 'data:', 'https:'],
-        connectSrc:  ["'self'", 'https://api.stripe.com', 'https://api.anthropic.com'],
+        connectSrc:  ["'self'", 'https://api.stripe.com', 'https://api.anthropic.com', 'https://plausible.io'],
+        // NOTE: stays 'none' (stricter than the hardening spec's js.stripe.com) —
+        // this API serves JSON only; Stripe iframes are embedded by the Vercel
+        // frontend, which is governed by its own headers.
         frameSrc:    ["'none'"],
         objectSrc:   ["'none'"],
         frameAncestors: ["'none'"],
@@ -133,8 +141,23 @@ async function buildApp(): Promise<any> {
   });
 
   // Permissions-Policy (helmet does not yet set this — add manually)
-  fastify.addHook('onSend', async (_req, reply) => {
+  // + extra hardening headers / server-fingerprint removal (Security L1)
+  fastify.addHook('onSend', async (req, reply) => {
     reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    reply.header('X-Permitted-Cross-Domain-Policies', 'none');
+    reply.removeHeader('X-Powered-By');
+    reply.removeHeader('Server');
+
+    // Rate-limit abuse signal (Security L10) — deduped 1/org/hour in Redis
+    if (reply.statusCode === 429) {
+      const orgId = (req as FastifyRequest & { user?: { orgId?: string } }).user?.orgId;
+      void raiseSecurityAlert({
+        type: 'rate_limit_abuse',
+        severity: 'medium',
+        orgId: orgId ?? `ip:${req.ip}`,
+        details: { url: req.url, ip: req.ip },
+      });
+    }
   });
 
   // ─── CORS ─────────────────────────────────────────────────────────────────────
