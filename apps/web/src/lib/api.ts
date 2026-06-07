@@ -1751,6 +1751,77 @@ export interface NLQueryResponse {
   suggestedQuestions?: string[];
 }
 
+// ─── Time clock + schedules (S9-02) ───────────────────────────────────────────
+
+export interface TimeClockEntry {
+  id: string;
+  employee_id: string;
+  employee_name?: string;
+  location_id: string;
+  clocked_in_at: string;
+  clocked_out_at: string | null;
+  break_minutes: number;
+  hours_worked: number | null;
+  labor_cost_cents: number | null;
+}
+
+export interface ShiftRow {
+  id: string; employee_id: string; employee_name?: string; location_id: string;
+  shift_date: string; shift_start: string; shift_end: string;
+  role: string | null; ai_suggested: boolean;
+}
+
+export interface ShiftInput {
+  employeeId: string; locationId: string;
+  shiftDate: string; shiftStart: string; shiftEnd: string;
+  role?: string | null; aiSuggested?: boolean;
+}
+
+export interface SuggestedShift {
+  employeeId: string; employeeName: string;
+  shiftDate: string; shiftStart: string; shiftEnd: string; role: string | null;
+}
+
+export interface ScheduleSuggestion {
+  weekStart: string;
+  shifts: SuggestedShift[];
+  projectedLaborCostCents: number;
+  projectedRevenueCents: number;
+  laborPct: number;
+  narrative: string;
+  aiUsed: boolean;
+  generatedAt: string;
+}
+
+export const timeclock = {
+  clockIn: (locationId?: string) =>
+    apiFetch<TimeClockEntry>('/timeclock/clockin', { method: 'POST', body: JSON.stringify({ locationId }) }),
+  clockOut: (breakMinutes = 0) =>
+    apiFetch<TimeClockEntry>('/timeclock/clockout', { method: 'POST', body: JSON.stringify({ breakMinutes }) }),
+  current: () => apiFetch<{ entry: TimeClockEntry | null }>('/timeclock/current').then((r) => r.entry),
+  report: (from: string, to: string, locationId?: string) => {
+    const q = new URLSearchParams({ from, to });
+    if (locationId) q.set('location_id', locationId);
+    return apiFetch<{ entries: TimeClockEntry[]; totalHours: number; totalLaborCostCents: number }>(`/timeclock/report?${q.toString()}`);
+  },
+};
+
+export const schedules = {
+  list: (week: string, locationId?: string) => {
+    const q = new URLSearchParams({ week });
+    if (locationId) q.set('location_id', locationId);
+    return apiFetch<{ shifts: ShiftRow[] }>(`/schedules?${q.toString()}`).then((r) => r.shifts);
+  },
+  saveWeek: (weekStart: string, shifts: ShiftInput[]) =>
+    apiFetch<{ saved: number }>('/schedules', { method: 'POST', body: JSON.stringify({ weekStart, shifts }) }),
+  aiSuggestion: (week: string, locationId?: string) => {
+    const q = new URLSearchParams({ week });
+    if (locationId) q.set('locationId', locationId);
+    q.set('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+    return apiFetch<ScheduleSuggestion>(`/ai/schedule-suggestion?${q.toString()}`);
+  },
+};
+
 export interface ForecastResult {
   date: string;
   dayOfWeek: string;

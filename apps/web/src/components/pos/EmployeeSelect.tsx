@@ -9,13 +9,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Delete, X, Lock } from 'lucide-react';
+import { Delete, X, Lock, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import {
-  employees as employeesApi, auth as authApi,
+  employees as employeesApi, auth as authApi, timeclock,
   setTokens, USER_KEY, type SelectableEmployee,
 } from '../../lib/api';
 import { getLocationId } from '../../lib/session';
+import { showToast } from '../ui/Toast';
 
 const AVATAR_COLORS = [
   'bg-blue-100 text-blue-700', 'bg-purple-100 text-purple-700',
@@ -43,6 +44,8 @@ export function EmployeeSelect({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [busy, setBusy] = useState(false);
+  // After a successful PIN: offer clock-in before entering the POS (S9-02)
+  const [postLogin, setPostLogin] = useState<{ firstName: string } | null>(null);
 
   const list = useMemo(() => employees ?? [], [employees]);
   const locked = attempts >= MAX_ATTEMPTS;
@@ -58,8 +61,9 @@ export function EmployeeSelect({ onClose }: { onClose: () => void }) {
         email: res.employee.email, role: res.employee.role, orgId: res.employee.orgId,
         locationIds: res.employee.locationIds, permissions: res.employee.permissions,
       }));
-      // Reload so the whole app picks up the new employee/session.
-      window.location.assign('/');
+      // Offer clock-in before reloading into the new session (S9-02).
+      setBusy(false);
+      setPostLogin({ firstName: res.employee.firstName });
     } catch {
       setError(true);
       setPin('');
@@ -92,6 +96,38 @@ export function EmployeeSelect({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener('keydown', handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, pin, busy, locked]);
+
+  // Post-PIN choice: clock in (records a time_clock_entry) or just enter the POS.
+  if (postLogin) {
+    const finish = () => window.location.assign('/');
+    const clockInAndGo = async () => {
+      try {
+        await timeclock.clockIn(getLocationId());
+        showToast.success(`Clocked in — have a great shift, ${postLogin.firstName}!`);
+      } catch (e) {
+        showToast.error(e instanceof Error ? e.message : 'Clock-in unavailable');
+      }
+      finish();
+    };
+    return (
+      <div className="fixed inset-0 z-[100] bg-surface-2 flex flex-col items-center justify-center p-6">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 w-full max-w-sm text-center">
+          <p className="text-lg font-bold text-gray-900 mb-1">Welcome, {postLogin.firstName}!</p>
+          <p className="text-sm text-gray-400 mb-6">Start your shift on the clock?</p>
+          <div className="space-y-2">
+            <button onClick={() => void clockInAndGo()}
+              className="w-full h-12 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark flex items-center justify-center gap-2">
+              <Clock size={16} /> Clock In + Start Shift
+            </button>
+            <button onClick={finish}
+              className="w-full h-12 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50">
+              Just Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] bg-surface-2 flex flex-col">

@@ -44,6 +44,7 @@ import franchiseRoutes from './routes/franchise.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import apiKeysRoutes from './routes/apiKeys.routes';
 import webhooksRoutes from './routes/webhooks.routes';
+import schedulingRoutes from './routes/scheduling.routes';
 import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
 import { checkSubscription } from './middleware/subscription';
@@ -268,6 +269,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(analyticsRoutes);
   await fastify.register(apiKeysRoutes);
   await fastify.register(webhooksRoutes);
+  await fastify.register(schedulingRoutes);
   await fastify.register(smsRoutes);
 
   // ─── Dev-only utilities (never registered in production) ──────────────────────

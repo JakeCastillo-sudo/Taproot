@@ -26,7 +26,7 @@ import {
   ChevronRight, ChevronLeft, Plus, Minus, Trash2, Tag,
   FileText, AlertTriangle, User, Layers, BarChart3,
   Upload, ArrowRightLeft, Menu, Terminal, Settings,
-  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles, Network, MonitorSmartphone, TrendingUp,
+  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles, Network, MonitorSmartphone, TrendingUp, CalendarDays,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
@@ -37,7 +37,7 @@ import { setPosTaxRate } from '../../store/pos.store';
 import { initDisplayBroadcast, openCustomerDisplay } from '../../lib/displayChannel';
 import { canAccessSettings } from '../../lib/session';
 import { allergenConflicts, allergenLabel, buildAllergenNote, ALLERGEN_NOTE_PREFIX } from '../../lib/allergens';
-import { customers as customersApi } from '../../lib/api';
+import { customers as customersApi, timeclock as timeclockApi } from '../../lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
@@ -236,6 +236,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'analytics', icon: <TrendingUp size={18} />,   label: 'Analytics', path: '/analytics' },
   { id: 'insights',  icon: <Sparkles size={18} />,     label: 'Insights',  path: '/insights' },
   { id: 'kitchen',   icon: <Utensils size={18} />,     label: 'Kitchen',   path: '/kitchen' },
+  { id: 'schedule',  icon: <CalendarDays size={18} />, label: 'Schedule',  path: '/schedule' },
   { id: 'reserve',   icon: <CalendarClock size={18} />,label: 'Reservations', path: '/reservations' },
   { id: 'customers', icon: <User size={18} />,         label: 'Customers', path: '/customers' },
   { id: 'import',    icon: <Upload size={18} />,       label: 'Import',    path: '/import' },
@@ -243,6 +244,46 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'settings',  icon: <Settings size={18} />,     label: 'Settings',  path: '/settings' },
   { id: 'customize', icon: <LayoutGrid size={18} />,   label: 'Customize', path: '/settings/dashboard' },
 ];
+
+// ─── Clock-out button (S9-02) ─────────────────────────────────────────────────
+// Shows in the top bar while the logged-in employee has an open time-clock
+// entry. Resilient: /timeclock/current returns null pre-migration → hidden.
+
+function ClockOutButton() {
+  const qc2 = useQueryClient();
+  const { data: entry } = useQuery({
+    queryKey: ['timeclock', 'current'],
+    queryFn:  timeclockApi.current,
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  if (!entry) return null;
+
+  const startedAt = new Date(entry.clocked_in_at);
+  const hours = Math.max(0, (Date.now() - startedAt.getTime()) / 3_600_000);
+
+  const handleClockOut = () => {
+    if (!window.confirm(`Clock out now? You've been on the clock ${hours.toFixed(1)}h.`)) return;
+    void timeclockApi.clockOut().then((e) => {
+      showToast.success(`Clocked out — ${e.hours_worked ?? hours.toFixed(1)}h worked`);
+      void qc2.invalidateQueries({ queryKey: ['timeclock'] });
+    }).catch((err: unknown) => {
+      showToast.error(err instanceof Error ? err.message : 'Clock-out failed');
+    });
+  };
+
+  return (
+    <button
+      onClick={handleClockOut}
+      title={`On the clock since ${startedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
+      className="hidden md:flex items-center gap-1.5 px-2.5 py-2 rounded-md border border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors shrink-0"
+    >
+      <CalendarClock size={13} />
+      Clock out · {hours.toFixed(1)}h
+    </button>
+  );
+}
 
 // ─── Collapsible Sidebar (desktop lg+) ───────────────────────────────────────
 
@@ -267,8 +308,10 @@ function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarPr
   });
 
   const navItems = useMemo(() => {
-    // Analytics is manager/owner only
-    let items = canAccessSettings() ? [...NAV_ITEMS] : NAV_ITEMS.filter((i) => i.id !== 'analytics');
+    // Analytics + Schedule are manager/owner only
+    let items = canAccessSettings()
+      ? [...NAV_ITEMS]
+      : NAV_ITEMS.filter((i) => i.id !== 'analytics' && i.id !== 'schedule');
     if (frInfo?.orgType === 'franchisor') {
       items = [...items];
       const idx = items.findIndex((i) => i.id === 'import');
@@ -859,6 +902,9 @@ export function POSLayout({ user }: POSLayoutProps) {
               <Utensils size={15} />
             </button>
           </div>
+
+          {/* Clock-out (visible while on the clock, S9-02) */}
+          <ClockOutButton />
 
           {/* Customer display (second screen) */}
           <button

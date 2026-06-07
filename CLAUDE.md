@@ -4,7 +4,7 @@
 > ```bash
 > npx node-pg-migrate up --migrations-dir migrations
 > ```
-> Pending: **017_franchise**, **018_api_keys**, **019_allergens**, **020_performance_indexes**.
+> Pending: **017_franchise**, **018_api_keys**, **019_allergens**, **020_performance_indexes**, **021_time_clock**.
 > All Sprint 8 code degrades gracefully until migrations run (existence guards).
 
 ## 🏗️ SPRINT 9 — AI Intelligence Layer (IN PROGRESS, target v1.2.0)
@@ -22,6 +22,26 @@
   (tomorrow +2), confidence line, revenue range + likely bar, ~orders, top-seller prep
   quantities, prep checklist card; loading skeleton + "AI insights temporarily unavailable"
   error state. Mounted at top of /reports above NLQueryBar.
+
+### S9-02 — AI Staff Scheduling + Time Clock ✅ COMPLETE
+- `migrations/021_time_clock.js` ⚠️ PENDING: time_clock_entries (clock in/out, break_minutes,
+  hours_worked, hourly_rate, labor_cost — rate/cost in DOLLARS to match employees.hourly_rate;
+  cents at API boundary) + schedules (shift_date/timetz start+end, role, ai_suggested) + indexes.
+- `scheduling.service.ts` (new, `timeClockReady()` resilient): clockIn (one open entry guard)/
+  clockOut (hours + labor computed in SQL)/getCurrentEntry/getTimeClockReport;
+  listSchedules/saveWeekSchedule (whole-week replace, HH:MM validation); `getAIScheduleSuggestion`
+  — S5 staffing plan + roster → Claude JSON shifts (validated: roster ids, in-week dates, HH:MM)
+  w/ deterministic round-robin fallback; labor% = shift hours × employee rates vs forecast revenue.
+  Cache `ai:schedule:{org}:{loc}:{week}` 4h.
+- `scheduling.routes.ts` (new, registered): POST /timeclock/clockin|clockout (self), GET
+  /timeclock/current, GET /timeclock/report (mgr), GET/POST /schedules (GET any, POST mgr),
+  GET /ai/schedule-suggestion (mgr).
+- Web: timeclock/schedules clients; `SchedulePage.tsx` (/schedule, mgr/owner nav-gated) — week
+  nav, employees × Mon-Sun grid w/ shift chips (AI ones tinted), add-shift modal, remove, live
+  labor tracker (green<30/amber≤35/red), ✨ AI suggest → draft preview → "Apply AI Schedule"
+  (saves week); EmployeeSelect post-PIN choice [Clock In + Start Shift] / [Just Login];
+  POSLayout `ClockOutButton` in top bar (hidden pre-migration via null /timeclock/current).
+- NOTE: drag-to-move/resize shifts deferred (add/remove + AI apply shipped).
 
 > # 🚀 SPRINT 8 COMPLETE — V1.1.0 (tagged)
 >

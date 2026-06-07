@@ -43,6 +43,7 @@ import { InsightsPage } from './pages/InsightsPage';
 import { KioskPage } from './pages/KioskPage';
 import { FranchisePage } from './pages/FranchisePage';
 import { CustomerDisplayPage } from './pages/CustomerDisplayPage';
+import { SchedulePage } from './pages/SchedulePage';
 import { PageSkeleton } from './components/PageSkeleton';
 
 // ── Lazily-loaded heavy pages (S8-06) — recharts / dnd-kit / canvas bundles
@@ -339,6 +340,15 @@ export default function App() {
             element={
               <RequireAuth>
                 <AnalyticsPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/schedule"
+            element={
+              <RequireAuth>
+                <SchedulePage />
               </RequireAuth>
             }
           />
