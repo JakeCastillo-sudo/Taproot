@@ -4,7 +4,7 @@
 > ```bash
 > npx node-pg-migrate up --migrations-dir migrations
 > ```
-> Pending: **017_franchise**, **018_api_keys** (Sprint 8 in progress — more will be added).
+> Pending: **017_franchise**, **018_api_keys**, **019_allergens** (Sprint 8 in progress).
 > All Sprint 8 code degrades gracefully until migrations run (existence guards).
 
 ## 🏗️ SPRINT 8 — Enterprise Foundations (IN PROGRESS, target v1.1.0)
@@ -88,6 +88,29 @@
   (create modal w/ scope checkboxes + expiry, show-key-ONCE modal w/ copy + confirm checkbox,
   revoke) + Webhooks tab (add modal w/ event checkboxes, secret-shown-once, test button,
   failure-count badge, active/disabled pill). Settings nav "API & Webhooks".
+
+### S8-05 — Food Allergen System ✅ COMPLETE
+- `migrations/019_allergens.js` ⚠️ PENDING: products.allergens varchar(50)[] + allergen_notes text
+  (GIN idx) + customers.allergens. Values = FDA Big 9 (milk/eggs/fish/shellfish/tree_nuts/peanuts/
+  wheat/soybeans/sesame).
+- `product.service.ts`: UpdateProductData.allergens/allergenNotes — sanitized to Big 9; clear
+  ValidationError when 019 pending (column-existence guard). `SELECT p.*` → list/get include
+  allergens automatically post-migration. `customer.service.ts`: UpdateCustomerInput.allergens —
+  separate guarded UPDATE. Shared `Product`/`Customer` types get optional allergens fields.
+- `lib/allergens.ts` (web, new): FDA_ALLERGENS + labels, `allergenConflicts()`,
+  ALLERGEN_NOTE_PREFIX ('⚠ ALLERGEN') + `buildAllergenNote()`.
+- POSLayout: customer-detail query when a customer is attached; `handleProductTap`/LongPress run
+  the conflict check FIRST → red Allergen Alert modal ("[name] has a [x] allergy / [product]
+  contains [x]" → Remove | Add anyway — customer confirmed). Fast-path adds carry the allergen
+  note in CartItem.notes → red ⚠ icon on the cart line → flows to order line_items.notes →
+  KDS shows it as specialInstructions. PaymentSheet receipt snapshot appends the note as a
+  modifier sub-line so browser/thermal kitchen tickets + receipts print it.
+- ProductsSettingsPage modal: Allergens checkbox grid (Big 9) + kitchen notes field — only sent
+  when touched (saves keep working pre-019); create path applies allergens via follow-up update.
+- CustomersPage modal: "Allergens on file" checkbox grid (same touched-only rule).
+- NOTE: "Add anyway" on items WITH modifier groups proceeds to the ModifierSheet — the kitchen
+  note isn't auto-attached on that path (cashier can type it in the sheet's notes); top-of-ticket
+  banner deferred in favor of per-item ⚠ sub-lines.
 
 > # 🌿 V1.0 COMPLETE — Sprints 1–7 done
 > **49/49 prompts** (S1-01…S7-07) over 7 sprints, tagged **v0.2.0** → **v1.0.0**.

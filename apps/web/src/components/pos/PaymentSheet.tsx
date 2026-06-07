@@ -19,6 +19,7 @@ import { orders as ordersApi, payments as paymentsApi } from '../../lib/api';
 import { showToast } from '../ui/Toast';
 import { TOKEN_KEY, USER_KEY } from '../../lib/api';
 import { enqueueOrder } from '../../lib/offlineQueue';
+import { ALLERGEN_NOTE_PREFIX } from '../../lib/allergens';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -264,8 +265,13 @@ export function PaymentSheet({ onClose }: Props) {
           name:      c.name,
           quantity:  c.quantity,
           unitPrice: c.unitPrice,
-          // BUG-PAY-001: modifiers may be undefined on deserialized cart items
-          modifiers: (c.modifiers ?? []).map((m) => m.name),
+          // BUG-PAY-001: modifiers may be undefined on deserialized cart items.
+          // Allergen-confirmed items (S8-05) carry their warning as an extra
+          // sub-line so it prints on receipts AND kitchen tickets.
+          modifiers: [
+            ...(c.modifiers ?? []).map((m) => m.name),
+            ...(c.notes?.startsWith(ALLERGEN_NOTE_PREFIX) ? [c.notes] : []),
+          ],
           total:     c.lineTotal,
         })),
         subtotal:      sub,

@@ -72,6 +72,9 @@ export interface Product {
   images: unknown[]; tags: string[] | null; metadata: Record<string, unknown>;
   created_by: UUID | null; deleted_at: Timestamptz | null;
   created_at: Timestamptz; updated_at: Timestamptz;
+  /** FDA Big 9 allergens (S8-05; present once migration 019 is applied). */
+  allergens?: string[] | null;
+  allergen_notes?: string | null;
 }
 
 export interface ProductVariant {
@@ -253,6 +256,8 @@ export interface Customer {
   tags: string[] | null;
   notes: string | null; merged_into_id: UUID | null;
   deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
+  /** FDA Big 9 allergen profile (S8-05; present once migration 019 is applied). */
+  allergens?: string[] | null;
 }
 
 export interface Payment {

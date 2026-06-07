@@ -1161,7 +1161,7 @@ export const customers = {
     return apiFetch<{ customers: Customer[]; total: number }>(`/customers${qs ? `?${qs}` : ''}`);
   },
 
-  update: (id: string, body: { firstName?: string; lastName?: string; email?: string; phone?: string; tags?: string[]; notes?: string }) =>
+  update: (id: string, body: { firstName?: string; lastName?: string; email?: string; phone?: string; tags?: string[]; notes?: string; allergens?: string[] | null }) =>
     apiFetch<Customer>(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   remove: (id: string) => apiFetch<void>(`/customers/${id}`, { method: 'DELETE' }),

@@ -36,6 +36,8 @@ import { products as productsApi, categories as categoriesApi, settings as setti
 import { setPosTaxRate } from '../../store/pos.store';
 import { initDisplayBroadcast, openCustomerDisplay } from '../../lib/displayChannel';
 import { canAccessSettings } from '../../lib/session';
+import { allergenConflicts, allergenLabel, buildAllergenNote, ALLERGEN_NOTE_PREFIX } from '../../lib/allergens';
+import { customers as customersApi } from '../../lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
@@ -161,7 +163,12 @@ function CartLine({ item }: { item: CartItem }) {
   return (
     <div className="flex items-start gap-2 py-3 border-b border-gray-50 last:border-0 group">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+        <p className="text-sm font-medium text-gray-800 truncate flex items-center gap-1">
+          {item.notes?.startsWith(ALLERGEN_NOTE_PREFIX) && (
+            <AlertTriangle size={12} className="text-red-500 shrink-0" aria-label="Allergen alert" />
+          )}
+          {item.name}
+        </p>
         {(item.modifiers ?? []).length > 0 && (
           <div className="mt-0.5 space-y-0.5">
             {(item.modifiers ?? []).map((m, i) => (
@@ -589,33 +596,73 @@ export function POSLayout({ user }: POSLayoutProps) {
     setModifierSheetOpen(true);
   }, [setModifierSheetOpen]);
 
+  // ── Allergen guard (S8-05) ─────────────────────────────────────────────────
+  // When a customer with an allergen profile is attached and a tapped product
+  // contains a matching allergen, warn BEFORE the item reaches the cart.
+  const cartCustomerId = usePOSStore((s) => s.customerId);
+  const { data: attachedCustomer } = useQuery({
+    queryKey: ['customer-detail', cartCustomerId],
+    queryFn:  () => customersApi.get(cartCustomerId as string),
+    enabled:  Boolean(cartCustomerId),
+    staleTime: 60_000,
+  });
+  const [allergenAlert, setAllergenAlert] = useState<{
+    productName: string;
+    conflicts:   string[];
+    proceed:     () => void;
+  } | null>(null);
+
+  const addDirectToCart = useCallback((product: Product & { defaultPrice?: number }, notes = '') => {
+    const p = product as ProductWithModifiers;
+    usePOSStore.getState().addToCart({
+      productId: product.id,
+      variantId: p.variants?.[0]?.id ?? null,
+      name:      product.name,
+      sku:       product.sku ?? '',
+      quantity:  1,
+      unitPrice: product.defaultPrice ?? 0,
+      modifiers: [],
+      notes,
+    });
+    showToast.success(`Added: ${product.name}`, { duration: 1200 });
+  }, []);
+
   const handleProductTap = useCallback((product: Product & { defaultPrice?: number }) => {
     const p = product as ProductWithModifiers;
     const groups = p.modifierGroups ?? [];
+
+    const conflicts = allergenConflicts(p.allergens, attachedCustomer?.allergens);
+    if (conflicts.length > 0) {
+      setAllergenAlert({
+        productName: p.name,
+        conflicts,
+        proceed: () => {
+          if (groups.length > 0) openModifierSheet(p);
+          else addDirectToCart(product, buildAllergenNote(conflicts));
+        },
+      });
+      return;
+    }
 
     if (groups.length > 0) {
       // Has modifier groups — open sheet before adding to cart
       openModifierSheet(p);
     } else {
       // No modifiers — add directly (fast path)
-      usePOSStore.getState().addToCart({
-        productId: product.id,
-        variantId: p.variants?.[0]?.id ?? null,
-        name:      product.name,
-        sku:       product.sku ?? '',
-        quantity:  1,
-        unitPrice: product.defaultPrice ?? 0,
-        modifiers: [],
-        notes:     '',
-      });
-      showToast.success(`Added: ${product.name}`, { duration: 1200 });
+      addDirectToCart(product);
     }
-  }, [openModifierSheet]);
+  }, [openModifierSheet, addDirectToCart, attachedCustomer?.allergens]);
 
   const handleProductLongPress = useCallback((product: Product & { defaultPrice?: number }) => {
+    const p = product as ProductWithModifiers;
+    const conflicts = allergenConflicts(p.allergens, attachedCustomer?.allergens);
+    if (conflicts.length > 0) {
+      setAllergenAlert({ productName: p.name, conflicts, proceed: () => openModifierSheet(p) });
+      return;
+    }
     // Long-press always opens sheet (even without modifiers — for notes / qty)
-    openModifierSheet(product as ProductWithModifiers);
-  }, [openModifierSheet]);
+    openModifierSheet(p);
+  }, [openModifierSheet, attachedCustomer?.allergens]);
 
   /** Called from ModifierSheet when cashier taps "Archive Item" */
   const handleArchiveFromPOS = useCallback((productId: string, productName: string) => {
@@ -1086,6 +1133,43 @@ export function POSLayout({ user }: POSLayoutProps) {
 
       {/* ── Split check ─────────────────────────────────────────────────────── */}
       {showSplit && cart.length > 0 && <SplitCheckModal onClose={() => setShowSplit(false)} />}
+
+      {/* ── Allergen alert (S8-05) ──────────────────────────────────────────── */}
+      {allergenAlert && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm max-h-[90vh] overflow-y-auto border-2 border-red-400">
+            <div className="px-5 py-4 bg-red-50 border-b border-red-200 flex items-center gap-2">
+              <AlertTriangle size={20} className="text-red-600 shrink-0" />
+              <h2 className="text-base font-bold text-red-700">Allergen Alert</h2>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-800 leading-relaxed">
+                <strong>{usePOSStore.getState().customerName ?? 'This customer'}</strong> has
+                a <strong>{allergenAlert.conflicts.map(allergenLabel).join(', ')}</strong> allergy
+                on file.
+              </p>
+              <p className="text-sm text-gray-800 mt-2 leading-relaxed">
+                <strong>{allergenAlert.productName}</strong> contains{' '}
+                <strong>{allergenAlert.conflicts.map(allergenLabel).join(', ')}</strong>.
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 space-y-2">
+              <button
+                onClick={() => setAllergenAlert(null)}
+                className="w-full h-11 bg-gray-800 text-white rounded-md text-sm font-semibold hover:bg-gray-900"
+              >
+                Remove this item
+              </button>
+              <button
+                onClick={() => { const a = allergenAlert; setAllergenAlert(null); a.proceed(); }}
+                className="w-full h-11 border border-red-300 text-red-700 rounded-md text-sm font-semibold hover:bg-red-50"
+              >
+                Add anyway — customer confirmed safe
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

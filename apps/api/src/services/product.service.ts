@@ -97,6 +97,10 @@ export interface UpdateProductData {
    * active price on the product's default variant and inserts a new one.
    */
   price?: number;
+  /** FDA Big 9 allergens present in this item (S8-05). null/[] = none. */
+  allergens?: string[] | null;
+  /** Free-text allergen notes for staff/kitchen. */
+  allergenNotes?: string | null;
 }
 
 export interface ListProductsFilters {
@@ -358,6 +362,18 @@ export async function updateProduct(
   if (data.costPrice !== undefined) add('cost_price', data.costPrice);
   if (data.trackInventory !== undefined) add('track_inventory', data.trackInventory);
   if (data.isActive !== undefined) add('is_active', data.isActive);
+
+  // Allergens (S8-05) — requires migration 019
+  if ('allergens' in data || 'allergenNotes' in data) {
+    if (!(await allergenColumnsExist())) {
+      throw new ValidationError('Allergen tagging requires migration 019 — ask your administrator to run pending migrations.');
+    }
+    if ('allergens' in data) {
+      const clean = sanitizeAllergens(data.allergens);
+      add('allergens', clean ? `{${clean.join(',')}}` : null);
+    }
+    if ('allergenNotes' in data) add('allergen_notes', data.allergenNotes?.trim() || null);
+  }
   if (data.tags !== undefined) add('tags', data.tags ? `{${data.tags.map(t => `"${t}"`).join(',')}}` : null);
   // day_parts: null / empty array → visible in all day parts
   if ('dayParts' in data) {
@@ -429,6 +445,34 @@ export async function updateProduct(
 // (products.corporate_source_id set, org_type = 'franchisee'). Local guard
 // (not imported from franchise.service) to avoid a circular import; resilient
 // while migration 017 is pending.
+
+// ─── Allergen columns (migration 019) resilience ──────────────────────────────
+
+export const FDA_ALLERGENS = [
+  'milk', 'eggs', 'fish', 'shellfish', 'tree_nuts',
+  'peanuts', 'wheat', 'soybeans', 'sesame',
+] as const;
+
+let _allergenColsExist: boolean | null = null;
+
+export async function allergenColumnsExist(): Promise<boolean> {
+  if (_allergenColsExist !== null) return _allergenColsExist;
+  const { rows } = await query<{ ready: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'products' AND column_name = 'allergens'
+     ) AS ready`,
+  );
+  _allergenColsExist = Boolean(rows[0]?.ready);
+  return _allergenColsExist;
+}
+
+function sanitizeAllergens(values: string[] | null | undefined): string[] | null {
+  if (!values || !values.length) return null;
+  const valid = values.filter((v): v is (typeof FDA_ALLERGENS)[number] =>
+    (FDA_ALLERGENS as readonly string[]).includes(v));
+  return valid.length ? valid : null;
+}
 
 let _franchiseColsExist: boolean | null = null;
 

@@ -12,6 +12,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Users, Search, Plus, Download, X, Pencil, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { customers as custApi } from '../lib/api';
+import { FDA_ALLERGENS, ALLERGEN_LABELS } from '../lib/allergens';
 import { showToast } from '../components/ui/Toast';
 import type { Customer } from '@taproot/shared';
 
@@ -189,17 +190,27 @@ function CustomerModal({ customer, onClose, onSaved }: { customer: Partial<Custo
     firstName: customer.first_name ?? '', lastName: customer.last_name ?? '',
     email: customer.email ?? '', phone: customer.phone ?? '',
     tags: (customer.tags ?? []).join(', '), notes: customer.notes ?? '',
+    allergens: customer.allergens ?? [] as string[],
   });
+  // Only send allergens when touched — keeps saves working while migration 019 is pending
+  const [allergensTouched, setAllergensTouched] = useState(false);
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const body = {
         firstName: form.firstName.trim() || undefined, lastName: form.lastName.trim() || undefined,
         email: form.email.trim() || undefined, phone: form.phone.trim() || undefined,
         tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
         notes: form.notes.trim() || undefined,
+        ...(allergensTouched && customer.id ? { allergens: form.allergens } : {}),
       };
       if (!body.firstName && !body.lastName && !body.email && !body.phone) throw new Error('Enter at least a name, email, or phone');
-      return customer.id ? custApi.update(customer.id, body) : custApi.create(body);
+      if (customer.id) return custApi.update(customer.id, body);
+      const created = await custApi.create(body);
+      // Allergen profile applies via update (create endpoint doesn't accept it)
+      if (allergensTouched && form.allergens.length && created?.id) {
+        await custApi.update(created.id, { allergens: form.allergens });
+      }
+      return created;
     },
     onSuccess: () => { showToast.success(customer.id ? 'Customer updated' : 'Customer created'); onSaved(); },
     onError: (e: unknown) => showToast.error(e instanceof Error ? e.message : 'Save failed'),
@@ -219,6 +230,32 @@ function CustomerModal({ customer, onClose, onSaved }: { customer: Partial<Custo
           <input className={field} value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" inputMode="tel" />
           <input className={field} value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="Tags (comma separated)" />
           <textarea className={field + ' resize-none'} rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Notes" />
+          {/* Allergen profile (S8-05) */}
+          <div>
+            <p className="text-xs font-semibold text-gray-600 mb-1.5">Allergens on file</p>
+            <div className="grid grid-cols-3 gap-1">
+              {FDA_ALLERGENS.map((a) => (
+                <label key={a} className="flex items-center gap-1.5 px-1.5 py-1 rounded hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.allergens.includes(a)}
+                    onChange={() => {
+                      setAllergensTouched(true);
+                      setForm((f) => ({
+                        ...f,
+                        allergens: f.allergens.includes(a)
+                          ? f.allergens.filter((x) => x !== a)
+                          : [...f.allergens, a],
+                      }));
+                    }}
+                    className="w-3.5 h-3.5 accent-primary"
+                  />
+                  <span className="text-xs text-gray-700">{ALLERGEN_LABELS[a]}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">The register warns before adding items containing these.</p>
+          </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100"><button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md">Cancel</button><button onClick={() => save.mutate()} disabled={save.isPending} className="px-4 py-2 text-sm font-semibold bg-primary text-white rounded-md hover:bg-primary-dark disabled:opacity-50">Save</button></div>
       </div>

@@ -23,6 +23,7 @@ import {
 } from '../lib/api';
 import { QK } from '../lib/queryClient';
 import { getLocationId } from '../lib/session';
+import { FDA_ALLERGENS, ALLERGEN_LABELS } from '../lib/allergens';
 import { showToast } from '../components/ui/Toast';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -57,11 +58,14 @@ interface EditState {
   trackInventory: boolean;
   isActive:       boolean;
   dayParts:       DayPart[];
+  allergens:      string[];      // FDA Big 9 (S8-05)
+  allergenNotes:  string;
 }
 
 const EMPTY_EDIT: EditState = {
   id: null, name: '', description: '', categoryId: '', priceInput: '',
   sku: '', barcode: '', trackInventory: true, isActive: true, dayParts: [],
+  allergens: [], allergenNotes: '',
 };
 
 function ProductModal({
@@ -74,6 +78,9 @@ function ProductModal({
 }) {
   const [form, setForm] = useState<EditState>(state);
   const [arming, setArming] = useState(false);
+  // Only PATCH allergen fields when the user touched them — keeps product saves
+  // working while migration 019 is pending (server rejects allergen writes pre-019).
+  const [allergensTouched, setAllergensTouched] = useState(false);
   const locationId = getLocationId();
 
   // "Scan to assign" — capture the next scan into the barcode field.
@@ -84,6 +91,10 @@ function ProductModal({
       const price = dollarsToCents(form.priceInput);
       if (!form.name.trim()) throw new Error('Product name is required');
       const dayParts = form.dayParts.length > 0 ? form.dayParts : null;
+      const allergenFields = allergensTouched
+        ? { allergens: form.allergens.length ? form.allergens : null,
+            allergenNotes: form.allergenNotes.trim() || null }
+        : {};
       if (form.id) {
         await productsApi.update(form.id, {
           name:           form.name.trim(),
@@ -95,9 +106,10 @@ function ProductModal({
           isActive:       form.isActive,
           dayParts,
           ...(price > 0 ? { price } : {}),
+          ...allergenFields,
         });
       } else {
-        await productsApi.create({
+        const created = await productsApi.create({
           name:           form.name.trim(),
           description:    form.description.trim() || undefined,
           categoryId:     form.categoryId || null,
@@ -109,6 +121,10 @@ function ProductModal({
           dayParts,
           locationId,
         });
+        // Allergens are applied via update (create path doesn't accept them)
+        if (allergensTouched && created?.id) {
+          await productsApi.update(created.id, allergenFields);
+        }
       }
     },
     onSuccess: () => {
@@ -264,6 +280,38 @@ function ProductModal({
             </div>
           </div>
 
+          {/* Allergens (S8-05) */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Allergens (FDA Big 9)</label>
+            <div className="grid grid-cols-3 gap-1">
+              {FDA_ALLERGENS.map((a) => (
+                <label key={a} className="flex items-center gap-1.5 px-1.5 py-1 rounded hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.allergens.includes(a)}
+                    onChange={() => {
+                      setAllergensTouched(true);
+                      setForm((f) => ({
+                        ...f,
+                        allergens: f.allergens.includes(a)
+                          ? f.allergens.filter((x) => x !== a)
+                          : [...f.allergens, a],
+                      }));
+                    }}
+                    className="w-3.5 h-3.5 accent-primary"
+                  />
+                  <span className="text-xs text-gray-700">{ALLERGEN_LABELS[a]}</span>
+                </label>
+              ))}
+            </div>
+            <input
+              value={form.allergenNotes}
+              onChange={(e) => { setAllergensTouched(true); setForm((f) => ({ ...f, allergenNotes: e.target.value })); }}
+              placeholder="Allergen notes for kitchen (optional)"
+              className="mt-2 w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </div>
+
           {/* Toggles */}
           <div className="flex items-center gap-6 pt-1">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -400,6 +448,8 @@ export function ProductsSettingsPage() {
     trackInventory: p.track_inventory,
     isActive:       p.is_active,
     dayParts:       (p.day_parts ?? []).filter((d): d is DayPart => (DAY_PARTS as readonly string[]).includes(d)),
+    allergens:      p.allergens ?? [],
+    allergenNotes:  p.allergen_notes ?? '',
   });
 
   const products = productData?.products ?? [];

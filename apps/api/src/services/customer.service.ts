@@ -34,9 +34,27 @@ export interface CreateCustomerInput {
   notes?:           string;
   marketingOptIn?:  boolean;
   externalIds?:     Record<string, string>;
+  /** FDA Big 9 allergen profile (S8-05). Requires migration 019. */
+  allergens?:       string[] | null;
 }
 
 export type UpdateCustomerInput = Partial<CreateCustomerInput>;
+
+// ─── Allergen column (migration 019) resilience ──────────────────────────────
+
+let _custAllergenCol: boolean | null = null;
+
+async function customerAllergenColumnExists(): Promise<boolean> {
+  if (_custAllergenCol !== null) return _custAllergenCol;
+  const { rows } = await query<{ ready: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'customers' AND column_name = 'allergens'
+     ) AS ready`,
+  );
+  _custAllergenCol = Boolean(rows[0]?.ready);
+  return _custAllergenCol;
+}
 
 export interface ListCustomersParams {
   page?:      number;
@@ -207,6 +225,19 @@ export async function updateCustomer(
       orgId,
     ],
   );
+
+  // Allergen profile (S8-05) — separate statement, resilient while 019 is pending
+  if ('allergens' in input) {
+    if (!(await customerAllergenColumnExists())) {
+      throw new ValidationError('Allergen profiles require migration 019 — ask your administrator to run pending migrations.');
+    }
+    const clean = (input.allergens ?? []).filter(Boolean);
+    await query(
+      `UPDATE customers SET allergens = $1, updated_at = now() WHERE id = $2 AND organization_id = $3`,
+      [clean.length ? `{${clean.join(',')}}` : null, customerId, orgId],
+    );
+    (updated as CustomerWithStats & { allergens?: string[] | null }).allergens = clean.length ? clean : null;
+  }
 
   void createAuditLog({
     organizationId: orgId,
