@@ -1801,11 +1801,18 @@ export interface MenuEngineering {
 
 // ─── AI / NL Query ────────────────────────────────────────────────────────────
 
+export interface NLSuggestedAction {
+  label:  string;
+  action: 'view_orders' | 'view_employee' | 'archive_product' | 'update_price';
+  params: Record<string, unknown>;
+}
+
 export interface NLQueryResponse {
   answer:    string;
   data?:     Array<Record<string, unknown>>;
   chartType?: 'bar' | 'line' | 'pie' | null;
   suggestedQuestions?: string[];
+  suggestedAction?: NLSuggestedAction | null;
 }
 
 // ─── Time clock + schedules (S9-02) ───────────────────────────────────────────
@@ -1914,6 +1921,9 @@ export interface DailyIntelligence {
 }
 
 export const ai = {
+  suggestedQuestions: () =>
+    apiFetch<{ questions: string[] }>('/ai/suggested-questions').then((r) => r.questions),
+
   dailyIntelligence: (locationId?: string) => {
     const q = new URLSearchParams();
     if (locationId) q.set('locationId', locationId);

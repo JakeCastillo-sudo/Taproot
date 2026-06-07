@@ -14,7 +14,7 @@ import { useMutation } from '@tanstack/react-query';
 import { showToast } from '../components/ui/Toast';
 import type { MenuClass } from '../lib/api';
 import { clsx } from 'clsx';
-import { intelligence, ai as aiApi, type NLQueryResponse } from '../lib/api';
+import { intelligence, ai as aiApi, type NLQueryResponse, type NLSuggestedAction } from '../lib/api';
 import { getLocationId } from '../lib/session';
 import { MessageSquare, Send } from 'lucide-react';
 import { SalesBarChart } from '../components/charts/SalesBarChart';
@@ -136,16 +136,46 @@ const MENU_ACTION_HINT: Record<MenuClass, string> = {
   puzzle: 'Promote / reposition.', dog: 'Rework or remove.',
 };
 
-interface ChatMsg { role: 'user' | 'assistant'; content: string; data?: Array<Record<string, unknown>> | null; chartType?: string | null }
+interface ChatMsg {
+  role: 'user' | 'assistant';
+  content: string;
+  data?: Array<Record<string, unknown>> | null;
+  chartType?: string | null;
+  action?: NLSuggestedAction | null;
+}
 
 const STARTER_QS = ['What were my top sellers in the last 30 days?', 'How is revenue trending?', 'What was my average order value?'];
 
+function exportCsv(data: Array<Record<string, unknown>>): void {
+  const cols = Object.keys(data[0] ?? {});
+  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [cols.join(','), ...data.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `taproot-copilot-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function CopilotTab() {
+  const navigate = useNavigate();
   const locationId = getLocationId();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [suggested, setSuggested] = useState<string[]>(STARTER_QS);
+
+  // Context-aware starter chips from the server (S9-06)
+  useQuery({
+    queryKey: ['ai', 'suggested-questions'],
+    queryFn: async () => {
+      const qs = await aiApi.suggestedQuestions();
+      if (qs.length && messages.length === 0) setSuggested(qs);
+      return qs;
+    },
+    staleTime: 30 * 60_000,
+    retry: false,
+  });
 
   const ask = async (q: string) => {
     if (!q.trim() || busy) return;
@@ -154,15 +184,40 @@ function CopilotTab() {
     setInput(''); setBusy(true); setSuggested([]);
     let res: NLQueryResponse;
     try { res = await aiApi.nlQuery(q, locationId, history); }
-    catch { res = { answer: 'Something went wrong.', suggestedQuestions: [] }; }
-    setMessages((m) => [...m, { role: 'assistant', content: res.answer, data: res.data, chartType: res.chartType }]);
+    catch { res = { answer: 'AI insights temporarily unavailable — check back in a few minutes.', suggestedQuestions: [] }; }
+    setMessages((m) => [...m, {
+      role: 'assistant', content: res.answer, data: res.data,
+      chartType: res.chartType, action: res.suggestedAction ?? null,
+    }]);
     setSuggested(res.suggestedQuestions ?? []);
     setBusy(false);
+  };
+
+  const runAction = (a: NLSuggestedAction) => {
+    switch (a.action) {
+      case 'view_orders':   navigate('/orders'); break;
+      case 'view_employee': navigate('/analytics'); break;
+      case 'archive_product':
+      case 'update_price':  navigate('/settings/products'); break;
+    }
+  };
+
+  const copyAnswer = (text: string) => {
+    void navigator.clipboard.writeText(text)
+      .then(() => showToast.success('Copied'))
+      .catch(() => showToast.error('Copy failed'));
   };
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-gray-200 p-5 min-h-[320px] flex flex-col">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-gray-400">{messages.length > 0 ? 'Conversation' : ''}</span>
+          {messages.length > 0 && (
+            <button onClick={() => { setMessages([]); setSuggested(STARTER_QS); }}
+              className="text-xs text-gray-400 hover:text-gray-600">Clear conversation</button>
+          )}
+        </div>
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400">
             <MessageSquare size={32} className="mb-2 text-gray-200" />
@@ -172,9 +227,29 @@ function CopilotTab() {
           <div className="flex-1 space-y-3">
             {messages.map((m, i) => (
               <div key={i} className={clsx('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
-                <div className={clsx('max-w-[85%] rounded-2xl px-4 py-2.5 text-sm', m.role === 'user' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-800')}>
+                <div className={clsx('max-w-[85%] rounded-2xl px-4 py-2.5 text-sm group relative', m.role === 'user' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-800')}>
                   <p className="whitespace-pre-wrap">{m.content}</p>
                   {m.role === 'assistant' && m.data && m.data.length > 0 && <DataBlock data={m.data} chartType={m.chartType} />}
+                  {m.role === 'assistant' && (
+                    <div className="flex items-center gap-2 mt-2">
+                      {m.action && (
+                        <button onClick={() => runAction(m.action!)}
+                          className="px-2.5 py-1 rounded-md bg-primary text-white text-[11px] font-semibold hover:bg-primary-dark">
+                          {m.action.label} →
+                        </button>
+                      )}
+                      <button onClick={() => copyAnswer(m.content)}
+                        className="px-2 py-1 rounded text-[11px] text-gray-400 hover:text-gray-600 hover:bg-gray-200">
+                        Copy
+                      </button>
+                      {m.data && m.data.length > 0 && (
+                        <button onClick={() => exportCsv(m.data!)}
+                          className="px-2 py-1 rounded text-[11px] text-gray-400 hover:text-gray-600 hover:bg-gray-200">
+                          Export CSV
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

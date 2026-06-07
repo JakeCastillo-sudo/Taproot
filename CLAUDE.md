@@ -88,6 +88,16 @@
 - ProductsSettingsPage: "Ingredient cost" $ field (→ products.cost_price cents; recipe overrides);
   sent only when non-empty; create path applies via follow-up update.
 
+### S9-06 — Enhanced AI Copilot ✅ COMPLETE
+- `ai.routes.ts`: GET /api/v1/ai/suggested-questions (AI_REPORTS) — context-aware chips seasoned
+  with live data (busiest day → "When is my busiest hour on Xs?", top employee, low-stock → "What
+  should I 86…"), 1h cached, static fallback. nl-query now returns validated `suggestedAction`
+  {label, action: view_orders|view_employee|archive_product|update_price, params} (prompt + parse).
+- Web: `ai.suggestedQuestions` client; NLQueryResponse.suggestedAction type. InsightsPage Copilot:
+  server-fetched starter chips, action button on answers (navigates to /orders, /analytics, or
+  /settings/products), Copy button per answer, Export CSV when tabular data present, Clear
+  conversation. Existing chart/table rendering (S5-06) retained.
+
 > # 🚀 SPRINT 8 COMPLETE — V1.1.0 (tagged)
 >
 > Built (7/7 prompts, June 7 2026):

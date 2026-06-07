@@ -14,6 +14,7 @@ import { config } from '../config';
 import { query } from '../db/client';
 import * as AiForecastSvc from '../services/aiForecast.service';
 import { getDailyIntelligence } from '../services/intelligence.service';
+import { cacheGet, cacheSet } from '../services/ai.service';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
 
@@ -47,6 +48,58 @@ export default async function aiRoutes(fastify: FastifyInstance): Promise<void> 
       const { user } = req as AuthedRequest;
       const q = req.query as Record<string, string>;
       return reply.send(await getDailyIntelligence(user.orgId, q.locationId || undefined, q.timezone || 'UTC'));
+    },
+  );
+
+  // ── GET /api/v1/ai/suggested-questions — context-aware chips (S9-06) ───────
+  fastify.get(
+    '/api/v1/ai/suggested-questions',
+    { preHandler: requirePermissions(Permission.AI_REPORTS) },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user } = req as AuthedRequest;
+      const cacheKey = `ai:suggested-q:${user.orgId}`;
+      const cached = await cacheGet<string[]>(cacheKey);
+      if (cached) return reply.send({ questions: cached });
+
+      const questions: string[] = [
+        'What was my best selling item last week?',
+        'Compare this week to last week',
+      ];
+
+      // Season with live context — busiest day, top employee, low stock
+      try {
+        const [{ rows: [busy] }, { rows: [topEmp] }, { rows: lowStock }] = await Promise.all([
+          query<{ dow: number }>(
+            `SELECT EXTRACT(DOW FROM created_at)::int AS dow FROM orders
+              WHERE organization_id = $1 AND status NOT IN ('voided','parked')
+                AND created_at >= now() - interval '30 days'
+              GROUP BY 1 ORDER BY SUM(total) DESC LIMIT 1`,
+            [user.orgId],
+          ),
+          query<{ name: string }>(
+            `SELECT e.first_name AS name FROM orders o
+              JOIN employees e ON e.id = o.employee_id
+             WHERE o.organization_id = $1 AND o.status = 'completed'
+               AND o.created_at >= now() - interval '7 days'
+             GROUP BY e.first_name ORDER BY SUM(o.total) DESC LIMIT 1`,
+            [user.orgId],
+          ),
+          query<{ name: string }>(
+            `SELECT p.name FROM inventory_levels il JOIN products p ON p.id = il.product_id
+              WHERE il.organization_id = $1 AND il.reorder_point > 0
+                AND il.quantity_on_hand <= il.reorder_point LIMIT 1`,
+            [user.orgId],
+          ),
+        ]);
+        const dows = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        if (busy) questions.push(`When is my busiest hour on ${dows[busy.dow]}s?`);
+        if (topEmp) questions.push(`How did ${topEmp.name} perform this week?`);
+        if (lowStock.length) questions.push('What should I 86 based on low stock?');
+        else questions.push('Which items are slow movers this month?');
+      } catch { /* fall back to the static list */ }
+
+      await cacheSet(cacheKey, questions, 60 * 60);
+      return reply.send({ questions });
     },
   );
 
@@ -130,12 +183,15 @@ export default async function aiRoutes(fastify: FastifyInstance): Promise<void> 
       const systemPrompt = `You are an AI copilot for a restaurant/retail POS called Taproot.
 You have summary sales data and top products. Answer the owner's question in plain English using the data.
 When a comparison or breakdown is useful, include a small data table. Suggest 3 short, relevant follow-up questions.
+When your answer implies a next step the owner could take in the app, include a suggestedAction
+(action one of: "view_orders" | "view_employee" | "archive_product" | "update_price"; params may include {"productName": "..."} or {"employeeName": "..."}). Otherwise suggestedAction is null.
 Respond ONLY with JSON in this exact format:
 {
   "answer": "plain English answer",
   "data": [{ "column": "value" }] or null,
   "chartType": "bar" | "line" | "pie" | null,
-  "suggestedQuestions": ["...", "...", "..."]
+  "suggestedQuestions": ["...", "...", "..."],
+  "suggestedAction": { "label": "View these orders", "action": "view_orders", "params": {} } or null
 }`;
 
       const userMessage = `Business context:\n${context}\n\nQuestion: ${body.query.trim()}`;
@@ -148,6 +204,7 @@ Respond ONLY with JSON in this exact format:
       let data: Record<string, unknown>[] | null = null;
       let chartType: string | null = null;
       let suggestedQuestions: string[] = [];
+      let suggestedAction: { label: string; action: string; params: Record<string, unknown> } | null = null;
 
       try {
         // Lazy-initialize per call so dotenv is guaranteed loaded (BUG-001 prevention)
@@ -170,11 +227,22 @@ Respond ONLY with JSON in this exact format:
             data?: Record<string, unknown>[] | null;
             chartType?: string | null;
             suggestedQuestions?: string[];
+            suggestedAction?: { label?: string; action?: string; params?: Record<string, unknown> } | null;
           };
           answer    = parsed.answer ?? '';
           data      = parsed.data   ?? null;
           chartType = parsed.chartType ?? null;
           suggestedQuestions = Array.isArray(parsed.suggestedQuestions) ? parsed.suggestedQuestions.slice(0, 3) : [];
+          const VALID_ACTIONS = ['view_orders', 'view_employee', 'archive_product', 'update_price'];
+          if (parsed.suggestedAction
+              && typeof parsed.suggestedAction.label === 'string'
+              && VALID_ACTIONS.includes(parsed.suggestedAction.action ?? '')) {
+            suggestedAction = {
+              label: parsed.suggestedAction.label,
+              action: parsed.suggestedAction.action as string,
+              params: parsed.suggestedAction.params ?? {},
+            };
+          }
         }
       } catch (err: unknown) {
         // Return a graceful fallback if AI is unavailable
@@ -185,7 +253,7 @@ Respond ONLY with JSON in this exact format:
         suggestedQuestions = ['What were my top sellers this week?', 'How do sales compare to last week?', 'Which days are busiest?'];
       }
 
-      return reply.send({ answer, data, chartType, suggestedQuestions });
+      return reply.send({ answer, data, chartType, suggestedQuestions, suggestedAction });
     },
   );
 }
