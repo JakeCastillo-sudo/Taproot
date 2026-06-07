@@ -8,6 +8,9 @@ import * as RecipeSvc from '../services/recipe.service';
 import * as InventorySvc from '../services/inventory.service';
 import * as ForecastSvc from '../services/forecast.service';
 import * as VarianceSvc from '../services/variance.service';
+import { getCached, invalidateOrgCache } from '../lib/cache';
+
+const LIST_CACHE_TTL = 300; // 5 min — invalidated on product/category writes
 
 // Convenience type — all authenticated routes have request.user set
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
@@ -18,25 +21,28 @@ export default async function inventoryRoutes(fastify: FastifyInstance): Promise
 
   // ── Categories ────────────────────────────────────────────────────────────
 
-  // GET /api/v1/categories
+  // GET /api/v1/categories — Redis-cached 5 min (S8-06), invalidated on writes
   fastify.get('/api/v1/categories', async (req: FastifyRequest, reply: FastifyReply) => {
     const { user } = req as AuthedRequest;
-    const { rows } = await (await import('../db/client')).query<{
-      id: string; name: string; color: string | null; icon: string | null;
-      sort_order: number; product_count: number;
-    }>(
-      `SELECT c.id, c.name, c.color, c.icon, c.sort_order,
-              COUNT(p.id) FILTER (
-                WHERE p.deleted_at IS NULL AND p.is_active = true
-              )::int AS product_count
-         FROM categories c
-         LEFT JOIN products p ON p.category_id = c.id AND p.organization_id = c.organization_id
-        WHERE c.organization_id = $1 AND c.deleted_at IS NULL
-        GROUP BY c.id
-        ORDER BY c.sort_order ASC, c.name ASC`,
-      [user.orgId],
-    );
-    return reply.send({ categories: rows });
+    const payload = await getCached(`org:${user.orgId}:categories`, LIST_CACHE_TTL, async () => {
+      const { rows } = await (await import('../db/client')).query<{
+        id: string; name: string; color: string | null; icon: string | null;
+        sort_order: number; product_count: number;
+      }>(
+        `SELECT c.id, c.name, c.color, c.icon, c.sort_order,
+                COUNT(p.id) FILTER (
+                  WHERE p.deleted_at IS NULL AND p.is_active = true
+                )::int AS product_count
+           FROM categories c
+           LEFT JOIN products p ON p.category_id = c.id AND p.organization_id = c.organization_id
+          WHERE c.organization_id = $1 AND c.deleted_at IS NULL
+          GROUP BY c.id
+          ORDER BY c.sort_order ASC, c.name ASC`,
+        [user.orgId],
+      );
+      return { categories: rows };
+    });
+    return reply.send(payload);
   });
 
   // POST /api/v1/categories
@@ -74,25 +80,33 @@ export default async function inventoryRoutes(fastify: FastifyInstance): Promise
 
   // ── Products ──────────────────────────────────────────────────────────────
 
-  // GET /api/v1/products
+  // GET /api/v1/products — Redis-cached 5 min per filter variant (S8-06),
+  // invalidated on product writes
   fastify.get('/api/v1/products', async (req: FastifyRequest, reply: FastifyReply) => {
     const { user } = req as AuthedRequest;
     const q = req.query as Record<string, string>;
 
-    const result = await ProductSvc.listProducts(user.orgId, {
-      categoryId: q.categoryId,
-      supplierId: q.supplierId,
-      isActive: q.isActive !== undefined ? q.isActive === 'true' : undefined,
-      search: q.search,
-      productType: q.productType as ProductSvc.ListProductsFilters['productType'],
-      locationId: q.locationId,
-      page: q.page ? parseInt(q.page, 10) : undefined,
-      limit: q.limit ? parseInt(q.limit, 10) : undefined,
-      sortBy: q.sortBy as ProductSvc.ListProductsFilters['sortBy'],
-      sortOrder: q.sortOrder as ProductSvc.ListProductsFilters['sortOrder'],
-      // Additive day-part filter — products with no assignment are always visible
-      dayPart: q.dayPart,
-    });
+    const variant = new URLSearchParams(
+      Object.entries(q).filter(([, v]) => v !== undefined && v !== ''),
+    );
+    variant.sort();
+    const cacheKey = `org:${user.orgId}:products:${variant.toString() || 'all'}`;
+
+    const result = await getCached(cacheKey, LIST_CACHE_TTL, () =>
+      ProductSvc.listProducts(user.orgId, {
+        categoryId: q.categoryId,
+        supplierId: q.supplierId,
+        isActive: q.isActive !== undefined ? q.isActive === 'true' : undefined,
+        search: q.search,
+        productType: q.productType as ProductSvc.ListProductsFilters['productType'],
+        locationId: q.locationId,
+        page: q.page ? parseInt(q.page, 10) : undefined,
+        limit: q.limit ? parseInt(q.limit, 10) : undefined,
+        sortBy: q.sortBy as ProductSvc.ListProductsFilters['sortBy'],
+        sortOrder: q.sortOrder as ProductSvc.ListProductsFilters['sortOrder'],
+        // Additive day-part filter — products with no assignment are always visible
+        dayPart: q.dayPart,
+      }));
 
     return reply.send(result);
   });

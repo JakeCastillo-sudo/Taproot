@@ -6,6 +6,7 @@ import { createAuditLog } from '../auth/audit';
 import { getStripeClient } from '../payments/stripe.config';
 import * as LoyaltySvc from './loyalty.service';
 import { deliverWebhook } from './webhook.service';
+import { invalidateOrgCache } from '../lib/cache';
 
 // ─── Input types ──────────────────────────────────────────────────────────────
 
@@ -290,6 +291,8 @@ export async function processPayment(
         void deliverWebhook(orgId, 'order.completed', {
           orderId, total: Number(totals.total), amountPaid: newAmountPaid, tipTotal,
         });
+        // Fresh sales numbers on next report load (S8-06)
+        void invalidateOrgCache(orgId, ['reports']);
       }
 
       return p;

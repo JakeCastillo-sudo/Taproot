@@ -1,6 +1,7 @@
 import { query } from '../db/client';
 import { createAuditLog } from '../auth/audit';
 import { ValidationError, NotFoundError } from '../errors';
+import { invalidateOrgCache } from '../lib/cache';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ export async function createCategory(
     ],
   );
 
+  void invalidateOrgCache(orgId, ['categories', 'products']);
   void createAuditLog({ organizationId: orgId, actorId: employeeId, action: 'category.create', resourceType: 'category', resourceId: row.id });
   return row;
 }
@@ -109,6 +111,7 @@ export async function updateCategory(
     params,
   );
 
+  void invalidateOrgCache(orgId, ['categories', 'products']);
   void createAuditLog({ organizationId: orgId, actorId: employeeId, action: 'category.update', resourceType: 'category', resourceId: categoryId });
   return row;
 }
@@ -138,6 +141,7 @@ export async function deleteCategory(
     [categoryId, orgId],
   );
 
+  void invalidateOrgCache(orgId, ['categories', 'products']);
   void createAuditLog({ organizationId: orgId, actorId: employeeId, action: 'category.delete', resourceType: 'category', resourceId: categoryId });
 }
 
@@ -154,4 +158,5 @@ export async function reorderCategories(
       [pos.id, orgId, pos.sortOrder],
     );
   }
+  void invalidateOrgCache(orgId, ['categories']);
 }

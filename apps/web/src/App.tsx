@@ -1,4 +1,5 @@
 import React, { type ReactNode, useState, useEffect, useRef } from 'react';
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -7,7 +8,6 @@ import { queryClient } from './lib/queryClient';
 import { LoginPage } from './pages/LoginPage';
 import { POSLayout } from './components/layout/POSLayout';
 import { InventoryPage } from './pages/InventoryPage';
-import { ReportsPage } from './pages/ReportsPage';
 import { ImportPage } from './pages/ImportPage';
 import { MigrationPage } from './pages/MigrationPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -18,7 +18,6 @@ import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { ReceiptPage } from './pages/ReceiptPage';
-import { DashboardEditorPage } from './pages/DashboardEditorPage';
 import { SettingsLayout } from './components/layout/SettingsLayout';
 import { ProductsSettingsPage } from './pages/ProductsSettingsPage';
 import { CategoriesSettingsPage } from './pages/CategoriesSettingsPage';
@@ -28,7 +27,6 @@ import { EmployeesSettingsPage } from './pages/EmployeesSettingsPage';
 import { PaymentsSettingsPage } from './pages/PaymentsSettingsPage';
 import { OrderHistoryPage } from './pages/OrderHistoryPage';
 import { EndOfDayPage } from './pages/EndOfDayPage';
-import { FloorPlanEditorPage } from './pages/FloorPlanEditorPage';
 import { PublicMenuPage } from './pages/PublicMenuPage';
 import { QrCodesSettingsPage } from './pages/QrCodesSettingsPage';
 import { OnlineOrderingSettingsPage } from './pages/OnlineOrderingSettingsPage';
@@ -45,7 +43,14 @@ import { InsightsPage } from './pages/InsightsPage';
 import { KioskPage } from './pages/KioskPage';
 import { FranchisePage } from './pages/FranchisePage';
 import { CustomerDisplayPage } from './pages/CustomerDisplayPage';
-import { AnalyticsPage } from './pages/AnalyticsPage';
+import { PageSkeleton } from './components/PageSkeleton';
+
+// ── Lazily-loaded heavy pages (S8-06) — recharts / dnd-kit / canvas bundles
+//    load on demand instead of in the main chunk.
+const ReportsPage         = lazy(() => import('./pages/ReportsPage').then((m) => ({ default: m.ReportsPage })));
+const AnalyticsPage       = lazy(() => import('./pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
+const DashboardEditorPage = lazy(() => import('./pages/DashboardEditorPage').then((m) => ({ default: m.DashboardEditorPage })));
+const FloorPlanEditorPage = lazy(() => import('./pages/FloorPlanEditorPage').then((m) => ({ default: m.FloorPlanEditorPage })));
 import { FranchiseSettingsPage } from './pages/FranchiseSettingsPage';
 import { ApiSettingsPage } from './pages/ApiSettingsPage';
 import { ToastContainer } from './components/ui/Toast';
@@ -212,6 +217,8 @@ export default function App() {
         {/* Trial banner — shown inside app when trialing */}
         {loggedIn && <TrialBanner />}
 
+        {/* Suspense fallback covers the lazily-loaded heavy pages (S8-06) */}
+        <Suspense fallback={<PageSkeleton />}>
         <Routes>
           {/* ── Public marketing ─────────────────────────────────────────── */}
           <Route
@@ -432,6 +439,7 @@ export default function App() {
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </ErrorBoundary>
 
       <ToastContainer />

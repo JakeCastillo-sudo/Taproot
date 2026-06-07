@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { query, withTransaction } from '../db/client';
 import { createAuditLog } from '../auth/audit';
+import { invalidateOrgCache } from '../lib/cache';
 import {
   ProductNotFoundError, ConflictError, ValidationError,
 } from '../errors';
@@ -316,6 +317,7 @@ export async function createProduct(
     return prod.id;
   });
 
+  void invalidateOrgCache(orgId, ['products', 'categories']);
   void createAuditLog({ organizationId: orgId, actorId: employeeId, action: 'product.create', resourceType: 'product', resourceId: productId });
 
   return buildProductWithRelations(productId);
@@ -429,6 +431,7 @@ export async function updateProduct(
     params,
   );
 
+  void invalidateOrgCache(orgId, ['products', 'categories']);
   void createAuditLog({
     organizationId: orgId, actorId: employeeId,
     action: 'product.update', resourceType: 'product', resourceId: productId,
@@ -530,6 +533,7 @@ export async function deleteProduct(
     [productId, orgId],
   );
 
+  void invalidateOrgCache(orgId, ['products', 'categories']);
   void createAuditLog({ organizationId: orgId, actorId: employeeId, action: 'product.delete', resourceType: 'product', resourceId: productId });
 }
 
@@ -663,6 +667,7 @@ export async function archiveProduct(
     [productId, orgId, reason ?? null, employeeId],
   );
 
+  void invalidateOrgCache(orgId, ['products', 'categories']);
   void createAuditLog({
     organizationId: orgId, actorId: employeeId, actorType: 'employee',
     action: 'product.archived', resourceType: 'product', resourceId: productId,
@@ -693,6 +698,7 @@ export async function restoreProduct(
     [productId, orgId],
   );
 
+  void invalidateOrgCache(orgId, ['products', 'categories']);
   void createAuditLog({
     organizationId: orgId, actorId: employeeId, actorType: 'employee',
     action: 'product.restored', resourceType: 'product', resourceId: productId,

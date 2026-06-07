@@ -3,9 +3,12 @@ import { QueryClient } from '@tanstack/react-query';
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime:           30_000, // 30 s — products/categories
-      gcTime:              5 * 60_000,
-      retry:               1,       // fail fast for POS
+      // S8-06 tuning: server lists are Redis-cached 5 min + invalidated on write,
+      // so the client can hold data longer without staleness risk.
+      staleTime:           2 * 60_000,  // 2 min
+      gcTime:              10 * 60_000, // 10 min
+      retry:               2,
+      retryDelay:          1000,
       refetchOnWindowFocus: false,  // cashier doesn't need surprise refreshes
     },
     mutations: {

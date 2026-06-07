@@ -20,6 +20,7 @@ import type { AccessTokenPayload } from '../auth/jwt';
 import { Permission, requirePermissions } from '../auth/permissions';
 import { AppError, ValidationError } from '../errors';
 import * as ReportSvc from '../services/reporting.service';
+import { getCached } from '../lib/cache';
 import type { ReportGranularity } from '@taproot/shared';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
@@ -60,6 +61,7 @@ export default async function reportRoutes(fastify: FastifyInstance): Promise<vo
   );
 
   // ── GET /api/v1/reports/sales ───────────────────────────────────────────────
+  // Redis-cached 5 min per parameter variant (S8-06); invalidated on order completion
   fastify.get(
     '/api/v1/reports/sales',
     { preHandler: [requirePermissions(Permission.REPORTS_VIEW)] },
@@ -69,7 +71,9 @@ export default async function reportRoutes(fastify: FastifyInstance): Promise<vo
       try {
         const params = parseDateRange(q);
         const granularity = (q.granularity ?? 'day') as ReportGranularity;
-        const rows = await ReportSvc.getSalesSummary(user.orgId, params, granularity);
+        const cacheKey = `org:${user.orgId}:reports:sales:${params.from}:${params.to}:${params.locationId ?? 'all'}:${granularity}:${params.timezone ?? 'UTC'}`;
+        const rows = await getCached(cacheKey, 300, () =>
+          ReportSvc.getSalesSummary(user.orgId, params, granularity));
         return reply.send({ rows });
       } catch (err) {
         if (err instanceof AppError) return reply.code(err.statusCode).send({ code: err.code, message: err.message });
