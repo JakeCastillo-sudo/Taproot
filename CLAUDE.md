@@ -7,6 +7,41 @@
 > Pending: **017_franchise**, **018_api_keys**, **019_allergens** (Sprint 8 in progress).
 > All Sprint 8 code degrades gracefully until migrations run (existence guards).
 
+## ✅ PERFECTION PASS (2026-06-07) — 10-step new-owner flow verified live
+
+Audited the live stack (curl against prod) against the 10-step new-owner journey
+(landing → register → import menu → correct prices → edit → confirm → POS →
+cart+modifiers → cash payment → receipt → still-logged-in-tomorrow). **All green.**
+
+- Landing `taproot-pos.com` → 200; `/api/health` → ok (db/redis/stripe ok).
+- Demo login → accessToken. Registration → accessToken. **Note:** the register
+  body fields are `businessName` + `businessType` — `organizationName` is NOT a
+  field (a payload with it 400s; the app sends the right fields).
+- `GET /products` → 50 items, **all now priced** (fix below).
+- `tsc --noEmit` → **0 errors** in apps/web AND apps/api.
+- End-to-end Flow 1 (create order → cash payment → receipt) → **201/201/200, no
+  crash**; receipt renders full data for org "Haven Health Bar".
+- All page-backing endpoints (products/orders/employees/business/reports/kitchen/
+  categories/customers) → 200; SPA serves /, /login, /register, /pos.
+
+**Fix applied this pass (data-only, no repo code change):** the demo org had 32
+products with **no price** (a prior menu-import that came in at $0; the org is a
+health café, so these ARE the intended menu). Assigned placeholder café prices via
+`PATCH /products/:id` — `updateProduct` auto-creates a Default variant + price row
+when missing. Now **50/50 products priced**; demo POS shows no $0 items.
+
+**Verified already-resolved (code review):** BUG-PAY-001 (`(c.modifiers ?? [])`
+guards present), login redirect cycle (App `useLocation()` + apiFetch auto-refresh),
+global scroll fix, import price path (prompt forces integer cents + create inserts
+when price>0).
+
+**Known minor (not blocking, logged in BACKLOG):** `normalizeMenuPrice` treats any
+value `<100` as dollars, so a genuine sub-$1 price (e.g. 99¢) would be 100×'d — rare.
+Migrations 017/018/019 (Sprint 8: franchise/api-keys/allergens) pending on Railway —
+graceful guards, unrelated to the 10-step flow.
+
+**Status: ready for first real customer.**
+
 ## 🏗️ SPRINT 8 — Enterprise Foundations (IN PROGRESS, target v1.1.0)
 
 ### S8-01 — Franchise Mode ✅ COMPLETE

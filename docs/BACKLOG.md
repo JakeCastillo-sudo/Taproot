@@ -333,3 +333,26 @@ from `employees.location_ids`. Not auth-blocking, but can point the POS at a del
     Attempted npm `overrides` to patched versions — did not apply without a full lockfile rebuild, which
     is too risky pre-launch. Deferred to a dedicated dependency-upgrade sweep (bump bcrypt/bull/vite
     majors together with full regression testing). No criticals; not blocking launch.
+
+## Session 2026-06-07 — Perfection pass (10-step new-owner flow)
+Live-audited the full new-owner journey against prod. All green: landing 200, health ok,
+demo login + registration return tokens, `tsc` 0 errors in both apps, and end-to-end
+Flow 1 (create order → cash payment → receipt) returns **201/201/200 with no crash**.
+Re-confirmed RESOLVED via code review: BUG-PAY-001, login redirect cycle, global scroll,
+import price path.
+
+### DATA-PRICE-001: 32 demo products had no price ✅ RESOLVED (data fix)
+- Symptom: `GET /products` on the demo org (Haven Health Bar) returned 50 items but 32
+  had `prices: []` (a prior menu-import that landed at $0). Demo POS showed $0 items.
+- Fix: assigned placeholder café prices via `PATCH /products/:id` — `updateProduct`
+  auto-creates a Default variant + active price row when none exists. Now **50/50 priced**.
+- NOTE: placeholder prices are estimates (e.g. Avocado Toast $13, Ahi Tuna Niçoise $18,
+  smoothies $8.99) — replace with real menu prices when known. Data-only change; no repo code.
+
+### BUG-IMP-005: normalizeMenuPrice corrupts sub-$1 prices — OPEN (minor)
+- Symptom: `documentParser.normalizeMenuPrice` treats any value `<100` as dollars and ×100,
+  so a genuine sub-$1 cents price (e.g. `99` = $0.99) becomes $99.00.
+- Impact: low — sub-$1 menu items are rare. The heuristic exists to catch Claude returning
+  dollars instead of cents; fixing it cleanly needs disambiguation of the model's output, so
+  deferred to avoid regressing the common (correct) path.
+- Status: OPEN (documented, not launch-blocking).
