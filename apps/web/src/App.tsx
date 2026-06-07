@@ -44,6 +44,7 @@ import { CustomersPage } from './pages/CustomersPage';
 import { InsightsPage } from './pages/InsightsPage';
 import { KioskPage } from './pages/KioskPage';
 import { FranchisePage } from './pages/FranchisePage';
+import { CustomerDisplayPage } from './pages/CustomerDisplayPage';
 import { FranchiseSettingsPage } from './pages/FranchiseSettingsPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
@@ -226,6 +227,10 @@ export default function App() {
           {/* ── Public QR storefront (no auth) ────────────────────────────── */}
           <Route path="/order/:orgSlug" element={<PublicMenuPage />} />
           <Route path="/order/:orgSlug/table/:tableId" element={<PublicMenuPage />} />
+
+          {/* ── Customer-facing display (second screen, no auth — receives
+                 BroadcastChannel updates from the POS window) ─────────────── */}
+          <Route path="/display" element={<CustomerDisplayPage />} />
 
           {/* ── Onboarding wizard ─────────────────────────────────────────── */}
           <Route

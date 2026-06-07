@@ -26,7 +26,7 @@ import {
   ChevronRight, ChevronLeft, Plus, Minus, Trash2, Tag,
   FileText, AlertTriangle, User, Layers, BarChart3,
   Upload, ArrowRightLeft, Menu, Terminal, Settings,
-  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles, Network,
+  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles, Network, MonitorSmartphone,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
@@ -34,6 +34,7 @@ import { usePOSStore, type CartItem } from '../../store/pos.store';
 import { useUIStore } from '../../store/ui.store';
 import { products as productsApi, categories as categoriesApi, settings as settingsApi, discounts as discountsApi, franchise as franchiseApi, type ProductWithModifiers } from '../../lib/api';
 import { setPosTaxRate } from '../../store/pos.store';
+import { initDisplayBroadcast, openCustomerDisplay } from '../../lib/displayChannel';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
@@ -465,6 +466,9 @@ export function POSLayout({ user }: POSLayoutProps) {
 
   useBarcode();
 
+  // Mirror cart + payment events to the customer-facing display (S8-02)
+  useEffect(() => initDisplayBroadcast(), []);
+
   // ── Data fetching ──────────────────────────────────────────────────────────
 
   const { data: categoriesData, isLoading: loadingCats } = useQuery({
@@ -803,6 +807,16 @@ export function POSLayout({ user }: POSLayoutProps) {
               <Utensils size={15} />
             </button>
           </div>
+
+          {/* Customer display (second screen) */}
+          <button
+            onClick={openCustomerDisplay}
+            title="Open customer display"
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-2 rounded-md border border-gray-200 bg-white text-xs text-gray-500 hover:bg-gray-100 transition-colors shrink-0"
+            aria-label="Open customer display"
+          >
+            <MonitorSmartphone size={14} />
+          </button>
 
           {/* Online orders bell */}
           <OnlineOrdersBell />

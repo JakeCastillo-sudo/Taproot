@@ -5,13 +5,14 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Printer, CheckCircle2, XCircle, ScanLine, Monitor } from 'lucide-react';
+import { Printer, CheckCircle2, XCircle, ScanLine, Monitor, MonitorSmartphone } from 'lucide-react';
 import { clsx } from 'clsx';
 import {
   getPrintServerUrl, setPrintServerUrl, checkPrintServer, printReceiptThermal,
   type PrintServerStatus,
 } from '../lib/thermalPrint';
 import { getScannerEnabled, setScannerEnabled } from '../hooks/useBarcodeScanner';
+import { openCustomerDisplay, DISPLAY_IDLE_MSG_KEY } from '../lib/displayChannel';
 import { showToast } from '../components/ui/Toast';
 import type { LastCompletedOrder } from '../store/pos.store';
 
@@ -31,6 +32,9 @@ export function HardwareSettingsPage() {
   const [checking, setChecking] = useState(false);
   const [model, setModel] = useState(() => { try { return localStorage.getItem('taproot_printer_model') || PRINTER_MODELS[0]; } catch { return PRINTER_MODELS[0]; } });
   const [scanner, setScanner] = useState(getScannerEnabled());
+  const [idleMsg, setIdleMsg] = useState(() => {
+    try { return localStorage.getItem(DISPLAY_IDLE_MSG_KEY) ?? ''; } catch { return ''; }
+  });
   const navigate = useNavigate();
 
   const probe = async () => { setChecking(true); setStatus(await checkPrintServer()); setChecking(false); };
@@ -96,6 +100,42 @@ export function HardwareSettingsPage() {
           <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-2"><Monitor size={16} /> Self-serve kiosk</h2>
           <p className="text-xs text-gray-500 mb-3">Launch full-screen self-serve ordering on this device. Exit with a 3-tap on the top-right corner + manager PIN (default 1234).</p>
           <button onClick={() => navigate('/kiosk')} className="px-3 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary-dark">Open Kiosk Mode</button>
+        </section>
+
+        {/* Customer-facing display (S8-02) */}
+        <section className="border border-gray-100 rounded-lg p-4">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-2"><MonitorSmartphone size={16} /> Customer display</h2>
+          <p className="text-xs text-gray-500 mb-3">
+            A second screen facing the customer that mirrors the cart in real time (items, totals,
+            payment confirmation). Open it in a new window and drag it to the customer-facing monitor.
+            Works in this browser only — no server needed.
+          </p>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Idle welcome message</label>
+          <div className="flex gap-2 mb-3">
+            <input
+              className={field}
+              value={idleMsg}
+              onChange={(e) => setIdleMsg(e.target.value)}
+              placeholder="Earn loyalty points on every purchase"
+            />
+            <button
+              onClick={() => {
+                try { localStorage.setItem(DISPLAY_IDLE_MSG_KEY, idleMsg.trim()); } catch { /* ignore */ }
+                showToast.success('Idle message saved');
+              }}
+              className="px-3 py-2 bg-gray-800 text-white text-sm rounded-md hover:bg-gray-900 shrink-0"
+            >
+              Save
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={openCustomerDisplay} className="px-3 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary-dark">
+              Open display window
+            </button>
+            <button onClick={() => window.open('/display', '_blank')} className="px-3 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-md hover:bg-gray-50">
+              Preview in tab
+            </button>
+          </div>
         </section>
       </div>
     </div>

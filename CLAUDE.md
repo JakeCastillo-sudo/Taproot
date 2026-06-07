@@ -31,6 +31,20 @@
 - NOTE: lock icons on /settings/products for corporate items deferred (delete/archive is blocked
   server-side with a clear message); brand standards PDF upload deferred (no asset storage).
 
+### S8-02 — Customer Facing Display ✅ COMPLETE
+- `lib/displayChannel.ts` (new): BroadcastChannel bridge ('taproot-customer-display') — types,
+  `broadcastToDisplay`/`listenToDisplay`, `initDisplayBroadcast()` (idempotent pos.store
+  subscription: cart/discount change → cart_update|idle; lastCompletedOrder null→order →
+  payment_complete; answers `request_state` so a late-opened display syncs), `openCustomerDisplay()`.
+  No-ops without BroadcastChannel support. NO server/backend involved.
+- `CustomerDisplayPage.tsx` (new, `/display`, NO auth): green-gradient full-screen — idle (logo,
+  org name, clock, rotating marketing messages incl. custom idle msg from localStorage
+  `taproot_display_idle_message`), live cart (items+modifier sublines, subtotal/discount/tax/TOTAL),
+  payment-complete (✓ THANK YOU, change due for cash, auto-idle after 5s).
+- POSLayout: `initDisplayBroadcast()` effect + 📺 top-bar button (MonitorSmartphone icon).
+- HardwareSettingsPage: "Customer display" section — idle-message input (localStorage), open
+  display window + preview buttons. Logo upload deferred (no asset storage).
+
 > # 🌿 V1.0 COMPLETE — Sprints 1–7 done
 > **49/49 prompts** (S1-01…S7-07) over 7 sprints, tagged **v0.2.0** → **v1.0.0**.
 > - Migrations needed: **none** (001–016 all applied on Railway).
