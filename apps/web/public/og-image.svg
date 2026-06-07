@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Taproot POS">
+  <rect width="1200" height="630" fill="#111827"/>
+  <!-- subtle green accent -->
+  <rect x="0" y="0" width="1200" height="8" fill="#1D9E75"/>
+  <!-- Logo mark -->
+  <g transform="translate(420 170)">
+    <rect width="84" height="84" rx="20" fill="#1D9E75"/>
+    <path d="M42 18c-12 0-21 8-21 21 0 6 3 11 7 14 0-11 7-19 17-24-8 6-12 14-12 24 2 1 5 2 9 2 12 0 21-9 21-21 0-10-9-16-21-16z" fill="#fff" opacity="0.95"/>
+  </g>
+  <text x="524" y="232" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="76" font-weight="800" fill="#ffffff">Taproot POS</text>
+  <text x="600" y="360" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="38" font-weight="600" fill="#9CA3AF">The POS that reads your menu and sets itself up.</text>
+  <text x="600" y="430" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="30" font-weight="500" fill="#1D9E75">No contract · $99/month flat · Setup in 10 minutes</text>
+</svg>
