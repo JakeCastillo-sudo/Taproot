@@ -80,6 +80,22 @@
 >
 > 12-step new-owner flow: all steps verified working at the API level. tsc 0 both apps.
 
+> # 🌿 SPRINT 11 — "Perfect Product" pass (2026-06-07) — v1.5.0 (PARTIAL, honest)
+>
+> **Scope honesty:** the browser-dependent audits (visual walkthroughs, 375px mobile sizing,
+> Lighthouse, network-throttle, click-through of every screen) were NOT run — there is no browser
+> in the build environment. Claiming "all 14 audits passed" would be false. What WAS done:
+> - **BUG-IMP-005 RESOLVED** — `normalizeMenuPrice` no longer corrupts sub-$1 prices / modifier
+>   deltas (e.g. +$0.75 = 75 was becoming $75). Trusts integer cents; ×100 only for decimals/$-strings;
+>   preserves negative deltas. Parser prompt strengthened with explicit cents examples.
+> - **Performance (live):** server fast; latency is Railway-RTT-dominated (health ~380ms from here);
+>   products 495 / categories 614 / orders 367 / business 289 ms. No N+1 fixes needed.
+> - **Static checks:** 0 console.log in web prod; no raw HTTP/undefined/null strings shown to users;
+>   2 TODOs, both known P3 (ArchivedProducts permanent-delete; LoginPage MFA = BUG-QA-011).
+>   tsc 0 both apps; web build green. Feature audit (pt3): 15/15 API endpoints working.
+> - **STILL NEEDS A REAL-DEVICE QA PASS** before claiming "perfect": Audits 1,3,4,5,6,7,8,10,12
+>   (visual/interaction) + Lighthouse. Recommended on an iPad + phone before first customer.
+
 > # 🚀 V1.2.0 COMPLETE — AI INTELLIGENCE LAYER (tagged)
 >
 > Built (7/7 prompts, June 7 2026) — every feature useful on day one, honest about confidence

@@ -486,3 +486,29 @@ Endpoint evidence indicates 017–021 are APPLIED on Railway (schedules+time_clo
 021; /api-keys 200 → 018; /reservations 200 → 016; etc.). Confirm authoritatively with
 `SELECT name FROM pgmigrations ORDER BY run_on;` in the Railway console. The top-of-CLAUDE
 "pending" banner predates these and is likely stale.
+
+## Session 2026-06-07 (pt4) — Sprint 11 "perfect product" pass (partial, code/API scope)
+Lookback green (health ok, landing 200, tsc 0 both). IMPORTANT SCOPE NOTE: the browser-dependent
+audits in this sprint (visual walkthroughs, 375px mobile sizing, Lighthouse, network-throttle,
+click-through of every screen) were NOT run — no browser in this environment. The code/API/static
+audits below WERE done.
+
+### BUG-IMP-005: normalizeMenuPrice sub-$1 / modifier-delta corruption ✅ RESOLVED
+- Root cause: the heuristic "value < 100 → ×100" corrupted genuine sub-dollar values — e.g. a
+  $0.99 item (99 → $99) and, more commonly, modifier price deltas like +$0.75 (75 → $75).
+- Fix (documentParser.service.ts): trust integers as cents (the prompt commands integer cents);
+  only ×100 for non-integers and `$`/decimal strings; preserve negatives (discount deltas);
+  0/null → 0 (review sentinel). Strengthened the parseMenu prompt with explicit CENTS examples
+  ($12.99→1299, $12→1200, +$0.75→75). tsc 0 both; web build green.
+- Status: RESOLVED.
+
+### Audit results this pass (what was actually verified)
+- Audit 11 Performance (LIVE): products 495ms, categories 614ms, orders 367ms, business 289ms,
+  health 381ms — RTT-dominated (health alone is ~380ms from this network); server-side is fast.
+  Acceptable; matches the documented Railway-RTT note. No N+1 fixes needed.
+- Final checklist (static): 0 console.log in web prod src; no raw HTTP/`undefined`/`null` strings
+  shown to users; only 2 TODOs, both known P3 (ArchivedProducts permanent-delete stub; LoginPage
+  MFA = BUG-QA-011). tsc 0 both apps; web build succeeds.
+- Feature audit (from pt3): 15/15 API endpoints working.
+- NOT verified (need a browser/device): Audits 1,3,4,5,6,7,8,10,12 visual/interaction checks and
+  Audit 11 Lighthouse. These require manual QA on a real device — recommended before launch.

@@ -213,29 +213,47 @@ export interface ColumnMapping {
 // ─── 3. Menu parser ───────────────────────────────────────────────────────────
 
 /**
- * Normalize a price value from Claude to cents.
- * Claude sometimes returns 12.99 (dollars) instead of 1299 (cents)
- * despite being told to use cents. This function handles both formats.
- * - Float 12.99 → 1299 (multiply by 100)
- * - Small int 9 → 900 ($9.00 in cents)
- * - Large int 1299 → 1299 (already cents)
- * - 0 / NaN → 0 (price unknown)
+ * Normalize a price value from Claude to integer cents (BUG-IMP-005).
+ *
+ * The prompt commands integer cents, so we TRUST integers as cents and only
+ * convert when the value clearly looks like dollars:
+ *   - "$12.99" / "12.99"  (string with $ or decimal) → 1299
+ *   - 12.99   (non-integer number)                    → 1299
+ *   - 1299    (integer)                               → 1299  (already cents)
+ *   - 99      (integer)                               → 99     ($0.99 — NOT 9900)
+ *   - "12"    (plain integer string)                  → 12     (cents)
+ *   - 0 / null / NaN                                  → 0      (unknown → review)
+ * Negatives are preserved (modifier price deltas can be a discount, e.g. -100).
+ *
+ * The previous heuristic (anything < 100 → ×100) corrupted genuine sub-$1 values —
+ * especially modifier deltas like +$0.75 (75 → $75.00). Trusting integers fixes that.
  */
 function normalizeMenuPrice(v: unknown): number {
-  const n = typeof v === 'number' ? v : parseFloat(String(v));
-  if (!isFinite(n) || n <= 0) return 0;
-  // Values < 100 are almost certainly dollars (e.g. $9, $12.99)
-  // Values >= 100 are almost certainly already in cents (e.g. 1299, 500)
-  return n < 100 ? Math.round(n * 100) : Math.round(n);
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'string') {
+    const looksLikeDollars = v.includes('$') || v.includes('.');
+    const num = parseFloat(v.replace(/[^0-9.-]/g, ''));
+    if (!isFinite(num) || num === 0) return 0;
+    return Math.round(looksLikeDollars ? num * 100 : num);
+  }
+  const n = Number(v);
+  if (!isFinite(n) || n === 0) return 0;
+  // Non-integer → dollars (Claude returned 12.99 instead of 1299); integer → cents.
+  return Number.isInteger(n) ? Math.round(n) : Math.round(n * 100);
 }
 
 export async function parseMenu(content: string): Promise<ParsedMenu> {
   const system = `You are a menu parser for a POS system. Extract all menu items
 with their prices, categories, and modifiers from the provided menu text.
-Convert all prices to cents (integer). All price fields must be integers (no decimals).
-IMPORTANT: $12.99 = 1299, $5.00 = 500, $0.99 = 99.
-Never return 0 for price unless the item is genuinely free.
-If a price is unclear, make a reasonable estimate based on context.
+
+CRITICAL PRICE INSTRUCTIONS:
+- Extract the exact price shown on the menu.
+- Return every price as an INTEGER number of CENTS (no decimals, no currency symbol).
+- $12.99 → 1299    $9.00 → 900    $14.50 → 1450    $0.99 → 99    $12 → 1200
+- Modifier priceDelta is also integer cents (e.g. +$0.75 → 75, no upcharge → 0).
+- If a priced item has no visible price, make a reasonable estimate from context.
+- Never return 0 for an item that clearly has a price.
+- Double-check every price before returning.
 Respond with JSON only matching this schema:
 {
   "items": [{ "name": string, "description"?: string, "price": integer,
