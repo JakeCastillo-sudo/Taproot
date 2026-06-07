@@ -31,6 +31,10 @@ export class ErrorBoundary extends Component<Props, State> {
         <button onClick={() => window.location.reload()} className="px-5 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark">
           Refresh page
         </button>
+        <p className="text-sm text-gray-400 mt-4">
+          If this keeps happening, contact{' '}
+          <a href="mailto:support@taproot-pos.com" className="text-primary hover:underline">support@taproot-pos.com</a>
+        </p>
       </div>
     );
   }

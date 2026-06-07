@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, AlertCircle, Leaf } from 'lucide-react';
 import { auth, TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY, products as productsApi } from '../lib/api';
 import { queryClient } from '../lib/queryClient';
+import { analytics } from '../lib/analytics';
 
 /**
  * LoginPage — split-screen sign-in (S10-02 polish).
@@ -35,6 +36,9 @@ export function LoginPage() {
       localStorage.setItem(TOKEN_KEY, data.accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
       localStorage.setItem(USER_KEY, JSON.stringify(data.employee));
+
+      // Analytics: sign-in event (S10-04)
+      analytics.login();
 
       // Flush React Query cache so POSLayout fetches fresh data with the new token
       queryClient.clear();
