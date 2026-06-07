@@ -18,6 +18,7 @@
 import { query, withTransaction } from '../db/client';
 import { ValidationError, NotFoundError } from '../errors';
 import { createAuditLog } from '../auth/audit';
+import { deliverWebhook } from './webhook.service';
 import type { Customer, CustomerWithStats } from '@taproot/shared';
 
 // ─── Input types ──────────────────────────────────────────────────────────────
@@ -117,6 +118,15 @@ export async function createCustomer(
       employeeId,
     ],
   );
+
+  // Outbound webhooks (S8-04) — fire-and-forget
+  void deliverWebhook(orgId, 'customer.created', {
+    customerId: customer.id,
+    firstName:  customer.first_name,
+    lastName:   customer.last_name,
+    email:      customer.email,
+    phone:      customer.phone,
+  });
 
   void createAuditLog({
     organizationId: orgId,

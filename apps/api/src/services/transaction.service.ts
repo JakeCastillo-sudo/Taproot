@@ -10,6 +10,7 @@ import { query } from '../db/client';
 import * as PaymentSvc from './payment.service';
 import { NotFoundError, ValidationError } from '../errors';
 import { createAuditLog } from '../auth/audit';
+import { deliverWebhook } from './webhook.service';
 import type { Payment } from '@taproot/shared';
 
 interface OrderRow {
@@ -149,6 +150,9 @@ export async function voidOrder(
     afterState: { reason, refundedAmount },
   });
 
+  // Outbound webhooks (S8-04) — fire-and-forget
+  void deliverWebhook(orgId, 'order.voided', { orderId, reason, refundedAmount });
+
   return { success: true, refundedAmount };
 }
 
@@ -191,6 +195,11 @@ export async function refundOrder(
     organizationId: orgId, actorId: employeeId,
     action: 'order.refunded', resourceType: 'order', resourceId: orderId,
     afterState: { type: input.type, refundedAmount, reason: input.reason },
+  });
+
+  // Outbound webhooks (S8-04) — fire-and-forget
+  void deliverWebhook(orgId, 'payment.refunded', {
+    orderId, type: input.type, refundedAmount, reason: input.reason,
   });
 
   return { success: true, refundedAmount };

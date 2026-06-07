@@ -4,8 +4,8 @@
 > ```bash
 > npx node-pg-migrate up --migrations-dir migrations
 > ```
-> Pending: **017_franchise** (Sprint 8 in progress — more will be added).
-> All franchise code degrades gracefully until 017 runs (column-existence guards).
+> Pending: **017_franchise**, **018_api_keys** (Sprint 8 in progress — more will be added).
+> All Sprint 8 code degrades gracefully until migrations run (existence guards).
 
 ## 🏗️ SPRINT 8 — Enterprise Foundations (IN PROGRESS, target v1.1.0)
 
@@ -62,6 +62,32 @@
   grid, churn list w/ mailto reach-out, new-vs-returning donut, top customers), Peak Hours
   (7×24 CSS-grid heatmap + staffing recommendation).
 - POSLayout: Analytics nav item (manager/owner only via canAccessSettings). Route in App.tsx.
+
+### S8-04 — Public API Keys + Webhooks ✅ COMPLETE
+- `migrations/018_api_keys.js` ⚠️ PENDING: api_keys (sha256 key_hash unique, scopes[], expiry,
+  revoked_at) + webhooks (url, events[], HMAC secret, failure_count, is_active).
+- `apiKey.service.ts` (new): create (`taproot_live_` + 32 chars, full key returned ONCE, sha256
+  stored)/list/revoke + `resolveApiKey()` → synthetic AccessTokenPayload (role 'readonly';
+  capability via SCOPE_MAP: orders|products|customers:read/write + reports:read → internal
+  Permission strings; locationIds=[] = all). Fire-forget last_used_at stamp.
+- `auth/middleware.ts`: `authenticate` now routes Bearer `taproot_live_*` through resolveApiKey
+  (401 on invalid/revoked/expired) — API keys hit the same /api/v1 endpoints.
+- `webhook.service.ts` (new — OUTBOUND; routes/webhook.routes.ts stays INBOUND Stripe):
+  list/create (whsec_ secret shown once)/delete/test + `deliverWebhook(orgId,event,payload)` —
+  HMAC-SHA256 X-Taproot-Signature/-Event/-Delivery headers, 3 attempts (1s/3s backoff, 10s
+  timeout), failure_count++ (reset on success), auto-disable at 10. NEVER throws; no-ops while
+  018 pending.
+- Events wired: payment.completed + order.completed (payment.service processPayment),
+  order.voided (transaction.voidOrder), payment.refunded (transaction.refundOrder),
+  customer.created (customer.service). `inventory.low_stock` is an allowed event type but not
+  yet emitted (no low-stock event source hook) — documented.
+- `apiKeys.routes.ts` + `webhooks.routes.ts` (new, registered): /api-keys CRUD + /webhooks CRUD
+  + /:id/test. Owner/manager JWT sessions only (API keys can't manage API keys). No routing
+  conflict with /webhooks/stripe/* (static segments win).
+- Web: `api.ts` apiKeys/webhooksApi clients; `ApiSettingsPage.tsx` (/settings/api) — API Keys tab
+  (create modal w/ scope checkboxes + expiry, show-key-ONCE modal w/ copy + confirm checkbox,
+  revoke) + Webhooks tab (add modal w/ event checkboxes, secret-shown-once, test button,
+  failure-count badge, active/disabled pill). Settings nav "API & Webhooks".
 
 > # 🌿 V1.0 COMPLETE — Sprints 1–7 done
 > **49/49 prompts** (S1-01…S7-07) over 7 sprints, tagged **v0.2.0** → **v1.0.0**.

@@ -5,6 +5,7 @@ import type { Payment, Order, GiftCard, PaymentMethod, PaymentStatus } from '@ta
 import { createAuditLog } from '../auth/audit';
 import { getStripeClient } from '../payments/stripe.config';
 import * as LoyaltySvc from './loyalty.service';
+import { deliverWebhook } from './webhook.service';
 
 // ─── Input types ──────────────────────────────────────────────────────────────
 
@@ -278,6 +279,17 @@ export async function processPayment(
         try {
           await LoyaltySvc.awardPoints(orgId, totals.customer_id as string, orderId, Number(totals.total) / 100, employeeId);
         } catch { /* loyalty accrual must never block payment */ }
+      }
+
+      // Outbound webhooks (S8-04) — fire-and-forget, never blocks payment
+      void deliverWebhook(orgId, 'payment.completed', {
+        orderId, paymentId: p.id, method: input.paymentMethod,
+        amount: input.amount, tipAmount: input.tipAmount ?? 0,
+      });
+      if (fullyPaid) {
+        void deliverWebhook(orgId, 'order.completed', {
+          orderId, total: Number(totals.total), amountPaid: newAmountPaid, tipTotal,
+        });
       }
 
       return p;

@@ -1505,6 +1505,45 @@ function buildReportQS(params: ReportDateParams, extra?: Record<string, string>)
   return q.toString();
 }
 
+// ─── API keys + webhooks (S8-04) ──────────────────────────────────────────────
+
+export const API_KEY_SCOPES = [
+  'orders:read', 'orders:write',
+  'products:read', 'products:write',
+  'customers:read', 'customers:write',
+  'reports:read',
+] as const;
+
+export interface ApiKeyRow {
+  id: string; name: string; key_prefix: string; permissions: string[];
+  last_used_at: string | null; expires_at: string | null;
+  created_at: string; revoked_at: string | null;
+}
+
+export interface WebhookSubRow {
+  id: string; url: string; events: string[]; is_active: boolean;
+  last_triggered_at: string | null; failure_count: number; created_at: string;
+}
+
+export const apiKeys = {
+  list: () => apiFetch<{ keys: ApiKeyRow[] }>('/api-keys').then((r) => r.keys),
+  create: (body: { name: string; permissions: string[]; expiresAt?: string | null }) =>
+    apiFetch<{ id: string; key: string; prefix: string; name: string }>('/api-keys', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  revoke: (id: string) => apiFetch<{ success: boolean }>(`/api-keys/${id}`, { method: 'DELETE' }),
+};
+
+export const webhooksApi = {
+  list: () => apiFetch<{ webhooks: WebhookSubRow[]; availableEvents: string[] }>('/webhooks'),
+  create: (body: { url: string; events: string[] }) =>
+    apiFetch<WebhookSubRow & { secret: string }>('/webhooks', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  remove: (id: string) => apiFetch<{ success: boolean }>(`/webhooks/${id}`, { method: 'DELETE' }),
+  test: (id: string) => apiFetch<{ delivered: boolean }>(`/webhooks/${id}/test`, { method: 'POST' }),
+};
+
 // ─── Advanced analytics (S8-03) ───────────────────────────────────────────────
 
 export interface CohortRow {

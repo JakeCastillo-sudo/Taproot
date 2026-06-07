@@ -2,6 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import { query } from '../db/client';
 import { extractBearerToken, verifyAccessToken, type AccessTokenPayload } from './jwt';
 import { TokenExpiredError, TokenInvalidError, NotFoundError, ForbiddenError } from '../errors';
+import { resolveApiKey, API_KEY_PREFIX } from '../services/apiKey.service';
 
 // ─── authenticate ─────────────────────────────────────────────────────────────
 
@@ -17,6 +18,20 @@ export async function authenticate(
       code: 'UNAUTHORIZED',
       message: 'Authentication required',
     });
+  }
+
+  // Public API keys (S8-04): Bearer taproot_live_* — validated against the
+  // api_keys table (SHA-256 lookup), yields a scoped synthetic payload.
+  if (token.startsWith(API_KEY_PREFIX)) {
+    const payload = await resolveApiKey(token);
+    if (!payload) {
+      return reply.code(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Invalid, expired, or revoked API key',
+      });
+    }
+    (request as FastifyRequest & { user: AccessTokenPayload }).user = payload;
+    return;
   }
 
   try {
