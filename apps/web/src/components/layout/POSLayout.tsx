@@ -26,13 +26,13 @@ import {
   ChevronRight, ChevronLeft, Plus, Minus, Trash2, Tag,
   FileText, AlertTriangle, User, Layers, BarChart3,
   Upload, ArrowRightLeft, Menu, Terminal, Settings,
-  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles,
+  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles, Network,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
 import { usePOSStore, type CartItem } from '../../store/pos.store';
 import { useUIStore } from '../../store/ui.store';
-import { products as productsApi, categories as categoriesApi, settings as settingsApi, discounts as discountsApi, type ProductWithModifiers } from '../../lib/api';
+import { products as productsApi, categories as categoriesApi, settings as settingsApi, discounts as discountsApi, franchise as franchiseApi, type ProductWithModifiers } from '../../lib/api';
 import { setPosTaxRate } from '../../store/pos.store';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '../../lib/queryClient';
@@ -248,6 +248,24 @@ function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarPr
   const navigate  = useNavigate();
   const location  = useLocation();
 
+  // Franchise nav item — only for franchisor orgs (S8-01). Non-fatal: hidden on error.
+  const { data: frInfo } = useQuery({
+    queryKey: ['franchise', 'info'],
+    queryFn:  franchiseApi.info,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const navItems = useMemo(() => {
+    if (frInfo?.orgType !== 'franchisor') return NAV_ITEMS;
+    const items = [...NAV_ITEMS];
+    const idx = items.findIndex((i) => i.id === 'import');
+    items.splice(idx === -1 ? items.length : idx, 0, {
+      id: 'franchise', icon: <Network size={18} />, label: 'Franchise', path: '/franchise',
+    });
+    return items;
+  }, [frInfo?.orgType]);
+
   const handleLogout = () => {
     clearTokens();
     window.location.href = '/login';
@@ -290,7 +308,7 @@ function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarPr
 
       {/* Nav items */}
       <nav className="flex-1 overflow-y-auto min-h-0 px-2 py-2 space-y-0.5">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const isActive = item.path === '/'
             ? location.pathname === '/'
             : location.pathname.startsWith(item.path);

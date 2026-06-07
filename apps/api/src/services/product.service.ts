@@ -424,6 +424,38 @@ export async function updateProduct(
 
 // ─── deleteProduct ────────────────────────────────────────────────────────────
 
+// ─── Corporate-item lock (franchise mode, S8-01) ─────────────────────────────
+// Franchisees cannot archive/delete products pushed by their franchisor
+// (products.corporate_source_id set, org_type = 'franchisee'). Local guard
+// (not imported from franchise.service) to avoid a circular import; resilient
+// while migration 017 is pending.
+
+let _franchiseColsExist: boolean | null = null;
+
+async function corporateLockCheck(orgId: string, productId: string): Promise<void> {
+  if (_franchiseColsExist === null) {
+    const { rows } = await query<{ ready: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'products' AND column_name = 'corporate_source_id'
+       ) AS ready`,
+    );
+    _franchiseColsExist = Boolean(rows[0]?.ready);
+  }
+  if (!_franchiseColsExist) return;
+
+  const { rows: [row] } = await query<{ corporate_source_id: string | null; org_type: string }>(
+    `SELECT p.corporate_source_id, o.org_type
+       FROM products p
+       JOIN organizations o ON o.id = p.organization_id
+      WHERE p.id = $1 AND p.organization_id = $2`,
+    [productId, orgId],
+  );
+  if (row && row.corporate_source_id != null && row.org_type === 'franchisee') {
+    throw new ConflictError('This is a corporate menu item managed by your franchisor — it cannot be removed.');
+  }
+}
+
 export async function deleteProduct(
   orgId: string,
   productId: string,
@@ -434,6 +466,8 @@ export async function deleteProduct(
     [productId, orgId],
   );
   if (!product) throw new ProductNotFoundError(productId);
+
+  await corporateLockCheck(orgId, productId);
 
   // Block delete if referenced by open orders
   const { rows: openOrders } = await query(
@@ -572,6 +606,8 @@ export async function archiveProduct(
     [productId, orgId],
   );
   if (!product) throw new ProductNotFoundError(productId);
+
+  await corporateLockCheck(orgId, productId);
 
   await query(
     `UPDATE products

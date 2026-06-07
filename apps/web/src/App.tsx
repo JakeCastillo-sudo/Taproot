@@ -43,6 +43,8 @@ import { ReservationsPage } from './pages/ReservationsPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { InsightsPage } from './pages/InsightsPage';
 import { KioskPage } from './pages/KioskPage';
+import { FranchisePage } from './pages/FranchisePage';
+import { FranchiseSettingsPage } from './pages/FranchiseSettingsPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -310,6 +312,15 @@ export default function App() {
           />
 
           <Route
+            path="/franchise"
+            element={
+              <RequireAuth>
+                <FranchisePage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
             path="/kitchen"
             element={
               <RequireAuth>
@@ -388,6 +399,7 @@ export default function App() {
             <Route path="loyalty" element={<LoyaltySettingsPage />} />
             <Route path="gift-cards" element={<GiftCardsSettingsPage />} />
             <Route path="discounts" element={<DiscountsSettingsPage />} />
+            <Route path="franchise" element={<FranchiseSettingsPage />} />
           </Route>
 
           {/* Dashboard layout editor — full-screen, customize POS register tiles */}

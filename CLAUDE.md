@@ -1,5 +1,36 @@
 # Taproot POS — Claude Project State
 
+> # ⚠️ MIGRATIONS NEEDED (run in Railway console)
+> ```bash
+> npx node-pg-migrate up --migrations-dir migrations
+> ```
+> Pending: **017_franchise** (Sprint 8 in progress — more will be added).
+> All franchise code degrades gracefully until 017 runs (column-existence guards).
+
+## 🏗️ SPRINT 8 — Enterprise Foundations (IN PROGRESS, target v1.1.0)
+
+### S8-01 — Franchise Mode ✅ COMPLETE
+- `migrations/017_franchise.js` ⚠️ PENDING: organizations.parent_org_id/org_type/franchise_code
+  (+ partial unique idx on code) and products.corporate_source_id (franchisee copies of pushed items).
+- `franchise.service.ts` (new): info/enable(code gen FR-XXXXXXXX)/network(30d revenue+orders per
+  franchisee)/invite(email w/ code)/join(guards: self/already-linked/franchisor)/corporate menu/
+  pushMenu (upsert into each franchisee via product.service, marks corporate_source_id, un-archives
+  on re-push). ALL entry points check `franchiseReady()` (information_schema, cached) → graceful
+  when 017 pending.
+- `product.service.ts`: local `corporateLockCheck` in archive+delete (franchisee + corporate item →
+  Conflict). Local (not imported from franchise.service) to avoid circular import.
+- `franchise.routes.ts` (new, registered): GET info/network/menu, POST enable/invite/join,
+  PATCH menu/push. Owner for enable/join; owner/manager for network/invite/push.
+  (Spec said settings.routes.ts; dedicated file matches the one-domain-one-file pattern.)
+- `email.service.ts`: `sendFranchiseInviteEmail` (code + join steps; dev logs via jsonTransport).
+- Web: `api.ts` `franchise.*` client + types; `FranchisePage.tsx` (/franchise — franchisor dashboard
+  w/ network stats + cards + invite + push-menu modals; franchisee view w/ 🔒 corporate items;
+  independent explainer); `FranchiseSettingsPage.tsx` (/settings/franchise — enable + code copy,
+  join with code, brand-standards stub "coming soon"); POSLayout sidebar "Franchise" item (only
+  when org_type=franchisor, via /franchise/info query); SettingsLayout nav item.
+- NOTE: lock icons on /settings/products for corporate items deferred (delete/archive is blocked
+  server-side with a clear message); brand standards PDF upload deferred (no asset storage).
+
 > # 🌿 V1.0 COMPLETE — Sprints 1–7 done
 > **49/49 prompts** (S1-01…S7-07) over 7 sprints, tagged **v0.2.0** → **v1.0.0**.
 > - Migrations needed: **none** (001–016 all applied on Railway).

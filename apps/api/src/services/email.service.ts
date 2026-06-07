@@ -98,6 +98,48 @@ export async function sendWelcomeEmail(
   });
 }
 
+// ─── franchiseInviteEmail ─────────────────────────────────────────────────────
+
+export async function sendFranchiseInviteEmail(
+  email: string,
+  franchisorName: string,
+  franchiseCode: string,
+  locationName: string,
+): Promise<void> {
+  const registerUrl = `${config.APP_URL}/register`;
+  const html = emailLayout(`You're invited to join ${franchisorName} on Taproot POS`, `
+    <h2 style="margin-top:0;color:#111;font-size:22px;">You&apos;re invited! 🌿</h2>
+    <p style="color:#444;line-height:1.6;"><strong>${escape(franchisorName)}</strong> has invited you to run
+    <strong>${escape(locationName)}</strong> as part of their franchise network on Taproot POS.</p>
+
+    <h3 style="color:#111;font-size:15px;margin-bottom:8px;">How to join:</h3>
+    <ol style="color:#444;line-height:2;padding-left:20px;">
+      <li>Create your Taproot POS account (free 14-day trial)</li>
+      <li>Go to Settings → Franchise</li>
+      <li>Enter your franchise code below</li>
+    </ol>
+
+    <div style="margin:20px 0;padding:16px;background:#F1F5F9;border-radius:10px;text-align:center;">
+      <p style="margin:0 0 4px;color:#888;font-size:12px;">Your franchise code</p>
+      <p style="margin:0;font-family:ui-monospace,monospace;font-size:22px;font-weight:700;letter-spacing:2px;color:#0F6E56;">${escape(franchiseCode)}</p>
+    </div>
+
+    <div style="margin:24px 0;">
+      ${btnPrimary(registerUrl, 'Create your account →')}
+    </div>
+
+    <p style="color:#888;font-size:13px;">Once you join, ${escape(franchisorName)}&apos;s corporate menu syncs to
+    your register automatically.</p>
+  `);
+
+  await sendEmail({
+    to:      email,
+    subject: `You're invited to join ${franchisorName} on Taproot POS`,
+    html,
+    text: `${franchisorName} has invited you to run ${locationName} on Taproot POS.\n\n1. Create your account: ${registerUrl}\n2. Go to Settings → Franchise\n3. Enter franchise code: ${franchiseCode}\n\nOnce you join, the corporate menu syncs to your register automatically.`,
+  });
+}
+
 // ─── trialEndingEmail ─────────────────────────────────────────────────────────
 
 export async function sendTrialEndingEmail(

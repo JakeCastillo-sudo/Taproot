@@ -400,6 +400,57 @@ export const locations = {
   remove: (id: string) => apiFetch<void>(`/locations/${id}`, { method: 'DELETE' }),
 };
 
+// ─── Franchise (S8-01) ────────────────────────────────────────────────────────
+
+export type OrgType = 'independent' | 'franchisor' | 'franchisee';
+
+export interface FranchiseInfo {
+  ready: boolean;
+  orgType: OrgType;
+  franchiseCode: string | null;
+  parentOrg: { id: string; name: string } | null;
+}
+
+export interface NetworkLocation {
+  id: string; name: string; slug: string;
+  location_count: number;
+  revenue_30d: number;        // cents
+  order_count_30d: number;
+  joined_at: string;
+  status: 'active' | 'inactive';
+}
+
+export interface CorporateMenuItem {
+  id: string; name: string; description: string | null;
+  price: number | null;       // cents
+  category_name: string | null;
+  corporate_source_id: string | null;
+  is_corporate: boolean;
+}
+
+export interface MenuPushResult {
+  franchisees: number; created: number; updated: number; errors: string[];
+}
+
+export const franchise = {
+  info: () => apiFetch<FranchiseInfo>('/franchise/info'),
+  enable: () => apiFetch<{ franchiseCode: string }>('/franchise/enable', { method: 'POST' }),
+  network: () => apiFetch<{ locations: NetworkLocation[] }>('/franchise/network'),
+  invite: (email: string, locationName: string) =>
+    apiFetch<{ sent: boolean; franchiseCode: string }>('/franchise/invite', {
+      method: 'POST', body: JSON.stringify({ email, locationName }),
+    }),
+  join: (franchiseCode: string) =>
+    apiFetch<FranchiseInfo>('/franchise/join', {
+      method: 'POST', body: JSON.stringify({ franchiseCode }),
+    }),
+  menu: () => apiFetch<{ orgType: OrgType; items: CorporateMenuItem[] }>('/franchise/menu'),
+  pushMenu: (productIds: string[]) =>
+    apiFetch<MenuPushResult>('/franchise/menu/push', {
+      method: 'PATCH', body: JSON.stringify({ productIds }),
+    }),
+};
+
 // ─── Gift cards ───────────────────────────────────────────────────────────────
 
 export interface GiftCardRow {
