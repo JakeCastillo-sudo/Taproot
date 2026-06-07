@@ -1,205 +1,142 @@
-# Taproot POS
+# Taproot POS 🌿
 
-A modern, full-featured point-of-sale system built for independent restaurants, cafés, and retail.
-Works offline. Runs on iPad. Ships to production on AWS.
+> The POS built for independent restaurants.
+> No contracts. No hidden fees. $99/month flat.
 
-[![CI](https://github.com/your-org/taproot/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/taproot/actions)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+## Live Product
+- **App:** https://taproot-pos.com
+- **API:** https://taproot-production-3d63.up.railway.app
+- **Demo:** `demo@taproot.pos` / `TaprootDemo2026!`
 
----
+## What It Does
 
-## Features
+Taproot is an AI-native point-of-sale system for independent restaurants.
+Upload your menu PDF and Taproot sets itself up in 10 minutes.
 
-| Module | Capabilities |
-|--------|-------------|
-| **POS Checkout** | Product grid, variants, modifiers, discounts, split-tender, offline mode |
-| **Payments** | Cash, card (Stripe Terminal), gift cards, account credit, split payments |
-| **Inventory** | Stock levels, recipes, variance reports, supplier purchase orders, forecasting |
-| **Reporting** | Revenue dashboards, top products, heatmaps, employee performance |
-| **Customers** | Profiles, loyalty tiers, account credit, merge duplicates |
-| **AI Import** | Upload menus (PDF/CSV/image/URL) → Claude parses + maps to your catalog |
-| **Migration** | One-click import from Square, Shopify, Toast, Lightspeed, Clover |
-| **Onboarding** | 4-step wizard (menu → recipes → Stripe → launch) with confetti 🎉 |
-| **Billing** | Stripe subscriptions, 14-day trial, partner code extensions |
-| **Mobile** | Full PWA, iPad-optimized, swipe gestures, haptic feedback, offline-first |
-
----
+**Core features:**
+- 🤖 AI menu import (upload PDF → done)
+- 🏪 Full POS with modifiers and variants
+- 📋 Kitchen display system
+- 🪑 Table management and floor plans
+- 🌐 Online ordering and QR codes
+- 💳 Stripe Connect payments
+- 👥 Employee management with PIN login
+- 📊 Advanced reporting and analytics
+- 🔮 AI demand forecasting
+- 📅 AI staff scheduling
+- 🍽️ Menu engineering recommendations
+- ❤️ Loyalty program and gift cards
+- 📦 Inventory tracking
 
 ## Tech Stack
 
-```
-Frontend   React 18 + Vite 5 + Tailwind 3 + Zustand 5 + React Query 5
-Backend    Fastify 4 + TypeScript (strict) + Node 20
-Database   PostgreSQL 15 (no ORM — raw pg Pool)
-Cache      Redis 7 (sessions, rate limits, offline queue, pub/sub)
-Auth       JWT (HS256) + bcrypt + TOTP (MFA) + AES-256-GCM
-Payments   Stripe Terminal + Connect ISV
-AI         Anthropic Claude (menu parsing, NL queries)
-Infra      AWS CDK: ECS Fargate + RDS + ElastiCache + CloudFront + S3
-CI/CD      GitHub Actions (typecheck, jest, ESLint, Docker build, deploy)
-```
-
----
-
-## Local Development
-
-### Prerequisites
-- Node 20+
-- PostgreSQL 15 running locally
-- Redis 7 running locally
-- npm 10+
-
-### Setup
-
-```bash
-# 1. Clone and install
-git clone https://github.com/your-org/taproot
-cd taproot
-npm install
-
-# 2. Create database
-createdb taproot_dev
-
-# 3. Configure environment
-cp apps/api/.env.staging.example apps/api/.env
-# Edit apps/api/.env — fill in DATABASE_URL, JWT_SECRET, STRIPE_SECRET_KEY etc.
-# Minimum for local dev (copy/generate these):
-#   DATABASE_URL=postgres://localhost/taproot_dev
-#   JWT_SECRET=<64+ random chars>
-#   REDIS_URL=redis://localhost:6379
-#   STRIPE_SECRET_KEY=sk_test_...
-#   STRIPE_WEBHOOK_SECRET=whsec_test_...
-
-# 4. Run migrations + seed data
-npm run db:migrate      # from repo root
-# or to reseed from scratch:
-npm run db:reseed       # from apps/api/
-
-# 5. Start dev servers
-npm run dev             # starts api (3001) + web (5173) concurrently
-# or if ports are stuck:
-npm run dev:clean       # kills ports 3001/5173-5178 first
-```
-
-Open http://localhost:5173
-
-**Demo credentials:** `demo@taproot.pos` / `TaprootDemo123`
-
-### Running Tests
-
-```bash
-cd apps/api
-npm test                # 206 tests (jest + ts-jest)
-npm run typecheck       # TypeScript strict check
-
-cd apps/web
-npm run typecheck       # TypeScript strict check
-npm run build           # Vite production build
-```
-
-### Docker Compose
-
-```bash
-docker compose up       # api + postgres:15 + redis:7
-# App at http://localhost:3001 (API) — serve apps/web/dist separately
-```
-
----
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, TypeScript, Tailwind CSS, Vite |
+| Backend | Node.js, TypeScript, Fastify |
+| Database | PostgreSQL (Railway) |
+| Cache | Redis (Railway) |
+| Auth | JWT (access + refresh tokens) |
+| Payments | Stripe Connect |
+| AI | Anthropic Claude API |
+| Deploy | Vercel (frontend) + Railway (backend) |
+| State | Zustand + React Query |
 
 ## Project Structure
 
 ```
 taproot/
 ├── apps/
-│   ├── api/               # Fastify backend
-│   │   ├── src/
-│   │   │   ├── auth/      # JWT, RBAC, MFA, audit log
-│   │   │   ├── db/        # pg Pool, migrations, Redis
-│   │   │   ├── payments/  # Stripe Terminal, Connect, offline queue
-│   │   │   ├── queues/    # Bull queues (5 types)
-│   │   │   ├── routes/    # All REST route handlers
-│   │   │   ├── services/  # Business logic
-│   │   │   └── index.ts   # Fastify app + startup
-│   │   └── src/__tests__/ # Jest unit tests
-│   └── web/               # React PWA frontend
+│   ├── api/          # Fastify backend
+│   │   └── src/
+│   │       ├── routes/      # API endpoints
+│   │       ├── services/    # Business logic
+│   │       ├── middleware/  # Auth, CORS, etc
+│   │       └── lib/         # Utilities
+│   └── web/          # React frontend
 │       └── src/
-│           ├── components/ # UI components (pos/, inventory/, reports/, onboarding/, ui/)
-│           ├── hooks/      # useBarcode, useSwipe, useHaptic, useKeyboard...
-│           ├── lib/        # api.ts (typed client), queryClient.ts, analytics.ts
-│           ├── pages/      # POS, Inventory, Reports, Onboarding, Register, Billing...
-│           └── store/      # Zustand stores (pos.store, onboarding.store)
+│           ├── pages/       # Route components
+│           ├── components/  # Reusable UI
+│           ├── store/       # Zustand state
+│           └── lib/         # API client, utils
+├── migrations/       # PostgreSQL migrations (node-pg-migrate)
 ├── packages/
-│   └── shared/            # Shared TypeScript types
-├── migrations/            # node-pg-migrate SQL migrations (001–010)
-├── docs/                  # API.md, QA_REPORT.md, DEPLOYMENT.md, BACKLOG.md...
-├── infra/                 # AWS CDK stack (VPC, ECS, RDS, Redis, CloudFront)
-└── .github/workflows/     # CI (ci.yml), Deploy (deploy.yml), Release (release.yml)
+│   └── shared/       # Shared TypeScript types (@taproot/shared)
+└── docs/             # Documentation
 ```
 
----
+## Local Development
 
-## API Overview
+```bash
+# Clone
+git clone https://github.com/JakeCastillo-sudo/Taproot
+cd Taproot
 
-Base URL: `http://localhost:3001/api/v1` (dev)
+# Install (npm workspaces — installs all apps)
+npm install
 
-All endpoints except `/health`, `/register`, `/auth/login`, and webhooks require a JWT Bearer token.
+# Environment
+cp .env.example .env
+# Fill in: DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET,
+#          STRIPE_SECRET_KEY, ANTHROPIC_API_KEY, CORS_ORIGINS
 
-```
-Auth           POST /auth/login  POST /auth/refresh  POST /auth/logout
-Registration   POST /register    POST /register/check-email
-Orders         GET/POST /locations/:id/orders    PATCH /locations/:id/orders/:id
-Payments       POST /locations/:id/orders/:id/payments
-Products       GET/POST /products    GET/PATCH/DELETE /products/:id
-Inventory      GET /inventory/levels   POST /inventory/adjust   POST /inventory/count
-Reports        GET /reports/dashboard  /sales  /top-products  /top-customers
-               GET /reports/payment-methods  /employee-performance  /hourly-heatmap
-Customers      GET/POST /customers   GET/PATCH/DELETE /customers/:id
-AI Import      POST /imports/upload   GET /imports/:jobId   POST /imports/:jobId/confirm
-Migration      POST /migrations/square|shopify|toast|lightspeed|clover|csv
-Onboarding     GET/POST /onboarding/status   POST /onboarding/complete
-Billing        GET /billing/subscription   POST /billing/subscribe   POST /billing/portal
+# Database
+npx node-pg-migrate up --migrations-dir migrations
+
+# Start both apps (builds @taproot/shared first)
+npm run dev
 ```
 
-Full API reference: [docs/API.md](docs/API.md)
+- Frontend: http://localhost:5173
+- Backend: http://localhost:3001
 
----
+## Database Migrations
+
+```bash
+# Run all pending migrations
+npx node-pg-migrate up --migrations-dir migrations
+
+# Create a new migration
+npx node-pg-migrate create migration-name --migrations-dir migrations
+```
 
 ## Deployment
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the complete guide.
+**Backend (Railway):** push to `main` → Railway auto-deploys. Migrations are run
+manually via the Railway service console.
 
-Quick summary:
-1. **Staging** — auto-deploys on push to `main` via GitHub Actions → ECS Fargate
-2. **Production** — manual `workflow_dispatch` + GitHub environment approval
-3. **Release** — push a `v*.*.*` tag → changelog generated → GitHub Release created → production deploy
+**Frontend (Vercel):** push to `main` → Vercel auto-deploys. Environment variables
+are set in the Vercel dashboard (keep `apps/web/.env.production` in sync).
 
-Required GitHub Secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `STAGING_HOST`, and all
-app secrets listed in `.env.production.example`.
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full step-by-step guide.
+
+## Environment Variables
+
+See `.env.example` for the full list. Required:
+
+- `DATABASE_URL` — PostgreSQL connection string
+- `JWT_SECRET` — access-token secret (32+ chars)
+- `JWT_REFRESH_SECRET` — refresh-token secret
+- `STRIPE_SECRET_KEY` — Stripe secret key
+- `ANTHROPIC_API_KEY` — Claude API key (AI features degrade gracefully without it)
+- `CORS_ORIGINS` — comma-separated allowed origins
+
+## Documentation
+
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — step-by-step deploy guide
+- [`docs/API.md`](docs/API.md) — API endpoint reference
+- [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — new-customer setup guide
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — product state machine, auth, multi-tenancy, AI caching
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — sprint history
+- [`docs/BACKLOG.md`](docs/BACKLOG.md) — bug backlog
+
+## Build Stats (June 2026)
+
+- **80+ commits** across 10 sprints
+- **~35,000 lines** of TypeScript/TSX
+- **20 database migrations**
+- Built with Claude Code in autonomous build sessions
 
 ---
 
-## Security
-
-- All Stripe keys loaded from environment — startup fails fast if missing
-- Offline card data encrypted AES-256-GCM — never plaintext in Redis
-- Webhook signature verification — unsigned webhooks rejected with 400
-- Idempotency keys on all Stripe API calls: `taproot-{orgId}-{orderId}-{timestamp}`
-- Card numbers never logged, never in DB, never in audit logs — only last4 + brand stored
-- BCrypt 12 rounds, TOTP MFA, JWT 15-min access / 30-day refresh
-- RBAC: 5 roles × 43 permissions
-- CSP headers, HSTS, Permissions-Policy enforced in production
-
----
-
-## QA Status
-
-See [docs/QA_REPORT.md](docs/QA_REPORT.md) for the full white-glove QA report.
-
-**Beta verdict: ✅ READY** — 0 TypeScript errors, all P0/P1 bugs resolved, all flows tested.
-
----
-
-## License
-
-MIT © 2026 Taproot Systems
+*Taproot POS — Built for the restaurant Toast forgot about.*
