@@ -38,6 +38,12 @@ export default async function analyticsRoutes(fastify: FastifyInstance): Promise
     return reply.send(await AnalyticsSvc.getMenuEngineeringMatrix(user.orgId, parseRange(req.query as Record<string, string>)));
   });
 
+  // S9-03: matrix + per-item AI recommendations + narrative + quick wins (4h cached)
+  fastify.get('/api/v1/analytics/menu-insights', guard, async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    return reply.send(await AnalyticsSvc.getMenuInsights(user.orgId, parseRange(req.query as Record<string, string>)));
+  });
+
   fastify.get('/api/v1/analytics/staff-performance', guard, async (req: FastifyRequest, reply: FastifyReply) => {
     const { user } = req as AuthedRequest;
     return reply.send(await AnalyticsSvc.getStaffPerformance(user.orgId, parseRange(req.query as Record<string, string>)));

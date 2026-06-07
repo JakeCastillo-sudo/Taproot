@@ -43,6 +43,18 @@
   POSLayout `ClockOutButton` in top bar (hidden pre-migration via null /timeclock/current).
 - NOTE: drag-to-move/resize shifts deferred (add/remove + AI apply shipped).
 
+### S9-03 — AI Menu Engineering Recommendations ✅ COMPLETE
+- `analytics.service.getMenuInsights` (new): S8 matrix + avg sell price per item → Claude JSON
+  per-item {recommendation, suggestedAction promote|reprice|reposition|archive|none,
+  suggestedPrice cents|null} + 2-3 sentence narrative + 3 quickWins (validated, merged by
+  productId). Deterministic fallback (quadrant→action map, generated quick wins). Cache
+  `ai:menu-insights:{org}:{loc}:{fromDay}:{toDay}` 4h.
+- `analytics.routes.ts`: GET /api/v1/analytics/menu-insights (REPORTS_VIEW).
+- Web: `analytics.menuInsights` client + MenuTab rework — AI assessment box, 3 quick-win cards
+  w/ live action buttons (archive → real archive; reprice → prompt prefilled w/ suggested price
+  → products.update; promote/reposition → guidance toast), AI-rec column color-coded by action,
+  per-row one-click action, detail card uses aiRecommendation + action button.
+
 > # 🚀 SPRINT 8 COMPLETE — V1.1.0 (tagged)
 >
 > Built (7/7 prompts, June 7 2026):

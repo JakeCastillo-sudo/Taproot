@@ -21,7 +21,7 @@ import {
 } from 'recharts';
 import {
   analytics, reports, products as productsApi,
-  type MenuItemAnalytics, type MenuQuadrant, type ReportDateParams,
+  type MenuItemInsight, type MenuQuadrant, type ReportDateParams,
 } from '../lib/api';
 import { getLocationId } from '../lib/session';
 import { showToast } from '../components/ui/Toast';
@@ -220,21 +220,58 @@ const QUADRANT_META: Record<MenuQuadrant, { label: string; color: string }> = {
 
 function MenuTab({ params }: { params: ReportDateParams }) {
   const queryClient = useQueryClient();
-  const [selected, setSelected] = useState<MenuItemAnalytics | null>(null);
+  const [selected, setSelected] = useState<MenuItemInsight | null>(null);
   const { data, isLoading } = useQuery({
-    queryKey: ['analytics', 'menu', params],
-    queryFn: () => analytics.menuEngineering(params),
+    queryKey: ['analytics', 'menu-insights', params],
+    queryFn: () => analytics.menuInsights(params),
+    retry: 1,
   });
 
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ['analytics', 'menu-insights'] });
+    void queryClient.invalidateQueries({ queryKey: ['analytics', 'menu'] });
+  };
+
   const archive = useMutation({
-    mutationFn: (productId: string) => productsApi.archive(productId, 'Menu engineering: dog quadrant'),
-    onSuccess: () => {
-      showToast.success('Item archived');
-      void queryClient.invalidateQueries({ queryKey: ['analytics', 'menu'] });
-      setSelected(null);
-    },
+    mutationFn: (productId: string) => productsApi.archive(productId, 'Menu engineering: AI recommendation'),
+    onSuccess: () => { showToast.success('Item archived'); invalidate(); setSelected(null); },
     onError: (e: unknown) => showToast.error(e instanceof Error ? e.message : 'Archive failed'),
   });
+
+  const reprice = useMutation({
+    mutationFn: ({ productId, price }: { productId: string; price: number }) =>
+      productsApi.update(productId, { price }),
+    onSuccess: (_r, v) => { showToast.success(`Price updated to $${(v.price / 100).toFixed(2)}`); invalidate(); setSelected(null); },
+    onError: (e: unknown) => showToast.error(e instanceof Error ? e.message : 'Price update failed'),
+  });
+
+  const runAction = (item: MenuItemInsight) => {
+    switch (item.suggestedAction) {
+      case 'archive':
+        if (window.confirm(`Archive "${item.name}"? It will disappear from the register until restored.`)) {
+          archive.mutate(item.productId);
+        }
+        break;
+      case 'reprice': {
+        const suggested = item.suggestedPrice ?? Math.round(item.avgPrice * 1.1);
+        const input = window.prompt(`New price for ${item.name} (current avg $${(item.avgPrice / 100).toFixed(2)}):`,
+          (suggested / 100).toFixed(2));
+        if (!input) return;
+        const cents = Math.round(parseFloat(input) * 100);
+        if (!isFinite(cents) || cents <= 0) { showToast.error('Enter a valid price'); return; }
+        reprice.mutate({ productId: item.productId, price: cents });
+        break;
+      }
+      case 'promote':
+        showToast.info(`Feature ${item.name} on your menu and register tiles — "featured" flag coming soon.`);
+        break;
+      case 'reposition':
+        showToast.info(`Try moving ${item.name} higher on the menu or bundling it with a star item.`);
+        break;
+      default:
+        break;
+    }
+  };
 
   const items = data?.items ?? [];
   const scatterData = items.map((i) => ({
@@ -248,6 +285,40 @@ function MenuTab({ params }: { params: ReportDateParams }) {
 
   return (
     <div className="space-y-6">
+      {/* AI narrative (S9-03) */}
+      <section className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-dark mb-1.5">
+          <Sparkles size={13} /> AI menu assessment{data?.aiUsed === false ? ' (statistical)' : ''}
+        </p>
+        <p className="text-sm text-gray-700 leading-relaxed">{data?.aiNarrative}</p>
+      </section>
+
+      {/* Quick wins (S9-03) */}
+      {(data?.quickWins?.length ?? 0) > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {(data?.quickWins ?? []).map((w, i) => {
+            // Match the quick win to an item so the button can act on it
+            const target = items.find((it) => w.toLowerCase().includes(it.name.toLowerCase()));
+            return (
+              <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 flex flex-col">
+                <p className="text-sm text-gray-700 leading-snug flex-1">
+                  {['🌟', '💰', '🗑️'][i] ?? '✨'} {w}
+                </p>
+                {target && target.suggestedAction !== 'none' && (
+                  <button onClick={() => runAction(target)}
+                    className="mt-3 self-start px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary-dark">
+                    {target.suggestedAction === 'archive' ? 'Archive'
+                      : target.suggestedAction === 'reprice'
+                        ? (target.suggestedPrice ? `Raise to $${(target.suggestedPrice / 100).toFixed(2)}` : 'Update price')
+                        : target.suggestedAction === 'promote' ? 'Mark as featured' : 'Reposition'}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Scatter */}
       <section className="bg-white rounded-xl border border-gray-100 p-4">
         <div className="flex items-center justify-between mb-1">
@@ -285,7 +356,7 @@ function MenuTab({ params }: { params: ReportDateParams }) {
               {(Object.keys(QUADRANT_META) as MenuQuadrant[]).map((q) => (
                 <Scatter key={q} data={scatterData.filter((i) => i.quadrant === q)}
                   fill={QUADRANT_META[q].color}
-                  onClick={(p: unknown) => setSelected(p as MenuItemAnalytics)} />
+                  onClick={(p: unknown) => setSelected(p as MenuItemInsight)} />
               ))}
             </ScatterChart>
           </ResponsiveContainer>
@@ -303,12 +374,17 @@ function MenuTab({ params }: { params: ReportDateParams }) {
                 {QUADRANT_META[selected.quadrant].label.replace(/s$/, '')}
               </span>
             </p>
-            <p className="text-xs text-gray-600 mt-1">{selected.recommendation}</p>
+            <p className="text-xs text-gray-600 mt-1">{selected.aiRecommendation}</p>
           </div>
-          {selected.quadrant === 'dog' && (
-            <button onClick={() => archive.mutate(selected.productId)} disabled={archive.isPending}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-50">
-              <Archive size={13} /> Archive item
+          {selected.suggestedAction !== 'none' && (
+            <button onClick={() => runAction(selected)} disabled={archive.isPending || reprice.isPending}
+              className={clsx('flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-50 text-white',
+                selected.suggestedAction === 'archive' ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary-dark')}>
+              {selected.suggestedAction === 'archive' && <Archive size={13} />}
+              {selected.suggestedAction === 'archive' ? 'Archive item'
+                : selected.suggestedAction === 'reprice'
+                  ? (selected.suggestedPrice ? `Raise to $${(selected.suggestedPrice / 100).toFixed(2)}` : 'Update price')
+                  : selected.suggestedAction === 'promote' ? 'Feature it' : 'Reposition'}
             </button>
           )}
           <button onClick={() => setSelected(null)} className="text-xs text-gray-400 hover:text-gray-600">Dismiss</button>
@@ -325,7 +401,9 @@ function MenuTab({ params }: { params: ReportDateParams }) {
               <th className="text-right font-medium px-3 py-2">Sold</th>
               <th className="text-right font-medium px-3 py-2">Revenue</th>
               <th className="text-right font-medium px-3 py-2 hidden sm:table-cell">Food cost</th>
-              <th className="text-left font-medium px-4 py-2">Quadrant</th>
+              <th className="text-left font-medium px-3 py-2">Quadrant</th>
+              <th className="text-left font-medium px-3 py-2 hidden lg:table-cell">AI recommendation</th>
+              <th className="text-right font-medium px-4 py-2" />
             </tr>
           </thead>
           <tbody>
@@ -337,11 +415,32 @@ function MenuTab({ params }: { params: ReportDateParams }) {
                 <td className="px-3 py-2.5 text-right tabular-nums">{i.salesCount}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{fmt(i.revenue)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums hidden sm:table-cell">{i.foodCostPct > 0 ? `${i.foodCostPct}%` : '—'}</td>
-                <td className="px-4 py-2.5">
+                <td className="px-3 py-2.5">
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase text-white"
                     style={{ background: QUADRANT_META[i.quadrant].color }}>
                     {QUADRANT_META[i.quadrant].label.replace(/s$/, '')}
                   </span>
+                </td>
+                <td className="px-3 py-2.5 hidden lg:table-cell max-w-[280px]">
+                  <span className={clsx('text-xs leading-snug line-clamp-2',
+                    i.suggestedAction === 'promote' ? 'text-green-700'
+                      : i.suggestedAction === 'reprice' ? 'text-amber-700'
+                      : i.suggestedAction === 'reposition' ? 'text-blue-700'
+                      : i.suggestedAction === 'archive' ? 'text-red-700' : 'text-gray-500')}>
+                    {i.aiRecommendation}
+                  </span>
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  {i.suggestedAction !== 'none' && (
+                    <button onClick={(e) => { e.stopPropagation(); runAction(i); }}
+                      className={clsx('px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap',
+                        i.suggestedAction === 'archive' ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-primary/10 text-primary hover:bg-primary/20')}>
+                      {i.suggestedAction === 'archive' ? 'Archive'
+                        : i.suggestedAction === 'reprice'
+                          ? (i.suggestedPrice ? `→ $${(i.suggestedPrice / 100).toFixed(2)}` : 'Reprice')
+                          : i.suggestedAction === 'promote' ? 'Feature' : 'Reposition'}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

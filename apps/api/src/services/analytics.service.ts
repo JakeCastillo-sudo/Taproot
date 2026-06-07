@@ -13,6 +13,7 @@
  */
 
 import { query } from '../db/client';
+import { askClaudeJSON, aiAvailable, cacheGet, cacheSet } from './ai.service';
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -190,6 +191,136 @@ export async function getMenuEngineeringMatrix(
   }).sort((a, b) => b.revenue - a.revenue);
 
   return { items, averagePopularity: Math.round(averagePopularity), averageMargin: Math.round(averageMargin) };
+}
+
+// ─── AI menu insights (S9-03) ─────────────────────────────────────────────────
+
+export type SuggestedAction = 'promote' | 'reprice' | 'reposition' | 'archive' | 'none';
+
+export interface MenuItemInsight extends MenuItemAnalytics {
+  aiRecommendation: string;
+  suggestedAction: SuggestedAction;
+  suggestedPrice: number | null;   // cents
+  avgPrice: number;                // cents
+}
+
+export interface MenuInsights {
+  items: MenuItemInsight[];
+  aiNarrative: string;
+  topRecommendation: string;
+  quickWins: string[];
+  aiUsed: boolean;
+  generatedAt: string;
+}
+
+const QUADRANT_DEFAULT_ACTION: Record<Quadrant, SuggestedAction> = {
+  star: 'promote', plow_horse: 'reprice', puzzle: 'reposition', dog: 'archive',
+};
+
+interface ClaudeMenuShape {
+  items?: Array<{ productId?: string; recommendation?: string; suggestedAction?: string; suggestedPrice?: number | null }>;
+  narrative?: string;
+  quickWins?: string[];
+}
+
+const ACTIONS: readonly SuggestedAction[] = ['promote', 'reprice', 'reposition', 'archive', 'none'];
+
+export async function getMenuInsights(orgId: string, range: RangeParams): Promise<MenuInsights> {
+  const dayKey = `${range.from.slice(0, 10)}:${range.to.slice(0, 10)}`;
+  const cacheKey = `ai:menu-insights:${orgId}:${range.locationId ?? 'all'}:${dayKey}`;
+  const cached = await cacheGet<MenuInsights>(cacheKey);
+  if (cached) return cached;
+
+  const matrix = await getMenuEngineeringMatrix(orgId, range);
+
+  // Avg sell price per item for reprice suggestions
+  const { rows: priceRows } = await query<{ product_id: string; avg_price: string | number }>(
+    `SELECT li.product_id, AVG(li.unit_price) AS avg_price
+       FROM order_line_items li
+       JOIN orders o ON o.id = li.order_id AND o.status = 'completed'
+      WHERE o.organization_id = $1 AND li.voided_at IS NULL
+        AND o.created_at >= $2::timestamptz AND o.created_at < $3::timestamptz
+        AND ($4::uuid IS NULL OR o.location_id = $4)
+      GROUP BY li.product_id`,
+    [orgId, range.from, range.to, range.locationId ?? null],
+  );
+  const priceById = new Map(priceRows.map((r) => [r.product_id, Math.round(Number(r.avg_price))]));
+
+  // Deterministic baseline
+  const baseItems: MenuItemInsight[] = matrix.items.map((i) => ({
+    ...i,
+    avgPrice: priceById.get(i.productId) ?? 0,
+    aiRecommendation: i.recommendation,
+    suggestedAction: QUADRANT_DEFAULT_ACTION[i.quadrant],
+    suggestedPrice: null,
+  }));
+
+  let aiNarrative = baseItems.length
+    ? `${baseItems.filter((i) => i.quadrant === 'star').length} stars carry the menu; focus on repricing plowhorses and promoting puzzles.`
+    : 'Not enough sales history to analyze the menu yet.';
+  let quickWins: string[] = [];
+  const star = baseItems.find((i) => i.quadrant === 'star');
+  const plow = baseItems.find((i) => i.quadrant === 'plow_horse');
+  const dog = [...baseItems].reverse().find((i) => i.quadrant === 'dog');
+  if (star) quickWins.push(`Feature ${star.name} more prominently — it's your best performer.`);
+  if (plow) quickWins.push(`Nudge ${plow.name}'s price up — it's popular but thin-margin.`);
+  if (dog) quickWins.push(`Archive ${dog.name} (sold ${dog.salesCount} this period).`);
+  let aiUsed = false;
+  let items = baseItems;
+
+  if (aiAvailable() && baseItems.length >= 3) {
+    const top20 = baseItems.slice(0, 20).map((i) => ({
+      productId: i.productId, name: i.name, category: i.category,
+      salesCount: i.salesCount, revenue: i.revenue, avgPriceCents: i.avgPrice,
+      foodCostPct: i.foodCostPct, marginCents: i.margin, quadrant: i.quadrant,
+    }));
+    const ai = await askClaudeJSON<ClaudeMenuShape>(
+      'You are a restaurant menu consultant using the Stars/Plowhorses/Puzzles/Dogs framework. Analyze menu items and return concise, actionable advice. Return ONLY valid JSON.',
+      `Menu items (money in CENTS): ${JSON.stringify(top20)}
+
+Return JSON:
+{
+  "items": [{ "productId": string, "recommendation": "one sentence", "suggestedAction": "promote"|"reprice"|"reposition"|"archive"|"none", "suggestedPrice": number-in-cents-or-null }],
+  "narrative": "2-3 sentence overall menu assessment naming specific items",
+  "quickWins": ["3 specific actions the owner can take today"]
+}
+Rules: suggestedPrice only for reprice actions (a realistic new price in cents); quickWins must reference real item names and numbers.`,
+      2048,
+    );
+
+    if (ai?.items?.length) {
+      const recById = new Map(ai.items
+        .filter((r) => typeof r?.productId === 'string')
+        .map((r) => [r.productId as string, r]));
+      items = baseItems.map((i) => {
+        const r = recById.get(i.productId);
+        if (!r) return i;
+        return {
+          ...i,
+          aiRecommendation: typeof r.recommendation === 'string' && r.recommendation ? r.recommendation : i.aiRecommendation,
+          suggestedAction: ACTIONS.includes(r.suggestedAction as SuggestedAction)
+            ? (r.suggestedAction as SuggestedAction) : i.suggestedAction,
+          suggestedPrice: typeof r.suggestedPrice === 'number' && r.suggestedPrice > 0
+            ? Math.round(r.suggestedPrice) : null,
+        };
+      });
+      if (typeof ai.narrative === 'string' && ai.narrative) aiNarrative = ai.narrative;
+      const wins = (ai.quickWins ?? []).filter((w): w is string => typeof w === 'string').slice(0, 3);
+      if (wins.length) quickWins = wins;
+      aiUsed = true;
+    }
+  }
+
+  const result: MenuInsights = {
+    items,
+    aiNarrative,
+    topRecommendation: quickWins[0] ?? aiNarrative,
+    quickWins,
+    aiUsed,
+    generatedAt: new Date().toISOString(),
+  };
+  await cacheSet(cacheKey, result, 4 * 60 * 60);
+  return result;
 }
 
 // ─── Staff performance ────────────────────────────────────────────────────────

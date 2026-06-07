@@ -1583,7 +1583,28 @@ export interface CustomerInsights {
   topCustomers: Array<{ customerId: string; name: string; visits: number; totalSpent: number; avgTicket: number }>;
 }
 
+export type MenuSuggestedAction = 'promote' | 'reprice' | 'reposition' | 'archive' | 'none';
+
+export interface MenuItemInsight extends MenuItemAnalytics {
+  aiRecommendation: string;
+  suggestedAction: MenuSuggestedAction;
+  suggestedPrice: number | null;  // cents
+  avgPrice: number;               // cents
+}
+
+export interface MenuInsights {
+  items: MenuItemInsight[];
+  aiNarrative: string;
+  topRecommendation: string;
+  quickWins: string[];
+  aiUsed: boolean;
+  generatedAt: string;
+}
+
 export const analytics = {
+  menuInsights: (params: ReportDateParams) =>
+    apiFetch<MenuInsights>(`/analytics/menu-insights?${buildReportQS(params)}`),
+
   cohort: (months = 6, locationId?: string) => {
     const q = new URLSearchParams({ months: String(months) });
     if (locationId) q.set('location_id', locationId);
