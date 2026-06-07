@@ -4,7 +4,7 @@
 > ```bash
 > npx node-pg-migrate up --migrations-dir migrations
 > ```
-> Pending: **017_franchise**, **018_api_keys**, **019_allergens** (Sprint 8 in progress).
+> Pending: **017_franchise**, **018_api_keys**, **019_allergens**, **020_performance_indexes**.
 > All Sprint 8 code degrades gracefully until migrations run (existence guards).
 
 ## ✅ PERFECTION PASS (2026-06-07) — 10-step new-owner flow verified live
@@ -146,6 +146,23 @@ graceful guards, unrelated to the 10-step flow.
 - NOTE: "Add anyway" on items WITH modifier groups proceeds to the ModifierSheet — the kitchen
   note isn't auto-attached on that path (cashier can type it in the sheet's notes); top-of-ticket
   banner deferred in favor of per-item ⚠ sub-lines.
+
+### S8-06 — Performance Optimization ✅ COMPLETE
+- `migrations/020_performance_indexes.js` ⚠️ PENDING: composites on products(org,deleted,archived),
+  orders(org,location,created), order_line_items(product,created), customers(org,deleted,tier),
+  inventory_levels(org,location,product).
+- `lib/cache.ts` (api, new): `getCached(key,ttl,fetchFn)` best-effort read-through +
+  `invalidatePrefix` (SCAN+DEL) + `invalidateOrgCache(orgId,domains)`. Keys `org:{id}:{domain}[:variant]`.
+- Cached 5 min: GET /categories (per org), GET /products (per sorted filter variant),
+  GET /reports/sales (per from/to/loc/granularity/tz).
+- Invalidation: product create/update/delete/archive/restore + category create/update/delete/
+  reorder → products+categories (covers franchise pushes); order completion → reports.
+- Web: queryClient staleTime 2m / gcTime 10m / retry 2; React.lazy + Suspense(PageSkeleton)
+  for Reports/Analytics/DashboardEditor/FloorPlan pages → separate chunks (47/23/12/8 kB).
+- Verified: vite build green w/ 4 lazy chunks; live /products ~0.5s (RTT-bound; Redis cache
+  effective post-deploy). EXPLAIN ANALYZE on Railway = Jake (console-only access); 020 should
+  flip the org-products seq scan to an index scan.
+- NOTE: no product images in the UI yet → loading="lazy" n/a.
 
 > # 🌿 V1.0 COMPLETE — Sprints 1–7 done
 > **49/49 prompts** (S1-01…S7-07) over 7 sprints, tagged **v0.2.0** → **v1.0.0**.
