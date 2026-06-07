@@ -343,7 +343,7 @@ async function buildApp(): Promise<any> {
     // `checks` fields in the response body instead.
     return reply.code(200).send({
       status,
-      version:   process.env.npm_package_version ?? '1.0.0',
+      version:   process.env.npm_package_version ?? '1.1.0',
       timestamp: new Date().toISOString(),
       checks,
       uptime:    Math.floor((Date.now() - START_TIME) / 1_000),
