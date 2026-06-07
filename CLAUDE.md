@@ -7,6 +7,24 @@
 > Pending: **017_franchise**, **018_api_keys**, **019_allergens**, **020_performance_indexes**, **021_time_clock**.
 > All Sprint 8/9 code degrades gracefully until migrations run (existence guards).
 
+> # 🚀 V1.3.0 — LAUNCH READY (Sprint 10 complete, 2026-06-07)
+>
+> Good morning Jake. Sprint 10 is done. Your product is ready to launch. The only thing
+> between you and your first customer is a conversation. Go have it. 🌿
+>
+> **Sprint 10 (Launch Polish) — frontend/docs only, ran alongside Sprint 9 AI with no file
+> collisions:** production landing page (13 sections, $99 GTM, savings calculator, FAQ accordion,
+> demo modal); split-screen login/register (all auth logic preserved); SVG favicon + OG image +
+> SEO/social meta tags; error-page support contact + login analytics; production README +
+> docs/ONBOARDING.md; V1.3 launch kit in docs/LAUNCH.md. **tsc 0 errors both apps; web build green.**
+>
+> **Pending actions for Jake:**
+> 1. Run pending migrations in Railway: `npx node-pg-migrate up --migrations-dir migrations`
+> 2. Set up Plausible Analytics — add site taproot-pos.com (script already in index.html).
+> 3. Record the 60-second demo video (the hero "Watch demo" opens a placeholder modal for now).
+> 4. Review docs/LAUNCH.md → post to Product Hunt + Reddit, send outreach, walk into 3 restaurants.
+> 5. Replace the demo org's placeholder menu prices with real prices when convenient.
+
 > # 🚀 V1.2.0 COMPLETE — AI INTELLIGENCE LAYER (tagged)
 >
 > Built (7/7 prompts, June 7 2026) — every feature useful on day one, honest about confidence

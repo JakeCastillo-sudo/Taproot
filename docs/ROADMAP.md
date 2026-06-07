@@ -231,3 +231,16 @@ Commit, push, done
 8. **Never hardcode values** — tax rate, model name, URLs all belong in config/DB
 9. **The POS is sacred** — payment flow must NEVER crash; add null guards everywhere
 10. **Read CLAUDE.md first** — it is the single source of truth for project state
+
+---
+
+## SPRINT 10 — V1.3.0: Launch Polish & Go-To-Market ✅ COMPLETE
+### 2026-06-07 (ran in parallel with Sprint 9 AI; frontend/docs scope only)
+
+**S10-01** ✅ Production landing page — 13 sections, $99 GTM, savings calculator, FAQ, demo modal
+**S10-02** ✅ Auth pages polish — split-screen login/register (auth logic preserved)
+**S10-03** ✅ PWA — SVG favicon, OG image, SEO/social meta tags (manifest already complete)
+**S10-04** ✅ Observability — error-page support contact + login analytics (ErrorBoundary/PageSkeleton/Plausible/analytics already present)
+**S10-05** ✅ Docs — production README + docs/ONBOARDING.md (DEPLOYMENT/API already present)
+**S10-06** ✅ Launch assets — docs/LAUNCH.md rewritten to $99 V1.3 kit
+**S10-07** ✅ Integration + release — tsc 0 errors both apps, web build green, tagged v1.3.0

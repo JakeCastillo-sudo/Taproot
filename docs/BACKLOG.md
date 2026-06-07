@@ -397,3 +397,12 @@ import price path.
   than executing directly (name→product resolution is ambiguous from free text).
 - Forecast quality note: with sparse history (<7 days) all forecasts are statistical with
   confidence ≤ 0.5 by design ("useful on day one, honest about accuracy").
+
+## Session 2026-06-07 — Sprint 10 (Launch Polish, v1.3.0)
+Ran in parallel with Sprint 9 (AI). Touched only frontend marketing/auth files + docs to avoid
+collisions; staged each commit explicitly (never `git add -A`) so Sprint 9's in-progress work was
+never swept. tsc 0 errors both apps; web build green.
+- Production landing page rewrite (S10-01), split-screen auth (S10-02), PWA favicon/OG/meta (S10-03),
+  error-page support contact + login analytics (S10-04), README + ONBOARDING (S10-05), LAUNCH kit (S10-06).
+- **BUG-IMP-005** (sub-$1 price normalization) remains OPEN — backend file, out of this sprint's scope.
+- No new bugs introduced.
