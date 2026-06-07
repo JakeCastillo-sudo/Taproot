@@ -55,6 +55,23 @@
   → products.update; promote/reposition → guidance toast), AI-rec column color-coded by action,
   per-row one-click action, detail card uses aiRecommendation + action button.
 
+### S9-04 — Daily Intelligence Feed (owner dashboard) ✅ COMPLETE
+- `intelligence.service.getDailyIntelligence` (new): yesterday (revenue + % vs same weekday last
+  week, orders, avg ticket, best/worst item, voids count+$, cash discrepancy from latest closed
+  drawer session — try/catch resilient), today (single-date AI forecast low/high/orders + prep
+  checklist via aiForecast, staffScheduled from schedules table [0 pre-021] vs staffRecommended
+  from staffing plan), alerts (≥3 voids, drawer off, low stock ETAs, understaffed, no-sales,
+  clean-reconcile success), reorderNeeded w/ daysUntilStockout (on-hand ÷ 14d daily usage),
+  ONE AI insight sentence (deterministic trend fallback). Cache `ai:daily-intel:{org}:{loc}:{day}` 1h.
+- `ai.routes.ts`: GET /api/v1/ai/daily-intelligence (AI_COPILOT).
+- Web: `ai.dailyIntelligence` client; `components/ai/IntelligenceFeed.tsx` — greeting, green AI
+  insight card, yesterday cards (↑/↓ vs last week), today outlook (forecast range + staffing ✅),
+  alert cards, prep checklist, reorder ETAs, big "Start taking orders →" button.
+- POSLayout: feed is the LANDING VIEW for owner/manager (canAccessSettings) until dismissed —
+  dismissal sticks per-day per-tab (sessionStorage taproot_feed_dismissed). Cashiers go straight
+  to tiles. Search/table-mode/items view bypass the feed; POS always one tap away.
+- NOTE: 7am email digest cron deferred (spec optional) — endpoint is poll-ready for it.
+
 > # 🚀 SPRINT 8 COMPLETE — V1.1.0 (tagged)
 >
 > Built (7/7 prompts, June 7 2026):

@@ -37,6 +37,7 @@ import { setPosTaxRate } from '../../store/pos.store';
 import { initDisplayBroadcast, openCustomerDisplay } from '../../lib/displayChannel';
 import { canAccessSettings } from '../../lib/session';
 import { allergenConflicts, allergenLabel, buildAllergenNote, ALLERGEN_NOTE_PREFIX } from '../../lib/allergens';
+import { IntelligenceFeed } from '../ai/IntelligenceFeed';
 import { customers as customersApi, timeclock as timeclockApi } from '../../lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '../../lib/queryClient';
@@ -524,6 +525,18 @@ export function POSLayout({ user }: POSLayoutProps) {
   // Mirror cart + payment events to the customer-facing display (S8-02)
   useEffect(() => initDisplayBroadcast(), []);
 
+  // Owner/manager daily intelligence feed as the landing view (S9-04).
+  // Cashiers skip it; dismissal sticks for the rest of the day (per tab).
+  const [showFeed, setShowFeed] = useState(() => {
+    if (!canAccessSettings()) return false;
+    try { return sessionStorage.getItem('taproot_feed_dismissed') !== new Date().toISOString().slice(0, 10); }
+    catch { return true; }
+  });
+  const dismissFeed = useCallback(() => {
+    try { sessionStorage.setItem('taproot_feed_dismissed', new Date().toISOString().slice(0, 10)); } catch { /* ignore */ }
+    setShowFeed(false);
+  }, []);
+
   // ── Data fetching ──────────────────────────────────────────────────────────
 
   const { data: categoriesData, isLoading: loadingCats } = useQuery({
@@ -954,7 +967,10 @@ export function POSLayout({ user }: POSLayoutProps) {
 
         {/* Content area */}
         <div className="flex-1 overflow-y-auto min-h-0">
-          {floorMode === 'table' ? (
+          {showFeed && floorMode === 'grid' && !searchQuery && posViewMode === 'categories' ? (
+            /* ── OWNER DAILY INTELLIGENCE FEED (S9-04) ─────────────────── */
+            <IntelligenceFeed onStartOrders={dismissFeed} />
+          ) : floorMode === 'table' ? (
             <TableView onStartOrder={() => setFloorMode('grid')} />
           ) : posViewMode === 'categories' && !searchQuery ? (
             /* ── CATEGORY TILE VIEW ────────────────────────────────────── */

@@ -8,6 +8,7 @@
 
 import { query } from '../db/client';
 import { askClaudeJSON, askClaudeText, aiAvailable, cacheGet, cacheSet } from './ai.service';
+import { getForecast } from './aiForecast.service';
 
 const DOW_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -399,4 +400,209 @@ export async function getDailyFeed(orgId: string, locationId: string | undefined
   }
 
   return { date: new Date().toISOString().slice(0, 10), yesterday, alerts, briefing, aiUsed };
+}
+
+// ─── S9-04: Daily Intelligence (owner dashboard digest) ───────────────────────
+// Richer than getDailyFeed (S5-05): week-over-week comparison, best/worst item,
+// voids + cash discrepancy, today's forecast + staffing + prep checklist,
+// reorder ETAs, and ONE key AI insight. Cached 1 hour per org/location/day.
+
+export interface DailyIntelligence {
+  date: string;
+  yesterday: {
+    revenue: number;              // cents
+    revenueVsLastWeek: number;    // % change vs same weekday last week
+    orders: number;
+    avgTicket: number;            // cents
+    bestItem: { name: string; count: number } | null;
+    worstItem: { name: string; count: number } | null;
+    voids: { count: number; amount: number };
+    cashDiscrepancy: number;      // cents (0 = reconciled / no session)
+  };
+  today: {
+    forecastRevenueLow: number;
+    forecastRevenueHigh: number;
+    forecastOrders: number;
+    staffScheduled: number;       // from schedules table (0 pre-migration)
+    staffRecommended: number;
+    prepChecklist: string[];
+  };
+  alerts: Array<{ type: 'warning' | 'info' | 'success'; message: string }>;
+  reorderNeeded: Array<{ productName: string; currentStock: number; daysUntilStockout: number }>;
+  aiInsight: string;
+  aiUsed: boolean;
+  generatedAt: string;
+}
+
+export async function getDailyIntelligence(
+  orgId: string,
+  locationId: string | undefined,
+  timezone = 'UTC',
+): Promise<DailyIntelligence> {
+  const today = new Date().toISOString().slice(0, 10);
+  const cacheKey = `ai:daily-intel:${orgId}:${locationId ?? 'all'}:${today}`;
+  const cached = await cacheGet<DailyIntelligence>(cacheKey);
+  if (cached) return cached;
+
+  const params: unknown[] = [orgId, timezone];
+  const lc = locClause(locationId, params);
+  const dayWindow = (offsetDays: number) => `
+    o.created_at >= (date_trunc('day', now() AT TIME ZONE $2) - interval '${offsetDays} days') AT TIME ZONE $2
+    AND o.created_at < (date_trunc('day', now() AT TIME ZONE $2) - interval '${offsetDays - 1} days') AT TIME ZONE $2`;
+
+  // Yesterday + same weekday last week + voids, in one round trip each
+  const [yRows, lwRows, voidRows, itemRows] = await Promise.all([
+    query<{ sales: string; orders: string; avg: string }>(
+      `SELECT COALESCE(SUM(o.total) FILTER (WHERE o.status NOT IN ('voided','parked')),0) AS sales,
+              COUNT(*) FILTER (WHERE o.status NOT IN ('voided','parked')) AS orders,
+              COALESCE(AVG(o.total) FILTER (WHERE o.status NOT IN ('voided','parked')),0) AS avg
+         FROM orders o WHERE o.organization_id = $1 AND ${dayWindow(1)} ${lc}`,
+      params,
+    ),
+    query<{ sales: string }>(
+      `SELECT COALESCE(SUM(o.total) FILTER (WHERE o.status NOT IN ('voided','parked')),0) AS sales
+         FROM orders o WHERE o.organization_id = $1 AND ${dayWindow(8)} ${lc}`,
+      params,
+    ),
+    query<{ count: string; amount: string }>(
+      `SELECT COUNT(*) AS count, COALESCE(SUM(o.total),0) AS amount
+         FROM orders o WHERE o.organization_id = $1 AND o.status = 'voided' AND ${dayWindow(1)} ${lc}`,
+      params,
+    ),
+    query<{ name: string; units: string }>(
+      `SELECT li.name, SUM(li.quantity) AS units
+         FROM order_line_items li
+         JOIN orders o ON o.id = li.order_id AND o.status NOT IN ('voided','parked')
+        WHERE o.organization_id = $1 AND li.voided_at IS NULL AND ${dayWindow(1)} ${lc}
+        GROUP BY li.name ORDER BY units DESC`,
+      params,
+    ),
+  ]);
+
+  const yRevenue = Math.round(Number(yRows.rows[0]?.sales ?? 0));
+  const lwRevenue = Math.round(Number(lwRows.rows[0]?.sales ?? 0));
+  const items = itemRows.rows;
+
+  // Cash discrepancy from yesterday's closed drawer session (resilient pre-015... applied)
+  let cashDiscrepancy = 0;
+  try {
+    const { rows: [d] } = await query<{ discrepancy: string | null }>(
+      `SELECT discrepancy FROM cash_drawer_sessions
+        WHERE organization_id = $1 AND closed_at IS NOT NULL
+          AND closed_at >= now() - interval '1 day'
+        ORDER BY closed_at DESC LIMIT 1`,
+      [orgId],
+    );
+    cashDiscrepancy = Math.round(Number(d?.discrepancy ?? 0));
+  } catch { /* table absent — treat as reconciled */ }
+
+  // Today: forecast + staffing + scheduled staff
+  const [forecast, staffing] = await Promise.all([
+    getForecast(orgId, locationId, today, timezone).catch(() => null),
+    getStaffingPlan(orgId, locationId, timezone).catch(() => null),
+  ]);
+  const todayDowShort = DOW_NAMES[new Date().getDay()];
+  const staffRecommended = staffing?.days.find((d) => d.dow === todayDowShort)?.recommendedStaff ?? 0;
+
+  let staffScheduled = 0;
+  try {
+    const { rows: [s] } = await query<{ n: string }>(
+      `SELECT COUNT(DISTINCT employee_id) AS n FROM schedules
+        WHERE organization_id = $1 AND shift_date = (now() AT TIME ZONE $2)::date`,
+      [orgId, timezone],
+    );
+    staffScheduled = Number(s?.n ?? 0);
+  } catch { /* schedules table pending (021) */ }
+
+  // Reorder ETAs: low stock + days-until-stockout from 14d usage
+  let reorderNeeded: DailyIntelligence['reorderNeeded'] = [];
+  try {
+    const { rows } = await query<{ name: string; on_hand: string; daily_usage: string | null }>(
+      `SELECT p.name, il.quantity_on_hand AS on_hand,
+              (SELECT SUM(li.quantity) / 14.0
+                 FROM order_line_items li
+                 JOIN orders o ON o.id = li.order_id AND o.status NOT IN ('voided','parked')
+                WHERE li.product_id = il.product_id AND li.voided_at IS NULL
+                  AND o.created_at >= now() - interval '14 days') AS daily_usage
+         FROM inventory_levels il
+         JOIN products p ON p.id = il.product_id AND p.deleted_at IS NULL
+        WHERE il.organization_id = $1
+          AND il.reorder_point IS NOT NULL AND il.reorder_point > 0
+          AND il.quantity_on_hand <= il.reorder_point * 1.5
+        ORDER BY il.quantity_on_hand / GREATEST(il.reorder_point, 1) ASC
+        LIMIT 5`,
+      [orgId],
+    );
+    reorderNeeded = rows
+      .map((r) => {
+        const usage = Number(r.daily_usage ?? 0);
+        const onHand = Math.round(Number(r.on_hand));
+        return {
+          productName: r.name,
+          currentStock: onHand,
+          daysUntilStockout: usage > 0 ? Math.max(0, Math.round(onHand / usage)) : 99,
+        };
+      })
+      .filter((r) => r.daysUntilStockout < 99)
+      .sort((a, b) => a.daysUntilStockout - b.daysUntilStockout);
+  } catch { /* non-fatal */ }
+
+  // Alerts
+  const voids = { count: Number(voidRows.rows[0]?.count ?? 0), amount: Math.round(Number(voidRows.rows[0]?.amount ?? 0)) };
+  const alerts: DailyIntelligence['alerts'] = [];
+  if (voids.count >= 3) alerts.push({ type: 'warning', message: `${voids.count} voided orders yesterday ($${(voids.amount / 100).toFixed(0)}) — worth a review.` });
+  if (cashDiscrepancy !== 0) alerts.push({ type: 'warning', message: `Cash drawer was off by $${Math.abs(cashDiscrepancy / 100).toFixed(2)} yesterday.` });
+  else if (yRevenue > 0) alerts.push({ type: 'success', message: 'Cash reconciled cleanly yesterday.' });
+  for (const r of reorderNeeded.slice(0, 2)) {
+    alerts.push({ type: 'warning', message: `${r.productName} is running low — about ${r.daysUntilStockout} day${r.daysUntilStockout === 1 ? '' : 's'} left at current pace.` });
+  }
+  if (staffScheduled > 0 && staffRecommended > 0 && staffScheduled < staffRecommended) {
+    alerts.push({ type: 'info', message: `Only ${staffScheduled} staff scheduled today — forecast suggests ${staffRecommended}.` });
+  }
+  if (yRevenue === 0) alerts.push({ type: 'info', message: 'No recorded sales yesterday.' });
+
+  const revenueVsLastWeek = lwRevenue > 0 ? Math.round(((yRevenue - lwRevenue) / lwRevenue) * 100) : 0;
+
+  const result: DailyIntelligence = {
+    date: today,
+    yesterday: {
+      revenue: yRevenue,
+      revenueVsLastWeek,
+      orders: Number(yRows.rows[0]?.orders ?? 0),
+      avgTicket: Math.round(Number(yRows.rows[0]?.avg ?? 0)),
+      bestItem: items[0] ? { name: items[0].name, count: Math.round(Number(items[0].units)) } : null,
+      worstItem: items.length > 1 ? { name: items[items.length - 1].name, count: Math.round(Number(items[items.length - 1].units)) } : null,
+      voids,
+      cashDiscrepancy,
+    },
+    today: {
+      forecastRevenueLow: forecast?.predictedRevenue.low ?? 0,
+      forecastRevenueHigh: forecast?.predictedRevenue.high ?? 0,
+      forecastOrders: forecast?.predictedOrders ?? 0,
+      staffScheduled,
+      staffRecommended,
+      prepChecklist: forecast?.prepRecommendations ?? [],
+    },
+    alerts,
+    reorderNeeded,
+    aiInsight: '',
+    aiUsed: false,
+    generatedAt: new Date().toISOString(),
+  };
+
+  // One key AI insight
+  result.aiInsight = revenueVsLastWeek !== 0
+    ? `Yesterday ran ${Math.abs(revenueVsLastWeek)}% ${revenueVsLastWeek > 0 ? 'ahead of' : 'behind'} the same day last week — keep an eye on the trend.`
+    : 'Steady as she goes — yesterday matched the same day last week.';
+  if (aiAvailable()) {
+    const ai = await askClaudeText(
+      'You are a restaurant analytics advisor. Given this performance summary, state the SINGLE most important insight the owner should know today. One sentence. Specific and actionable. No preamble.',
+      JSON.stringify({ yesterday: result.yesterday, today: result.today, alerts: result.alerts, reorderNeeded }),
+      150,
+    );
+    if (ai) { result.aiInsight = ai; result.aiUsed = true; }
+  }
+
+  await cacheSet(cacheKey, result, 60 * 60); // 1 hour
+  return result;
 }

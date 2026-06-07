@@ -1857,7 +1857,34 @@ export interface ForecastResult {
   generatedAt: string;
 }
 
+export interface DailyIntelligence {
+  date: string;
+  yesterday: {
+    revenue: number; revenueVsLastWeek: number; orders: number; avgTicket: number;
+    bestItem: { name: string; count: number } | null;
+    worstItem: { name: string; count: number } | null;
+    voids: { count: number; amount: number };
+    cashDiscrepancy: number;
+  };
+  today: {
+    forecastRevenueLow: number; forecastRevenueHigh: number; forecastOrders: number;
+    staffScheduled: number; staffRecommended: number; prepChecklist: string[];
+  };
+  alerts: Array<{ type: 'warning' | 'info' | 'success'; message: string }>;
+  reorderNeeded: Array<{ productName: string; currentStock: number; daysUntilStockout: number }>;
+  aiInsight: string;
+  aiUsed: boolean;
+  generatedAt: string;
+}
+
 export const ai = {
+  dailyIntelligence: (locationId?: string) => {
+    const q = new URLSearchParams();
+    if (locationId) q.set('locationId', locationId);
+    q.set('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+    return apiFetch<DailyIntelligence>(`/ai/daily-intelligence?${q.toString()}`);
+  },
+
   forecast: (date?: string, locationId?: string) => {
     const q = new URLSearchParams();
     if (date) q.set('date', date);

@@ -13,6 +13,7 @@ import { ValidationError } from '../errors';
 import { config } from '../config';
 import { query } from '../db/client';
 import * as AiForecastSvc from '../services/aiForecast.service';
+import { getDailyIntelligence } from '../services/intelligence.service';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
 
@@ -35,6 +36,17 @@ export default async function aiRoutes(fastify: FastifyInstance): Promise<void> 
         q.timezone || 'UTC',
       );
       return reply.send(result);
+    },
+  );
+
+  // ── GET /api/v1/ai/daily-intelligence — owner morning digest (S9-04) ───────
+  fastify.get(
+    '/api/v1/ai/daily-intelligence',
+    { preHandler: requirePermissions(Permission.AI_COPILOT) },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user } = req as AuthedRequest;
+      const q = req.query as Record<string, string>;
+      return reply.send(await getDailyIntelligence(user.orgId, q.locationId || undefined, q.timezone || 'UTC'));
     },
   );
 
