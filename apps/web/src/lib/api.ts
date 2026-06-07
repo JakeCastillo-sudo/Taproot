@@ -1601,9 +1601,45 @@ export interface MenuInsights {
   generatedAt: string;
 }
 
+export interface FoodCostAnalysisRow {
+  productId: string; name: string;
+  salePrice: number; recipeCost: number; hasRecipe: boolean;
+  foodCostPct: number; targetFoodCostPct: number;
+  margin: number; marginPct: number;
+  status: 'healthy' | 'warning' | 'critical';
+  aiSuggestion: string | null;
+}
+
+export interface FoodCostSummary {
+  blendedFoodCostPct: number;
+  targetFoodCostPct: number;
+  variance: number;
+  itemsOverTarget: number;
+  itemsAnalyzed: number;
+  potentialMonthlySavings: number;
+  topOffenders: FoodCostAnalysisRow[];
+  trend: Array<{ day: string; foodCostPct: number }>;
+  aiUsed: boolean;
+  generatedAt: string;
+}
+
 export const analytics = {
   menuInsights: (params: ReportDateParams) =>
     apiFetch<MenuInsights>(`/analytics/menu-insights?${buildReportQS(params)}`),
+
+  foodCost: (locationId?: string) => {
+    const q = new URLSearchParams();
+    if (locationId) q.set('location_id', locationId);
+    const qs = q.toString();
+    return apiFetch<{ items: FoodCostAnalysisRow[] }>(`/analytics/food-cost${qs ? `?${qs}` : ''}`).then((r) => r.items);
+  },
+
+  foodCostSummary: (locationId?: string) => {
+    const q = new URLSearchParams();
+    if (locationId) q.set('location_id', locationId);
+    const qs = q.toString();
+    return apiFetch<FoodCostSummary>(`/analytics/food-cost/summary${qs ? `?${qs}` : ''}`);
+  },
 
   cohort: (months = 6, locationId?: string) => {
     const q = new URLSearchParams({ months: String(months) });

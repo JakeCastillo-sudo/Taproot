@@ -14,6 +14,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { AccessTokenPayload } from '../auth/jwt';
 import { Permission, requirePermissions } from '../auth/permissions';
 import * as AnalyticsSvc from '../services/analytics.service';
+import * as FoodCostSvc from '../services/foodCost.service';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
 
@@ -57,5 +58,19 @@ export default async function analyticsRoutes(fastify: FastifyInstance): Promise
   fastify.get('/api/v1/analytics/customer-insights', guard, async (req: FastifyRequest, reply: FastifyReply) => {
     const { user } = req as AuthedRequest;
     return reply.send(await AnalyticsSvc.getCustomerInsights(user.orgId, parseRange(req.query as Record<string, string>)));
+  });
+
+  // ── S9-05: recipe-based food cost ───────────────────────────────────────────
+
+  fastify.get('/api/v1/analytics/food-cost', guard, async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const q = req.query as Record<string, string>;
+    return reply.send({ items: await FoodCostSvc.analyzeFoodCosts(user.orgId, q.location_id || undefined) });
+  });
+
+  fastify.get('/api/v1/analytics/food-cost/summary', guard, async (req: FastifyRequest, reply: FastifyReply) => {
+    const { user } = req as AuthedRequest;
+    const q = req.query as Record<string, string>;
+    return reply.send(await FoodCostSvc.getFoodCostSummary(user.orgId, q.location_id || undefined));
   });
 }

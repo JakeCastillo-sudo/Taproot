@@ -12,16 +12,16 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, BarChart3, TrendingUp, Users, Clock, UtensilsCrossed,
-  Archive, Mail, Trophy, AlertTriangle, Sparkles,
+  Archive, Mail, Trophy, AlertTriangle, Sparkles, DollarSign, X, Loader2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
-  ScatterChart, Scatter, BarChart, Bar, PieChart, Pie, Cell, ZAxis,
+  ScatterChart, Scatter, BarChart, Bar, PieChart, Pie, Cell, ZAxis, ReferenceLine,
 } from 'recharts';
 import {
   analytics, reports, products as productsApi,
-  type MenuItemInsight, type MenuQuadrant, type ReportDateParams,
+  type MenuItemInsight, type MenuQuadrant, type ReportDateParams, type FoodCostAnalysisRow,
 } from '../lib/api';
 import { getLocationId } from '../lib/session';
 import { showToast } from '../components/ui/Toast';
@@ -29,11 +29,12 @@ import { showToast } from '../components/ui/Toast';
 const fmt = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 const fmtShort = (cents: number) => `$${Math.round(cents / 100).toLocaleString()}`;
 
-type Tab = 'overview' | 'menu' | 'staff' | 'customers' | 'peak';
+type Tab = 'overview' | 'menu' | 'foodcost' | 'staff' | 'customers' | 'peak';
 
 const TABS: Array<{ id: Tab; label: string; icon: React.ReactNode }> = [
   { id: 'overview',  label: 'Overview',         icon: <BarChart3 size={14} /> },
   { id: 'menu',      label: 'Menu Engineering', icon: <UtensilsCrossed size={14} /> },
+  { id: 'foodcost',  label: 'Food Cost',        icon: <DollarSign size={14} /> },
   { id: 'staff',     label: 'Staff',            icon: <Users size={14} /> },
   { id: 'customers', label: 'Customers',        icon: <TrendingUp size={14} /> },
   { id: 'peak',      label: 'Peak Hours',       icon: <Clock size={14} /> },
@@ -90,6 +91,7 @@ export function AnalyticsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           {tab === 'overview'  && <OverviewTab params={params} days={days} />}
           {tab === 'menu'      && <MenuTab params={params} />}
+          {tab === 'foodcost'  && <FoodCostTab />}
           {tab === 'staff'     && <StaffTab params={params} />}
           {tab === 'customers' && <CustomersTab params={params} />}
           {tab === 'peak'      && <PeakHoursTab params={params} />}
@@ -447,6 +449,170 @@ function MenuTab({ params }: { params: ReportDateParams }) {
           </tbody>
         </table>
       </section>
+    </div>
+  );
+}
+
+// ─── Food cost (S9-05) ────────────────────────────────────────────────────────
+
+function FoodCostTab() {
+  const queryClient = useQueryClient();
+  const [fixing, setFixing] = useState<FoodCostAnalysisRow | null>(null);
+
+  const { data: summary, isLoading } = useQuery({
+    queryKey: ['analytics', 'food-cost-summary'],
+    queryFn: () => analytics.foodCostSummary(),
+    retry: 1,
+  });
+  const { data: items } = useQuery({
+    queryKey: ['analytics', 'food-cost'],
+    queryFn: () => analytics.foodCost(),
+    retry: 1,
+  });
+
+  const reprice = useMutation({
+    mutationFn: ({ productId, price }: { productId: string; price: number }) =>
+      productsApi.update(productId, { price }),
+    onSuccess: (_r, v) => {
+      showToast.success(`Price updated to $${(v.price / 100).toFixed(2)}`);
+      void queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      setFixing(null);
+    },
+    onError: (e: unknown) => showToast.error(e instanceof Error ? e.message : 'Update failed'),
+  });
+
+  if (isLoading) return <Skeleton />;
+  if (!summary || summary.itemsAnalyzed === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-100 p-10 text-center">
+        <p className="text-sm text-gray-500 mb-1">No cost data yet</p>
+        <p className="text-xs text-gray-400 max-w-md mx-auto">
+          Add ingredient costs to your products (Settings → Products → Ingredient cost) or build
+          recipes in Inventory → Recipes — food cost analysis appears automatically.
+        </p>
+      </div>
+    );
+  }
+
+  const trendData = summary.trend.map((t) => ({
+    week: new Date(t.day).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+    pct: t.foodCostPct,
+  }));
+
+  return (
+    <div className="space-y-6">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi label={`Blended food cost (target ${summary.targetFoodCostPct}%)`}
+          value={summary.blendedFoodCostPct > 0 ? `${summary.blendedFoodCostPct}%` : '—'} />
+        <Kpi label="Items over target" value={String(summary.itemsOverTarget)} />
+        <Kpi label="Items analyzed" value={String(summary.itemsAnalyzed)} />
+        <Kpi label="Potential savings /mo" value={summary.potentialMonthlySavings > 0 ? fmt(summary.potentialMonthlySavings) : '—'} />
+      </div>
+
+      {/* Trend */}
+      {trendData.length >= 2 && (
+        <section className="bg-white rounded-xl border border-gray-100 p-4">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Food cost % — last 90 days (weekly)</h2>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                <XAxis dataKey="week" tick={{ fontSize: 11 }} stroke="#94A3B8" />
+                <YAxis tick={{ fontSize: 11 }} stroke="#94A3B8" tickFormatter={(v: number) => `${v}%`} domain={[0, 'auto']} />
+                <Tooltip formatter={(v) => [`${v}%`, 'Food cost']} />
+                <ReferenceLine y={summary.targetFoodCostPct} stroke="#1D9E75" strokeDasharray="6 4"
+                  label={{ value: `target ${summary.targetFoodCostPct}%`, fontSize: 10, fill: '#1D9E75', position: 'insideTopRight' }} />
+                <Line type="monotone" dataKey="pct" stroke="#E24B4A" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
+
+      {/* Items table */}
+      <section className="bg-white rounded-lg border border-gray-100 overflow-clip">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 z-10 bg-surface-2 border-b border-gray-100 text-xs text-gray-400">
+            <tr>
+              <th className="text-left font-medium px-4 py-2">Product</th>
+              <th className="text-right font-medium px-3 py-2">Sale price</th>
+              <th className="text-right font-medium px-3 py-2">Plate cost</th>
+              <th className="text-right font-medium px-3 py-2">Food cost %</th>
+              <th className="text-left font-medium px-3 py-2 hidden sm:table-cell">Status</th>
+              <th className="text-right font-medium px-4 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {(items ?? []).map((i) => (
+              <tr key={i.productId} className="border-b border-gray-50 last:border-0">
+                <td className="px-4 py-2.5 font-medium text-gray-800">
+                  {i.name}
+                  {!i.hasRecipe && <span className="ml-1.5 text-[10px] text-gray-300" title="No recipe — using the product's own ingredient cost">no recipe</span>}
+                </td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{fmt(i.salePrice)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{fmt(i.recipeCost)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{i.foodCostPct}%</td>
+                <td className="px-3 py-2.5 hidden sm:table-cell">
+                  <span className={clsx('text-xs font-medium',
+                    i.status === 'healthy' ? 'text-green-600' : i.status === 'warning' ? 'text-amber-600' : 'text-red-600')}>
+                    {i.status === 'healthy' ? '✅ Healthy' : i.status === 'warning' ? '🟠 Warning' : '🔴 Critical'}
+                  </span>
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  {i.status !== 'healthy' && (
+                    <button onClick={() => setFixing(i)}
+                      className="px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[11px] font-semibold hover:bg-primary/20">
+                      Fix →
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {/* Fix modal */}
+      {fixing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setFixing(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">Fix {fixing.name}</h2>
+              <button onClick={() => setFixing(null)} className="p-1.5 rounded-full hover:bg-gray-100"><X size={16} className="text-gray-500" /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-gray-600">
+                <strong>{fixing.name}</strong> runs at <strong>{fixing.foodCostPct}%</strong> food cost
+                vs the {fixing.targetFoodCostPct}% target ({fmt(fixing.recipeCost)} plate cost on a {fmt(fixing.salePrice)} price).
+              </p>
+              {fixing.aiSuggestion && (
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-primary-dark flex items-center gap-1 mb-1"><Sparkles size={11} /> AI suggestion</p>
+                  <p className="text-sm text-gray-700 leading-relaxed">{fixing.aiSuggestion}</p>
+                </div>
+              )}
+              {(() => {
+                const targetPrice = Math.ceil((fixing.recipeCost / (fixing.targetFoodCostPct / 100)) / 25) * 25;
+                return (
+                  <button
+                    onClick={() => reprice.mutate({ productId: fixing.productId, price: targetPrice })}
+                    disabled={reprice.isPending}
+                    className="w-full h-11 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {reprice.isPending && <Loader2 size={14} className="animate-spin" />}
+                    Raise price to ${(targetPrice / 100).toFixed(2)} (hits {fixing.targetFoodCostPct}%)
+                  </button>
+                );
+              })()}
+              <p className="text-[11px] text-gray-400">
+                Prefer a portion or ingredient change? Edit the recipe in Inventory → Recipes — the
+                analysis updates automatically.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

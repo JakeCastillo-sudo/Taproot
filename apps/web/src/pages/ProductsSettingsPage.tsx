@@ -60,12 +60,13 @@ interface EditState {
   dayParts:       DayPart[];
   allergens:      string[];      // FDA Big 9 (S8-05)
   allergenNotes:  string;
+  costInput:      string;        // ingredient/plate cost in dollars as typed (S9-05)
 }
 
 const EMPTY_EDIT: EditState = {
   id: null, name: '', description: '', categoryId: '', priceInput: '',
   sku: '', barcode: '', trackInventory: true, isActive: true, dayParts: [],
-  allergens: [], allergenNotes: '',
+  allergens: [], allergenNotes: '', costInput: '',
 };
 
 function ProductModal({
@@ -95,6 +96,7 @@ function ProductModal({
         ? { allergens: form.allergens.length ? form.allergens : null,
             allergenNotes: form.allergenNotes.trim() || null }
         : {};
+      const costPrice = dollarsToCents(form.costInput);
       if (form.id) {
         await productsApi.update(form.id, {
           name:           form.name.trim(),
@@ -106,6 +108,7 @@ function ProductModal({
           isActive:       form.isActive,
           dayParts,
           ...(price > 0 ? { price } : {}),
+          ...(form.costInput.trim() !== '' ? { costPrice } : {}),
           ...allergenFields,
         });
       } else {
@@ -121,9 +124,12 @@ function ProductModal({
           dayParts,
           locationId,
         });
-        // Allergens are applied via update (create path doesn't accept them)
-        if (allergensTouched && created?.id) {
-          await productsApi.update(created.id, allergenFields);
+        // Allergens + cost are applied via update (create path doesn't accept them)
+        if ((allergensTouched || form.costInput.trim() !== '') && created?.id) {
+          await productsApi.update(created.id, {
+            ...allergenFields,
+            ...(form.costInput.trim() !== '' ? { costPrice } : {}),
+          });
         }
       }
     },
@@ -215,6 +221,22 @@ function ProductModal({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Ingredient cost (S9-05 food cost analysis) */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Ingredient cost</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <input
+                value={form.costInput}
+                onChange={(e) => setForm((f) => ({ ...f, costInput: e.target.value }))}
+                inputMode="decimal"
+                className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                placeholder="4.20"
+              />
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">What it costs you to make — powers food-cost analysis. A recipe (Inventory → Recipes) overrides this.</p>
           </div>
 
           {/* SKU */}
@@ -450,6 +472,7 @@ export function ProductsSettingsPage() {
     dayParts:       (p.day_parts ?? []).filter((d): d is DayPart => (DAY_PARTS as readonly string[]).includes(d)),
     allergens:      p.allergens ?? [],
     allergenNotes:  p.allergen_notes ?? '',
+    costInput:      p.cost_price ? (Number(p.cost_price) / 100).toFixed(2) : '',
   });
 
   const products = productData?.products ?? [];

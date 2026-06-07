@@ -72,6 +72,22 @@
   to tiles. Search/table-mode/items view bypass the feed; POS always one tap away.
 - NOTE: 7am email digest cron deferred (spec optional) — endpoint is poll-ready for it.
 
+### S9-05 — Recipe-Based Food Cost Intelligence ✅ COMPLETE
+- `foodCost.service.ts` (new — distinct from S5-04's line-item COGS view): theoretical PLATE
+  COST per product from active recipes (Σ qty × (1+waste_factor) × ingredient cost_price ÷
+  yield_factor); products without recipes fall back to their own cost_price (flagged "no recipe").
+  Status by org target (organizations.settings.foodCostTargetPct, default 30): healthy ≤ target,
+  warning ≤ +8, critical above. ONE batched Claude call writes fix suggestions for flagged items
+  (price/portion/substitution w/ numbers) + deterministic price-for-target fallback. 4h cache.
+- `getFoodCostSummary`: blended actual food cost (30d sales mix), variance vs target, items over,
+  potential monthly savings (flagged items' 30d revenue × pct gap), top offenders, 90d weekly trend.
+- Routes: GET /api/v1/analytics/food-cost (+/summary) — REPORTS_VIEW.
+- Web: analytics.foodCost/foodCostSummary clients; Analytics "Food Cost" tab — summary KPIs,
+  90d trend line w/ dashed target ReferenceLine, items table (sale/plate/% /status), "Fix →"
+  modal (AI suggestion + one-click raise-price-to-target via products.update, recipe-edit hint).
+- ProductsSettingsPage: "Ingredient cost" $ field (→ products.cost_price cents; recipe overrides);
+  sent only when non-empty; create path applies via follow-up update.
+
 > # 🚀 SPRINT 8 COMPLETE — V1.1.0 (tagged)
 >
 > Built (7/7 prompts, June 7 2026):
