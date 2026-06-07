@@ -7,6 +7,22 @@
 > Pending: **017_franchise**, **018_api_keys**, **019_allergens**, **020_performance_indexes**.
 > All Sprint 8 code degrades gracefully until migrations run (existence guards).
 
+## 🏗️ SPRINT 9 — AI Intelligence Layer (IN PROGRESS, target v1.2.0)
+
+### S9-01 — AI Demand Forecasting ✅ COMPLETE
+- `aiForecast.service.ts` (new — services/forecast.service.ts is the Prompt-04 INVENTORY
+  forecaster, hence the name): `getForecast(orgId, loc, date, tz)` — 90d history grouped by
+  DOW (avg revenue/orders, top-10 items per DOW, last7-vs-last30 trend) → Claude JSON
+  (predictedRevenue low/mid/high CENTS, predictedOrders, predictedTopItems, 3-5 prep recs,
+  confidence) with full shape validation; statistical fallback (±20% band, confidence ≤0.5,
+  note "Statistical estimate") when no key / <7 days history / bad AI output. Redis cache
+  `ai:forecast:{org}:{loc}:{date}` 4h.
+- `ai.routes.ts`: GET `/api/v1/ai/forecast?date&locationId&timezone` (AI_COPILOT).
+- Web: `ai.forecast()` client + `components/ai/ForecastWidget.tsx` — date selector
+  (tomorrow +2), confidence line, revenue range + likely bar, ~orders, top-seller prep
+  quantities, prep checklist card; loading skeleton + "AI insights temporarily unavailable"
+  error state. Mounted at top of /reports above NLQueryBar.
+
 > # 🚀 SPRINT 8 COMPLETE — V1.1.0 (tagged)
 >
 > Built (7/7 prompts, June 7 2026):

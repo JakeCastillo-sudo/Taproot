@@ -1751,7 +1751,29 @@ export interface NLQueryResponse {
   suggestedQuestions?: string[];
 }
 
+export interface ForecastResult {
+  date: string;
+  dayOfWeek: string;
+  predictedRevenue: { low: number; mid: number; high: number };  // cents
+  predictedOrders: number;
+  predictedTopItems: Array<{ name: string; predictedQuantity: number }>;
+  prepRecommendations: string[];
+  confidence: number;
+  basedOnDays: number;
+  aiUsed: boolean;
+  note: string | null;
+  generatedAt: string;
+}
+
 export const ai = {
+  forecast: (date?: string, locationId?: string) => {
+    const q = new URLSearchParams();
+    if (date) q.set('date', date);
+    if (locationId) q.set('locationId', locationId);
+    q.set('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+    return apiFetch<ForecastResult>(`/ai/forecast?${q.toString()}`);
+  },
+
   nlQuery: (
     query: string,
     locationId?: string,

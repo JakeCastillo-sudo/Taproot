@@ -1,7 +1,8 @@
 /**
- * AI Routes — Natural Language Query endpoint.
+ * AI Routes — copilot + AI intelligence endpoints.
  *
- * POST /api/v1/ai/nl-query
+ * POST /api/v1/ai/nl-query   Natural-language query (chart/table aware)
+ * GET  /api/v1/ai/forecast   Single-date demand forecast (S9-01)
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -11,12 +12,31 @@ import { requirePermissions, Permission } from '../auth/permissions';
 import { ValidationError } from '../errors';
 import { config } from '../config';
 import { query } from '../db/client';
+import * as AiForecastSvc from '../services/aiForecast.service';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
 
 const MODEL = config.CLAUDE_MODEL;
 
 export default async function aiRoutes(fastify: FastifyInstance): Promise<void> {
+
+  // ── GET /api/v1/ai/forecast — single-date demand forecast (S9-01) ──────────
+  fastify.get(
+    '/api/v1/ai/forecast',
+    { preHandler: requirePermissions(Permission.AI_COPILOT) },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { user } = req as AuthedRequest;
+      const q = req.query as Record<string, string>;
+      const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const result = await AiForecastSvc.getForecast(
+        user.orgId,
+        q.locationId || undefined,
+        q.date || tomorrow,
+        q.timezone || 'UTC',
+      );
+      return reply.send(result);
+    },
+  );
 
   // ── POST /api/v1/ai/nl-query ────────────────────────────────────────────────
 

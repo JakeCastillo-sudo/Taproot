@@ -29,6 +29,7 @@ import { TipsTab }        from '../components/reports/TipsTab';
 import { HeatmapTab }     from '../components/reports/HeatmapTab';
 import { ToastContainer } from '../components/ui/Toast';
 import { ScrollablePage } from '../components/layout/ScrollablePage';
+import { ForecastWidget } from '../components/ai/ForecastWidget';
 import { useQuery }       from '@tanstack/react-query';
 import { locations as locationsApi } from '../lib/api';
 
@@ -223,6 +224,9 @@ export function ReportsPage() {
       >
         {/* ── Content ── */}
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+        {/* AI demand forecast — featured widget (S9-01) */}
+        <ForecastWidget />
+
         {/* NL Query bar — always visible */}
         <NLQueryBar />
 
