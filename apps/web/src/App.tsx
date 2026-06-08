@@ -16,6 +16,7 @@ import { UpgradePage } from './pages/UpgradePage';
 import { LandingPage } from './pages/LandingPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
+import { HardwarePage } from './pages/HardwarePage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { ReceiptPage } from './pages/ReceiptPage';
 import { SettingsLayout } from './components/layout/SettingsLayout';
@@ -233,6 +234,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/privacy"  element={<PrivacyPage />} />
           <Route path="/terms"    element={<TermsPage />} />
+          <Route path="/hardware" element={<HardwarePage />} />
 
           {/* ── Public QR storefront (no auth) ────────────────────────────── */}
           <Route path="/order/:orgSlug" element={<PublicMenuPage />} />

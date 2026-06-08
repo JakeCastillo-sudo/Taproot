@@ -49,6 +49,7 @@ function Nav() {
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-6">
           <a href="#pricing" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Pricing</a>
+          <Link to="/hardware" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Hardware</Link>
           <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Sign in</Link>
           <Link to="/register" className="text-sm font-semibold text-white bg-primary hover:bg-primary-dark px-4 py-2 rounded-lg transition-colors">
             Start free trial
@@ -64,6 +65,7 @@ function Nav() {
       {open && (
         <div className="md:hidden border-t border-gray-100 bg-white px-4 py-3 space-y-1">
           <a href="#pricing" onClick={() => setOpen(false)} className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Pricing</a>
+          <Link to="/hardware" className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Hardware</Link>
           <Link to="/login" className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Sign in</Link>
           <Link to="/register" className="block px-2 py-2 text-sm font-semibold text-white bg-primary rounded-md text-center">Start free trial</Link>
         </div>
