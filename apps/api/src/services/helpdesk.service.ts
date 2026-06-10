@@ -11,6 +11,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { config } from '../config';
 import { query } from '../db/client';
+import { BUNDLED_TECH_SPEC } from '../lib/techSpec';
 
 // Lazy Anthropic singleton — instantiated on first use so dotenv has loaded
 // (see BUG-001: module-level instantiation can pre-empt env loading).
@@ -20,15 +21,38 @@ function client(): Anthropic {
   return _client;
 }
 
-// Load the tech spec once at startup. cwd is the repo root under the Railway
-// start command (`node apps/api/dist/index.js`), so this path resolves.
-let TECH_SPEC: string;
-try {
-  TECH_SPEC = readFileSync(join(process.cwd(), 'docs/TECH_SPEC.md'), 'utf-8');
-} catch {
-  TECH_SPEC = 'Technical specification not found.';
-  console.warn('[Helpdesk] docs/TECH_SPEC.md not found');
+/**
+ * Load the tech spec once at startup — the helpdesk's entire knowledge base.
+ *
+ * IMPORTANT: docs/ is excluded from the Railway runtime image (.dockerignore
+ * ignores `docs`), so reading docs/TECH_SPEC.md FAILS in production. We therefore
+ * prefer the on-disk file when present (local dev, or if docs/ is ever un-ignored)
+ * and otherwise fall back to BUNDLED_TECH_SPEC, which ships through tsc. The
+ * "not found" sentinel is only ever used if BOTH are somehow empty.
+ */
+function loadTechSpec(): string {
+  const candidates = [
+    join(process.cwd(), 'docs/TECH_SPEC.md'),
+    // dist/services -> repo root is four levels up (apps/api/dist/services).
+    join(__dirname, '../../../../docs/TECH_SPEC.md'),
+    join(__dirname, '../../../docs/TECH_SPEC.md'),
+  ];
+  for (const p of candidates) {
+    try {
+      const content = readFileSync(p, 'utf-8');
+      if (content.trim()) return content;
+    } catch {
+      // try next candidate
+    }
+  }
+  if (BUNDLED_TECH_SPEC.trim()) {
+    return BUNDLED_TECH_SPEC;
+  }
+  console.warn('[Helpdesk] TECH_SPEC unavailable from disk and bundle');
+  return 'Technical specification not found.';
 }
+
+const TECH_SPEC: string = loadTechSpec();
 
 const HELPDESK_SYSTEM_PROMPT = `
 You are the Taproot POS AI support assistant. You help restaurant owners and
