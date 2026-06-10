@@ -11,6 +11,7 @@ import rateLimit from '@fastify/rate-limit';
 import { validateConfig, config } from './config';
 import { logger } from './lib/logger';
 import { pool } from './db/client';
+import bcrypt from 'bcrypt';
 import { getPublisher } from './db/redis';
 import { registerValidationHooks } from './middleware/validation';
 import { registerErrorHandler } from './middleware/errorHandler';
@@ -412,6 +413,10 @@ async function buildApp(): Promise<any> {
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const routeKey = `${request.method} ${request.routeOptions.url}`;
     if (PUBLIC_ROUTES.has(routeKey)) return;
+    // Admin / executive-portal routes use a SEPARATE admin JWT (middleware/adminAuth)
+    // and must NOT pass through the org-auth + subscription guard. Each admin route
+    // enforces its own auth via authenticateAdmin; POST /admin/auth/login is public.
+    if (request.routeOptions.url?.startsWith('/api/v1/admin/')) return;
     await fastify.authenticate(request, reply);
     // Check subscription access after authentication
     await checkSubscription(request, reply);
@@ -432,8 +437,41 @@ process.on('uncaughtException', (err) => {
   logger.error('Uncaught exception', { error: err.stack ?? err.message });
 });
 
+/**
+ * Seed the first admin/executive-portal user on startup (idempotent).
+ * Resilient: if migration 022 (admin_users) hasn't run yet, it logs and skips
+ * rather than crashing boot. Creates admin@taproot-pos.com / TaprootAdmin2026!
+ * (super_admin) only when no admin users exist. bcrypt cost 12 matches adminLogin.
+ */
+async function seedFirstAdminUser(): Promise<void> {
+  try {
+    const { rows: [t] } = await pool.query<{ exists: boolean }>(
+      `SELECT to_regclass('public.admin_users') IS NOT NULL AS exists`,
+    );
+    if (!t?.exists) {
+      logger.warn('[admin seed] admin_users table not found — run migration 022 then restart to seed the admin user');
+      return;
+    }
+    const { rows: [{ count }] } = await pool.query<{ count: string }>(`SELECT COUNT(*)::int AS count FROM admin_users`);
+    if (Number(count) > 0) return;
+    const hash = await bcrypt.hash('TaprootAdmin2026!', 12);
+    await pool.query(
+      `INSERT INTO admin_users (email, password_hash, first_name, last_name, role)
+       VALUES ($1, $2, 'Taproot', 'Admin', 'super_admin')
+       ON CONFLICT (email) DO NOTHING`,
+      ['admin@taproot-pos.com', hash],
+    );
+    logger.warn('[admin seed] created admin@taproot-pos.com (super_admin) — change this password');
+  } catch (err) {
+    logger.error('[admin seed] failed (non-fatal)', { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
 buildApp()
-  .then((app) => app.listen({ port: config.PORT, host: '0.0.0.0' }))
+  .then(async (app) => {
+    await app.listen({ port: config.PORT, host: '0.0.0.0' });
+    await seedFirstAdminUser();
+  })
   .catch((err) => {
     logger.error('Server failed to start', { error: err instanceof Error ? err.stack : String(err) });
     process.exit(1);
