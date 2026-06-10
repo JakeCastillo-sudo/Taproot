@@ -6,7 +6,7 @@
  * tickets on the left, an AI chat thread on the right. Selecting an org passes
  * its id to the query so the AI answers with that customer in mind.
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -340,8 +340,8 @@ function ChatBubble({
   return (
     <div className="flex justify-start">
       <div className="max-w-[85%] space-y-2">
-        <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-gray-800 whitespace-pre-wrap shadow-sm">
-          {turn.content}
+        <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-gray-800 shadow-sm">
+          <MarkdownText content={turn.content} />
         </div>
 
         {turn.escalationTier && (
@@ -384,4 +384,109 @@ function ChatBubble({
       </div>
     </div>
   );
+}
+
+// ── Lightweight, dependency-free, XSS-safe markdown renderer ────────────────
+// The helpdesk AI emits prose with **bold**, `code`, and bullet/numbered steps.
+// We parse into React elements (NO dangerouslySetInnerHTML) so untrusted model
+// output can never inject HTML. Supports: bold, inline code, #-headings, and
+// unordered/ordered lists; everything else renders as paragraphs with breaks.
+
+function renderInline(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const re = /(\*\*([^*]+)\*\*|`([^`]+)`)/g;
+  let last = 0;
+  let key = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    if (m[2] !== undefined) {
+      nodes.push(<strong key={key++} className="font-semibold">{m[2]}</strong>);
+    } else if (m[3] !== undefined) {
+      nodes.push(
+        <code key={key++} className="px-1 py-0.5 rounded bg-gray-100 text-[12px] font-mono text-gray-800">
+          {m[3]}
+        </code>,
+      );
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
+function MarkdownText({ content }: { content: string }): ReactNode {
+  const lines = content.split('\n');
+  const blocks: ReactNode[] = [];
+  let i = 0;
+  let key = 0;
+  const isBullet = (s: string) => /^\s*[-*]\s+/.test(s);
+  const isNumbered = (s: string) => /^\s*\d+\.\s+/.test(s);
+  const isHeading = (s: string) => /^#{1,6}\s+/.test(s);
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (isBullet(line)) {
+      const items: string[] = [];
+      while (i < lines.length && isBullet(lines[i])) {
+        items.push(lines[i].replace(/^\s*[-*]\s+/, ''));
+        i++;
+      }
+      blocks.push(
+        <ul key={key++} className="list-disc pl-5 space-y-0.5">
+          {items.map((it, j) => <li key={j}>{renderInline(it)}</li>)}
+        </ul>,
+      );
+      continue;
+    }
+    if (isNumbered(line)) {
+      const items: string[] = [];
+      while (i < lines.length && isNumbered(lines[i])) {
+        items.push(lines[i].replace(/^\s*\d+\.\s+/, ''));
+        i++;
+      }
+      blocks.push(
+        <ol key={key++} className="list-decimal pl-5 space-y-0.5">
+          {items.map((it, j) => <li key={j}>{renderInline(it)}</li>)}
+        </ol>,
+      );
+      continue;
+    }
+    if (isHeading(line)) {
+      blocks.push(
+        <div key={key++} className="font-semibold text-gray-900">
+          {renderInline(line.replace(/^#{1,6}\s+/, ''))}
+        </div>,
+      );
+      i++;
+      continue;
+    }
+    if (line.trim() === '') {
+      i++;
+      continue;
+    }
+    const para: string[] = [];
+    while (
+      i < lines.length &&
+      lines[i].trim() !== '' &&
+      !isBullet(lines[i]) &&
+      !isNumbered(lines[i]) &&
+      !isHeading(lines[i])
+    ) {
+      para.push(lines[i]);
+      i++;
+    }
+    blocks.push(
+      <p key={key++}>
+        {para.map((p, j) => (
+          <span key={j}>
+            {renderInline(p)}
+            {j < para.length - 1 ? <br /> : null}
+          </span>
+        ))}
+      </p>,
+    );
+  }
+
+  return <div className="space-y-2">{blocks}</div>;
 }
