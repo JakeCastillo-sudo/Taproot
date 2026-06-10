@@ -78,6 +78,49 @@ export async function registerAdminRoutes(fastify: FastifyInstance): Promise<voi
     },
   );
 
+  fastify.post(
+    '/api/v1/admin/auth/change-password',
+    { preHandler: [authenticateAdmin] },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const schema = z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(10, 'New password must be at least 10 characters'),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          code: 'VALIDATION_ERROR',
+          message: parsed.error.issues[0]?.message ?? 'currentPassword and newPassword are required',
+        });
+      }
+
+      const admin = (req as AdminRequest).admin;
+      try {
+        await AdminSvc.changeAdminPassword(
+          admin.sub,
+          parsed.data.currentPassword,
+          parsed.data.newPassword,
+        );
+        return reply.send({ success: true, message: 'Password changed. Please sign in again.' });
+      } catch (err) {
+        const m = err instanceof Error ? err.message : '';
+        if (m === 'INVALID_CURRENT_PASSWORD') {
+          return reply.code(401).send({ code: 'INVALID_CURRENT_PASSWORD', message: 'Current password is incorrect' });
+        }
+        if (m === 'WEAK_PASSWORD') {
+          return reply.code(400).send({ code: 'WEAK_PASSWORD', message: 'New password must be at least 10 characters' });
+        }
+        if (m === 'SAME_PASSWORD') {
+          return reply.code(400).send({ code: 'SAME_PASSWORD', message: 'New password must be different from your current one' });
+        }
+        if (m === 'NOT_FOUND') {
+          return reply.code(404).send({ code: 'NOT_FOUND', message: 'Admin user not found' });
+        }
+        throw err;
+      }
+    },
+  );
+
   // ── Organizations ─────────────────────────────────────────────────────────
 
   fastify.get(

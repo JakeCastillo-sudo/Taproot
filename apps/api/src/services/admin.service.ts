@@ -106,6 +106,46 @@ export async function adminLogin(
   };
 }
 
+/**
+ * Change an admin user's own password. Verifies the current password, enforces a
+ * minimum length, rejects no-op changes, re-hashes at bcrypt cost 12 (matches
+ * adminLogin), and revokes ALL of that admin's sessions so the change forces a
+ * fresh sign-in everywhere. Throws: INVALID_CURRENT_PASSWORD | WEAK_PASSWORD |
+ * SAME_PASSWORD | NOT_FOUND.
+ */
+export async function changeAdminPassword(
+  adminId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  if (newPassword.length < 10) throw new Error('WEAK_PASSWORD');
+
+  const { rows: [admin] } = await query(
+    `SELECT id, password_hash FROM admin_users WHERE id = $1 AND is_active = true`,
+    [adminId],
+  );
+  if (!admin) throw new Error('NOT_FOUND');
+
+  const valid = await bcrypt.compare(currentPassword, admin.password_hash);
+  if (!valid) throw new Error('INVALID_CURRENT_PASSWORD');
+  if (await bcrypt.compare(newPassword, admin.password_hash)) throw new Error('SAME_PASSWORD');
+
+  const hash = await bcrypt.hash(newPassword, 12);
+  await query(
+    `UPDATE admin_users
+        SET password_hash = $1, failed_login_attempts = 0, locked_until = NULL, updated_at = NOW()
+      WHERE id = $2`,
+    [hash, adminId],
+  );
+
+  // Force re-login everywhere after a password change.
+  await query(
+    `UPDATE admin_sessions SET revoked_at = NOW()
+      WHERE admin_user_id = $1 AND revoked_at IS NULL`,
+    [adminId],
+  );
+}
+
 // ── Organization Management ───────────────────────────────────────────────────
 
 export interface ListOrganizationsParams {
