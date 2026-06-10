@@ -55,6 +55,15 @@ const DashboardEditorPage = lazy(() => import('./pages/DashboardEditorPage').the
 const FloorPlanEditorPage = lazy(() => import('./pages/FloorPlanEditorPage').then((m) => ({ default: m.FloorPlanEditorPage })));
 import { FranchiseSettingsPage } from './pages/FranchiseSettingsPage';
 import { ApiSettingsPage } from './pages/ApiSettingsPage';
+
+// ── Admin / Executive portal (internal only — separate auth) ──────────────────
+import { AdminLoginPage } from './pages/admin/AdminLoginPage';
+import { AdminLayout } from './pages/admin/AdminLayout';
+import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
+import { AdminOrganizationsPage } from './pages/admin/AdminOrganizationsPage';
+import { AdminOrgDetailPage } from './pages/admin/AdminOrgDetailPage';
+import { AdminHelpdeskPage } from './pages/admin/AdminHelpdeskPage';
+import { AdminMetricsPage } from './pages/admin/AdminMetricsPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -447,6 +456,17 @@ export default function App() {
               </RequireAuth>
             }
           />
+
+          {/* ── Admin Portal — Internal Use Only (separate admin auth) ─────── */}
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboardPage />} />
+            <Route path="organizations" element={<AdminOrganizationsPage />} />
+            <Route path="organizations/:id" element={<AdminOrgDetailPage />} />
+            <Route path="helpdesk" element={<AdminHelpdeskPage />} />
+            <Route path="metrics" element={<AdminMetricsPage />} />
+          </Route>
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

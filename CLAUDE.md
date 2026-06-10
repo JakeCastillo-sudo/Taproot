@@ -24,6 +24,35 @@
 > password: 'TaprootAdmin2026!' }` — **CHANGE PASSWORD IMMEDIATELY** after first login.
 > tsc: 0 errors both apps. Next: Session 3 builds the admin portal UI.
 
+> # ✅ Session 3 Complete (2026-06-09) — Executive Admin Portal + Helpdesk UI
+> Frontend-only scope (all new files under `apps/web/src/pages/admin/*` + `lib/adminApi.ts`
+> + `store/adminAuth.store.ts`; `App.tsx` append-only admin routes). No backend touched.
+> - **Admin login** at `/admin/login` — separate auth (`taproot_admin_token`/`taproot_admin_user`,
+>   persist key `taproot-admin-auth`), no shared state with org auth.
+> - **Dashboard** `/admin/dashboard` — 4 KPI cards, recent orgs, live service-health panel.
+> - **Organizations** `/admin/organizations` — searchable/filterable/paginated table.
+> - **Org detail** `/admin/organizations/:id` — Overview / Employees / Orders / Audit Log /
+>   Settings tabs; edit modal (super_admin + support); impersonation modal (super_admin only,
+>   reason required → applies 1h org token to localStorage + opens POS in a new tab).
+> - **Helpdesk** `/admin/helpdesk` — two-column AI chat (org context + open tickets + spec-grounded
+>   answers with escalation tiers, suggested-action chips, related docs).
+> - **Metrics** `/admin/metrics` — Revenue / Growth / Usage / Health sections.
+>
+> ⚠️ **adminApi.ts NORMALIZES the backend payloads**: the admin endpoints return raw snake_case
+>   Postgres rows with numeric aggregates as strings; the client maps snake_case→camelCase and
+>   coerces numbers. Money stays in CENTS (format with `fmtCurrency`). The prompt's literal
+>   camelCase response types did NOT match the backend — normalization layer bridges them.
+> ⚠️ Employee reset/deactivate + a dedicated orders endpoint are NOT in the admin API yet; those
+>   UI areas show available data + a note instead of calling nonexistent endpoints.
+>
+> Admin credentials (after migration 022 runs on Railway):
+> URL: taproot-pos.com/admin/login · Email: admin@taproot-pos.com · Password: TaprootAdmin2026!
+> ⚠️ **TODO — change admin password immediately** (Railway console):
+> `UPDATE admin_users SET password_hash = <new bcrypt cost-12 hash> WHERE email = 'admin@taproot-pos.com';`
+> ⚠️ Live admin login stays 401 until **migration 022** is applied on Railway
+>   (`npx node-pg-migrate up --migrations-dir migrations`) and `ADMIN_JWT_SECRET` is set.
+> tsc: 0 errors both apps; `vite build` clean.
+
 > ## 🛡️ SECURITY HARDENING COMPLETE (2026-06-07) — financial grade
 > Verified + extended the Prompt-13 baseline to PCI DSS 4.0 / OWASP Top 10 posture.
 > ALREADY IN PLACE (verified): Helmet CSP/HSTS/frameguard, restrictive CORS, global +
