@@ -96,6 +96,16 @@
 > - **STILL NEEDS A REAL-DEVICE QA PASS** before claiming "perfect": Audits 1,3,4,5,6,7,8,10,12
 >   (visual/interaction) + Lighthouse. Recommended on an iPad + phone before first customer.
 
+> # ✅ Session 2 (2026-06-09) — account workflow test + backlog clearance
+> - **New-account workflow: 8/8 PASS** (live) — register → login → empty products → create product
+>   → correct price → order → cash payment → receipt. See docs/ACCOUNT_WORKFLOW_TEST.md. No app bugs;
+>   the only initial failures were test-payload omissions (register needs businessName/businessType;
+>   POST /products needs locationId in body — both correct app behavior).
+> - **Bugs:** no P0/P1 OPEN. Reconciled stale BUG-IMP-005 → RESOLVED. Remaining are P3/low/enh:
+>   QA-011 (MFA UI — feature, no MFA accounts), QA-014 (top-customers — demo seed data, report code
+>   correct), SEC-ORG-001 (low, 3/~11 done), ENH-WH-001 (enhancement). tsc 0 both apps.
+> - Respected parallel-session no-touch list (admin/helpdesk/022/TECH_SPEC).
+
 > # 🚀 V1.2.0 COMPLETE — AI INTELLIGENCE LAYER (tagged)
 >
 > Built (7/7 prompts, June 7 2026) — every feature useful on day one, honest about confidence

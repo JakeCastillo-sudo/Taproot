@@ -349,13 +349,14 @@ import price path.
 - NOTE: placeholder prices are estimates (e.g. Avocado Toast $13, Ahi Tuna Niçoise $18,
   smoothies $8.99) — replace with real menu prices when known. Data-only change; no repo code.
 
-### BUG-IMP-005: normalizeMenuPrice corrupts sub-$1 prices — OPEN (minor)
-- Symptom: `documentParser.normalizeMenuPrice` treats any value `<100` as dollars and ×100,
-  so a genuine sub-$1 cents price (e.g. `99` = $0.99) becomes $99.00.
-- Impact: low — sub-$1 menu items are rare. The heuristic exists to catch Claude returning
-  dollars instead of cents; fixing it cleanly needs disambiguation of the model's output, so
-  deferred to avoid regressing the common (correct) path.
-- Status: OPEN (documented, not launch-blocking).
+### BUG-IMP-005: normalizeMenuPrice corrupts sub-$1 prices ✅ RESOLVED (2026-06-07 pt4)
+- Symptom: `documentParser.normalizeMenuPrice` treated any value `<100` as dollars and ×100,
+  so a genuine sub-$1 cents price (`99` = $0.99) became $99.00 — worst for modifier deltas
+  (+$0.75 = 75 → $75.00).
+- Fix: trust integers as cents (the prompt commands integer cents); ×100 only for non-integers
+  and `$`/decimal strings; preserve negative deltas; 0/null → review sentinel. Parser prompt
+  strengthened with explicit cents examples. tsc 0 both apps; web build green.
+- Status: RESOLVED.
 
 ## Session 2026-06-07 — Sprint 8 build (v1.1.0)
 
@@ -512,3 +513,27 @@ audits below WERE done.
 - Feature audit (from pt3): 15/15 API endpoints working.
 - NOT verified (need a browser/device): Audits 1,3,4,5,6,7,8,10,12 visual/interaction checks and
   Audit 11 Lighthouse. These require manual QA on a real device — recommended before launch.
+
+## Session 2026-06-09 — account workflow test + backlog clearance
+Lookback green (health ok, tsc 0 both). Respected the parallel-session no-touch list
+(admin/helpdesk/022 migration/TECH_SPEC).
+
+### Account creation workflow — 8/8 PASS (see docs/ACCOUNT_WORKFLOW_TEST.md)
+register → login → empty products → create product (w/ locationId) → correct price → order →
+cash payment → receipt, all green on live prod. The only initial failures were test-payload
+omissions (registration needs businessName/businessType not organizationName; POST /products needs
+locationId in body) — app behavior is correct, not bugs.
+
+### Backlog status after this pass
+- **No P0 or P1 bugs OPEN.** All P0/P1 (BUG-ORD-001, BUG-PAY-001, BUG-IMP-001/002/003/004/005,
+  BUG-UX-001/002, BUG-NAV-001, BUG-AUTH-001/002, BUG-SCHED-001) are RESOLVED and verified.
+- **BUG-IMP-005** reconciled → RESOLVED (was a stale OPEN inline entry; fixed pt4).
+- Remaining OPEN are P3 / low / enhancement, intentionally deferred:
+  - **BUG-QA-011** (MFA login UI) — P3; a new feature, and no account currently has MFA enabled,
+    so it blocks no one. Building the /login/mfa flow is out of a bug-fix pass's scope.
+  - **BUG-QA-014** (top-customers report empty) — P3; the report CODE is correct, demo seed orders
+    just have customer_id=NULL. Demo-data backfill, not a code bug; the live report works for orgs
+    whose orders have customers (verified via the workflow account).
+  - **SEC-ORG-001** — low/defense-in-depth; 3 highest-traffic by-UUID lookups org-scoped (pt3),
+    remaining low-risk lookups deferred to a deliberate sweep.
+  - **ENH-WH-001** — enhancement (inventory.low_stock webhook not emitted), not a bug.
