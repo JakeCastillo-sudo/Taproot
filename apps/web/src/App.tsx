@@ -64,6 +64,7 @@ import { AdminOrganizationsPage } from './pages/admin/AdminOrganizationsPage';
 import { AdminOrgDetailPage } from './pages/admin/AdminOrgDetailPage';
 import { AdminHelpdeskPage } from './pages/admin/AdminHelpdeskPage';
 import { AdminMetricsPage } from './pages/admin/AdminMetricsPage';
+import { AdminAccountPage } from './pages/admin/AdminAccountPage';
 import { ToastContainer } from './components/ui/Toast';
 import { TrialBanner } from './components/ui/TrialBanner';
 import { HelpButton } from './components/ui/HelpButton';
@@ -466,6 +467,7 @@ export default function App() {
             <Route path="organizations/:id" element={<AdminOrgDetailPage />} />
             <Route path="helpdesk" element={<AdminHelpdeskPage />} />
             <Route path="metrics" element={<AdminMetricsPage />} />
+            <Route path="account" element={<AdminAccountPage />} />
           </Route>
 
           {/* Fallback */}

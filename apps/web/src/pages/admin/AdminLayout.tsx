@@ -10,6 +10,7 @@ import {
   Building2,
   LifeBuoy,
   TrendingUp,
+  KeyRound,
   LogOut,
 } from 'lucide-react';
 import { adminApi } from '../../lib/adminApi';
@@ -20,6 +21,7 @@ const NAV = [
   { to: '/admin/organizations', label: 'Organizations', icon: Building2 },
   { to: '/admin/helpdesk', label: 'Helpdesk', icon: LifeBuoy },
   { to: '/admin/metrics', label: 'Metrics', icon: TrendingUp },
+  { to: '/admin/account', label: 'Account', icon: KeyRound },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
