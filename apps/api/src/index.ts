@@ -45,6 +45,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import apiKeysRoutes from './routes/apiKeys.routes';
 import webhooksRoutes from './routes/webhooks.routes';
 import schedulingRoutes from './routes/scheduling.routes';
+import { registerAdminRoutes } from './routes/admin.routes';
 import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
 import { checkSubscription } from './middleware/subscription';
@@ -294,6 +295,9 @@ async function buildApp(): Promise<any> {
   await fastify.register(webhooksRoutes);
   await fastify.register(schedulingRoutes);
   await fastify.register(smsRoutes);
+
+  // ─── Admin / Executive portal (separate admin JWT — see middleware/adminAuth) ──
+  await registerAdminRoutes(fastify);
 
   // ─── Dev-only utilities (never registered in production) ──────────────────────
   //

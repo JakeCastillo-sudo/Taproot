@@ -1,5 +1,29 @@
 # Taproot POS — Claude Project State
 
+> # ✅ Session 1 Complete (2026-06-09) — Executive/Helpdesk Portal backend
+> Parallel-session scope (only owned files + append-only to index.ts/config.ts):
+> - **docs/TECH_SPEC.md** — full product spec (v1.5.0), the helpdesk AI's knowledge base.
+> - **migrations/022_admin_users.js** — admin_users, admin_sessions, admin_impersonation_log,
+>   helpdesk_tickets, helpdesk_messages (+ seeded super admin with a REAL bcrypt-12 hash).
+> - **apps/api/src/middleware/adminAuth.ts** — admin JWT auth (separate ADMIN_JWT_SECRET +
+>   issuer/audience) with server-side admin_sessions revocation; `requireAdminRole`.
+> - **apps/api/src/services/admin.service.ts** — admin login (lockout), org list/detail/update
+>   (admin actions audit-logged as actor_type 'system' — the audit CHECK forbids 'admin'),
+>   impersonation (1h org token + impersonation log), platform metrics.
+> - **apps/api/src/services/helpdesk.service.ts** — Claude support assistant grounded ONLY in
+>   TECH_SPEC.md (loaded once at startup), JSON answer + escalation tier; org-context fetch.
+> - **apps/api/src/routes/admin.routes.ts** — all /api/v1/admin/* routes; registered in index.ts.
+> - Adapted the spec's `db.query`/`import { db }` to the real `query` from `db/client`.
+>
+> ⚠️ **MIGRATION NEEDED** (Railway console): `npx node-pg-migrate up --migrations-dir migrations`
+>   → applies **022_admin_users**.
+> ⚠️ **ENV VAR NEEDED** (Railway): `ADMIN_JWT_SECRET=$(openssl rand -base64 32)` (falls back to
+>   `${JWT_SECRET}_admin` if unset, but set it explicitly in prod).
+>
+> Admin login: `POST /api/v1/admin/auth/login` `{ email: 'admin@taproot-pos.com',
+> password: 'TaprootAdmin2026!' }` — **CHANGE PASSWORD IMMEDIATELY** after first login.
+> tsc: 0 errors both apps. Next: Session 3 builds the admin portal UI.
+
 > ## 🛡️ SECURITY HARDENING COMPLETE (2026-06-07) — financial grade
 > Verified + extended the Prompt-13 baseline to PCI DSS 4.0 / OWASP Top 10 posture.
 > ALREADY IN PLACE (verified): Helmet CSP/HSTS/frameguard, restrictive CORS, global +

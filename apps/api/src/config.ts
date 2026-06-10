@@ -37,6 +37,14 @@ export const config = {
   JWT_SECRET: process.env.JWT_SECRET ?? '',
 
   /**
+   * HMAC secret for the Admin / Executive portal JWT (HS256).
+   * SEPARATE from JWT_SECRET so admin tokens and org tokens cannot be cross-used.
+   * Falls back to `${JWT_SECRET}_admin` if unset — set explicitly in production:
+   * `openssl rand -base64 32`. Consumed by middleware/adminAuth + services/admin.
+   */
+  ADMIN_JWT_SECRET: process.env.ADMIN_JWT_SECRET ?? `${process.env.JWT_SECRET ?? ''}_admin`,
+
+  /**
    * RSA private key for RS256 JWT signing (optional — overrides HS256 when set).
    * Format: PEM-encoded RSA private key.
    * Both RSA keys must be set together or not at all.
