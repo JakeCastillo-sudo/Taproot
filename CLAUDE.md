@@ -1,5 +1,15 @@
 # Taproot POS — Claude Project State
 
+> ## 🔍 Hour 1 Infra/Security Verification (2026-06-10) — see docs/HOUR1_REPORT.md
+> No code changed. Live verification: API health ok (db/redis/stripe ok), both apps tsc 0,
+> admin portal login/metrics/helpdesk all working, demo data clean (50 products page 1, 0 at
+> $0; 16 categories). **Redis: ok** — `/api/health` timed ~2.5s cold≈warm because it's an
+> uncached liveness probe pinging 3 services per call (not a cache benchmark).
+> Env source-of-truth: `docs/ENV_CHECKLIST.md` (corrects the old template: JWT_REFRESH_SECRET
+> doesn't exist; MFA_TOKEN_SECRET + MFA_ENCRYPTION_KEY are required; ADMIN_JWT_SECRET has a
+> fallback). Jake TODOs: run docs/MIGRATIONS_CHECK.sql + docs/ADMIN_USER_CHECK.sql; rotate
+> ADMIN_JWT_SECRET + Postgres password; confirm STRIPE key is sk_live_ before real payments.
+
 > # ✅ Session 1 Complete (2026-06-09) — Executive/Helpdesk Portal backend
 > Parallel-session scope (only owned files + append-only to index.ts/config.ts):
 > - **docs/TECH_SPEC.md** — full product spec (v1.5.0), the helpdesk AI's knowledge base.
