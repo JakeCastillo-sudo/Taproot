@@ -149,6 +149,21 @@
 > - **STILL NEEDS A REAL-DEVICE QA PASS** before claiming "perfect": Audits 1,3,4,5,6,7,8,10,12
 >   (visual/interaction) + Lighthouse. Recommended on an iPad + phone before first customer.
 
+> # ✅ ADMIN BACKEND COMPLETE & LIVE (2026-06-09)
+> The executive-portal backend (built+committed in c1cbc77: admin.routes / admin.service /
+> helpdesk.service / adminAuth middleware / migration 022) was present but BLOCKED by two
+> integration gaps, both fixed in `7656e29` (index.ts only):
+> 1. The global org-auth preHandler caught every `/api/v1/admin/*` route (login → 401). Admin
+>    routes use a SEPARATE admin JWT and self-authenticate via `authenticateAdmin`; they're now
+>    exempted from the org-auth + subscription guard.
+> 2. `seedFirstAdminUser` was never wired — added an idempotent startup seed (resilient if
+>    migration 022 isn't applied).
+> - **Verified LIVE:** `POST /api/v1/admin/auth/login` (admin@taproot-pos.com / TaprootAdmin2026!)
+>   → 200 + accessToken (role super_admin). `/admin/metrics`, `/admin/organizations`,
+>   `/admin/helpdesk/tickets` → 200 with token; → 401 without. Migration 022 was already applied
+>   on Railway, so the startup seed created the admin user automatically.
+> - ⚠️ CHANGE THE DEFAULT ADMIN PASSWORD. Session 3 (admin UI) can proceed.
+
 > # ✅ Session 2 (2026-06-09) — account workflow test + backlog clearance
 > - **New-account workflow: 8/8 PASS** (live) — register → login → empty products → create product
 >   → correct price → order → cash payment → receipt. See docs/ACCOUNT_WORKFLOW_TEST.md. No app bugs;
