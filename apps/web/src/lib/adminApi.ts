@@ -37,7 +37,11 @@ async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T
     },
   });
 
-  if (response.status === 401) {
+  // A 401 from the login endpoint means "wrong credentials", NOT "session
+  // expired" — let it fall through so the real server message surfaces on the
+  // login form. Only treat 401s on AUTHENTICATED routes as an expired session.
+  const isLoginCall = path.includes('/admin/auth/login');
+  if (response.status === 401 && !isLoginCall) {
     localStorage.removeItem(ADMIN_TOKEN_KEY);
     localStorage.removeItem(ADMIN_USER_KEY);
     // Hard redirect to the SEPARATE admin login — never the org /login.
