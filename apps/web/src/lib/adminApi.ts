@@ -21,6 +21,8 @@ const ADMIN_API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 export const ADMIN_TOKEN_KEY = 'taproot_admin_token';
 export const ADMIN_USER_KEY = 'taproot_admin_user';
+/** zustand persist key for the admin auth store (see store/adminAuth.store.ts). */
+export const ADMIN_PERSIST_KEY = 'taproot-admin-auth';
 
 function getAdminToken(): string | null {
   return localStorage.getItem(ADMIN_TOKEN_KEY);
@@ -44,6 +46,10 @@ async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T
   if (response.status === 401 && !isLoginCall) {
     localStorage.removeItem(ADMIN_TOKEN_KEY);
     localStorage.removeItem(ADMIN_USER_KEY);
+    // Also clear the zustand-persisted blob so a full reload rehydrates to a
+    // logged-out state — otherwise the store keeps `isAdminAuthenticated: true`
+    // with a dead token and bounces through "session expired" on every visit.
+    localStorage.removeItem(ADMIN_PERSIST_KEY);
     // Hard redirect to the SEPARATE admin login — never the org /login.
     if (!window.location.pathname.startsWith('/admin/login')) {
       window.location.href = '/admin/login';

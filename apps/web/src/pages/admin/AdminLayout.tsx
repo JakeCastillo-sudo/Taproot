@@ -4,6 +4,7 @@
  * Guard: if not admin-authenticated → redirect to /admin/login. Renders a dark
  * sidebar (nav + identity + sign out) and an <Outlet/> for the active page.
  */
+import { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -36,11 +37,40 @@ const ROLE_COLOR: Record<string, string> = {
   read_only: 'bg-gray-500/20 text-gray-300',
 };
 
+/**
+ * Decode a JWT's `exp` (seconds) without verifying — used ONLY to detect a
+ * locally-expired admin token so the guard redirects to the login FORM cleanly,
+ * instead of letting the dashboard render, fetch with a dead token, and bounce
+ * with "Admin session expired". (Admin tokens live 8h; a returning admin past
+ * that window previously hit the session-expired path on every visit.)
+ */
+function isAdminTokenExpired(token: string | null): boolean {
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(
+      atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
+    ) as { exp?: number };
+    return typeof payload.exp === 'number' ? payload.exp * 1000 <= Date.now() : false;
+  } catch {
+    return true;
+  }
+}
+
 export function AdminLayout() {
   const navigate = useNavigate();
-  const { isAdminAuthenticated, adminUser, clearAdminAuth } = useAdminAuthStore();
+  const { isAdminAuthenticated, adminUser, adminToken, clearAdminAuth } = useAdminAuthStore();
 
-  if (!isAdminAuthenticated) {
+  const sessionInvalid = !isAdminAuthenticated || isAdminTokenExpired(adminToken);
+
+  // Clear a stale/expired persisted session so the store flag and the token
+  // agree (and the next visit lands on a clean login, not a "session expired").
+  useEffect(() => {
+    if (isAdminAuthenticated && isAdminTokenExpired(adminToken)) {
+      clearAdminAuth();
+    }
+  }, [isAdminAuthenticated, adminToken, clearAdminAuth]);
+
+  if (sessionInvalid) {
     return <Navigate to="/admin/login" replace />;
   }
 

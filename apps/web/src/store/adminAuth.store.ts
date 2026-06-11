@@ -10,7 +10,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { AdminUser } from '../lib/adminApi';
-import { ADMIN_TOKEN_KEY, ADMIN_USER_KEY } from '../lib/adminApi';
+import { ADMIN_TOKEN_KEY, ADMIN_USER_KEY, ADMIN_PERSIST_KEY } from '../lib/adminApi';
 
 interface AdminAuthStore {
   adminUser: AdminUser | null;
@@ -48,7 +48,7 @@ export const useAdminAuthStore = create<AdminAuthStore>()(
       },
     }),
     {
-      name: 'taproot-admin-auth',
+      name: ADMIN_PERSIST_KEY,
       partialize: (state) => ({
         adminUser: state.adminUser,
         adminToken: state.adminToken,
