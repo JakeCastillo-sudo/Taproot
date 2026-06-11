@@ -1,5 +1,11 @@
 # Taproot POS — Claude Project State
 
+> # 🌿 PRODUCTION CERTIFIED — 2026-06-10
+> All 6 critical paths pass (CP1 signup, CP2 import, CP3 sale+receipt, CP4 settings,
+> CP5 admin portal, CP6 reports) — live, no P0/P1 failures. First customer: ready.
+> See `docs/PRODUCTION_CERTIFICATION.md`. Pre-flight before real money: confirm Stripe
+> `sk_live_`, set/rotate `ADMIN_JWT_SECRET`, rotate Postgres password, run `docs/HOUR5_CLEANUP.sql`.
+
 > ## 🔍 Hour 1 Infra/Security Verification (2026-06-10) — see docs/HOUR1_REPORT.md
 > No code changed. Live verification: API health ok (db/redis/stripe ok), both apps tsc 0,
 > admin portal login/metrics/helpdesk all working, demo data clean (50 products page 1, 0 at
