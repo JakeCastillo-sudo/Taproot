@@ -6,6 +6,38 @@
 > See `docs/PRODUCTION_CERTIFICATION.md`. Pre-flight before real money: confirm Stripe
 > `sk_live_`, set/rotate `ADMIN_JWT_SECRET`, rotate Postgres password, run `docs/HOUR5_CLEANUP.sql`.
 
+---
+
+## Session Guidelines
+
+- Read CLAUDE.md + BACKLOG.md before every session
+- Health check before writing any code
+- TypeScript must be 0 errors before any commit
+- Never commit on a broken API
+- Admin password: never hardcode in prompts
+- Order routes: always location-scoped
+- Test data: always clean up after testing
+- Parallel sessions: document file ownership to avoid conflicts
+
+---
+
+## Next Actions
+
+The product is production certified.
+The next action is not a build prompt.
+
+1. Run pending operational items above (Stripe live key, ADMIN_JWT_SECRET,
+   Postgres password rotation, `docs/HOUR5_CLEANUP.sql`)
+2. Record 60-second demo video (Loom)
+3. Walk into first restaurant with phone demo
+4. Post to r/restaurantowners
+5. Send first cold outreach email
+
+The code is done.
+Go get your first customer. 🌿
+
+---
+
 > ## 🔍 Hour 1 Infra/Security Verification (2026-06-10) — see docs/HOUR1_REPORT.md
 > No code changed. Live verification: API health ok (db/redis/stripe ok), both apps tsc 0,
 > admin portal login/metrics/helpdesk all working, demo data clean (50 products page 1, 0 at
