@@ -1,5 +1,19 @@
 # Taproot POS — Bug Backlog
 
+> ## Hour 4 re-verification (2026-06-10) — BUG-IMP-001/002/003 confirmed already fixed
+> A scheduled "fix import bugs" pass re-verified these against the live code + a real
+> end-to-end CSV import. **All three were already RESOLVED** (see entries below) and the
+> code was NOT changed — only `docs/TECH_SPEC.md` got the Hour-3 order-route correction.
+> - **Live E2E:** uploaded a 3-row CSV → `mapping_config.parsed.records` populated (BUG-IMP-001
+>   fixed) → confirm → status `completed` → all 3 products in `GET /products` with correct
+>   prices ($12.99→1299, $5.99→599, $4.50→450 cents — BUG-IMP-002 price path correct).
+> - `createProduct` creates products + product_variants + product_prices (BUG-IMP-004 pt2 chain).
+> - ⚠️ **Regression traps avoided:** the task script's suggested fixes were wrong for the current
+>   code — (a) its `normalizeMenuPrice` (`<100 → ×100`) would **re-break BUG-IMP-005** (sub-$1
+>   corruption); (b) storing CSV in `.items` would break CSV review, which correctly uses
+>   `.records`. The shipped code already handles both correctly; do not "fix" them.
+> - ⚠️ Test data created on demo-restaurant: products `Import Test Burger/Fries/Shake`.
+
 ## P0 — Critical (blocks production)
 
 ### BUG-ORD-001: Order creation 500s from the POS — frontend/backend contract mismatch ✅ RESOLVED

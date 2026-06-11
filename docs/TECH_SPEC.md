@@ -574,14 +574,26 @@ GET    /api/v1/products/archived
 
 ### Orders API
 ```
-GET    /api/v1/orders              ?locationId&status&employeeId&from&to&search&page
-POST   /api/v1/orders              { locationId, orderType, tableId?, lineItems[], notes? }
-GET    /api/v1/orders/:id
-POST   /api/v1/orders/:id/payment  { paymentMethod, amount, tipAmount }
-POST   /api/v1/orders/:id/void     { reason }
-POST   /api/v1/orders/:id/refund   { type, amount?, lineItemIds?, reason }
-GET    /api/v1/orders/:id/receipt
+GET    /api/v1/orders                                          ?locationId&status&employeeId&from&to&search&page
+                                                               (org-wide history — read only)
+POST   /api/v1/locations/:locationId/orders                    { orderType, tableId?, lineItems[], notes? }
+                                                               (locationId is in the PATH, not the body)
+GET    /api/v1/locations/:locationId/orders/:orderId
+PATCH  /api/v1/locations/:locationId/orders/:orderId           { lineItemsToAdd?, lineItemsToVoid?, ... }
+POST   /api/v1/locations/:locationId/orders/:orderId/payments  { paymentMethod, amount, tipAmount }
+POST   /api/v1/orders/:id/void                                 { reason }
+POST   /api/v1/orders/:id/refund                               { type, amount?, lineItemIds?, reason }
+GET    /api/v1/locations/:locationId/orders/:orderId/receipt
 ```
+`lineItems` entries: `{ productId, variantId?, quantity, unitPriceOverride?, notes?, modifiers? }`
+— the field is **`lineItems`** (not `items`); unit price is resolved server-side from the
+product unless `unitPriceOverride` is supplied. `orders.source` has a CHECK constraint
+(use the default; arbitrary values are rejected).
+
+> **Common issue — `POST /api/v1/orders` returns 404.** There is no org-level create-order
+> route; `/api/v1/orders` is GET-only (history). Create orders at the location-scoped path
+> `POST /api/v1/locations/:locationId/orders`, and record payments at
+> `POST /api/v1/locations/:locationId/orders/:orderId/payments`.
 
 ### Settings API
 ```
