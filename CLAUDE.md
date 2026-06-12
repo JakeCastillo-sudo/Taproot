@@ -1,5 +1,13 @@
 # Taproot POS — Claude Project State
 
+> # 🛡️ PSR CERTIFIED SECURE — 2026-06-12 (tag psr-2026-06-12)
+> Production Security Review (OWASP Top 10 + PCI DSS 4.0 + Toast/Square parity).
+> Result: **0 CRITICAL, 0 FAIL**, 38 PASS, 2 known/accepted WARN. No code changes needed.
+> Verified live: JWT alg=none/expired/wrong-secret all rejected; tenant isolation (JWT orgId,
+> not header); SQLi/XSS/object-injection sanitized; refund capped at charged amount; all
+> security headers + CORS; rate limiting (login 429@4, general 429); no secret/card-data leaks;
+> perf <250ms all endpoints. See docs/PSR_REPORT.md. Cleanup: docs/PSR_CLEANUP.sql.
+
 > # 🌿 PRODUCTION CERTIFIED — 2026-06-10
 > All 6 critical paths pass (CP1 signup, CP2 import, CP3 sale+receipt, CP4 settings,
 > CP5 admin portal, CP6 reports) — live, no P0/P1 failures. First customer: ready.
