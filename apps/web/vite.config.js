@@ -18,9 +18,26 @@ export default defineConfig(({ mode }) => ({
         // Offline-first strategy
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
 
-        // Cache API GET calls (products, categories) for offline browsing
+        // Purge precaches from older deploys so an old app shell can't linger.
+        cleanupOutdatedCaches: true,
+
         runtimeCaching: [
           {
+            // App shell / navigations: NetworkFirst so a new deploy's index.html
+            // (and the hashed JS it references) is fetched fresh on every load,
+            // falling back to the cached shell only when offline. This prevents the
+            // "stuck on an old bundle after deploy" class of bugs — hashed JS assets
+            // can never be stale, only the index.html that points at them.
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'taproot-app-shell',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 10 },
+            },
+          },
+          {
+            // Cache API GET calls (products, categories) for offline browsing
             urlPattern: /^\/api\/v1\/(products|categories)/,
             handler: 'NetworkFirst',
             options: {
