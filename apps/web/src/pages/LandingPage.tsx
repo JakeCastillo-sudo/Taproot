@@ -16,8 +16,10 @@ import {
   Leaf, Menu, X, Upload, Tag, Monitor, XCircle, Headphones,
   LineChart, TrendingUp, DollarSign, Lock, Package, Shield,
   Check, ChevronDown, ArrowRight, Play, Twitter, Linkedin, Instagram,
+  Smartphone, Tablet, Globe,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { PlatformDetect } from '../components/PlatformDetect';
 
 const SYSTEM_FONT =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
@@ -50,6 +52,7 @@ function Nav() {
         <div className="hidden md:flex items-center gap-6">
           <a href="#pricing" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Pricing</a>
           <Link to="/hardware" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Hardware</Link>
+          <Link to="/download" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Download</Link>
           <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Sign in</Link>
           <Link to="/register" className="text-sm font-semibold text-white bg-primary hover:bg-primary-dark px-4 py-2 rounded-lg transition-colors">
             Start free trial
@@ -66,6 +69,7 @@ function Nav() {
         <div className="md:hidden border-t border-gray-100 bg-white px-4 py-3 space-y-1">
           <a href="#pricing" onClick={() => setOpen(false)} className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Pricing</a>
           <Link to="/hardware" className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Hardware</Link>
+          <Link to="/download" className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Download</Link>
           <Link to="/login" className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Sign in</Link>
           <Link to="/register" className="block px-2 py-2 text-sm font-semibold text-white bg-primary rounded-md text-center">Start free trial</Link>
         </div>
@@ -610,12 +614,53 @@ function DemoModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ─── Platforms (Section 11.5) ──────────────────────────────────────────────────
+
+const PLATFORM_BADGES = [
+  { icon: Smartphone, label: 'iOS & iPad' },
+  { icon: Tablet, label: 'Android' },
+  { icon: Monitor, label: 'Mac & Windows' },
+  { icon: Globe, label: 'Web Browser' },
+];
+
+function Platforms() {
+  return (
+    <section className="bg-[#F9FAFB] py-20 sm:py-24">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+        <Eyebrow>Works everywhere</Eyebrow>
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900">Available on every device</h2>
+        <p className="text-gray-500 mt-3">iOS · Android · Mac · Windows · Browser</p>
+
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
+          {PLATFORM_BADGES.map((b) => {
+            const Icon = b.icon;
+            return (
+              <div key={b.label} className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+                <Icon size={20} className="text-primary" />
+                <span className="text-sm font-semibold text-gray-700">{b.label}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        <Link
+          to="/download"
+          className="inline-flex items-center justify-center gap-2 mt-10 bg-primary hover:bg-primary-dark text-white font-semibold rounded-lg px-6 py-3.5 text-base transition-colors active:scale-[0.99]"
+        >
+          Download Taproot <ArrowRight size={18} />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export function LandingPage() {
   const [demo, setDemo] = useState(false);
   return (
     <div className="h-screen overflow-y-auto bg-white" style={{ fontFamily: SYSTEM_FONT }}>
+      <PlatformDetect variant="banner" />
       <Nav />
       <Hero onDemo={() => setDemo(true)} />
       <Origin />
@@ -627,6 +672,7 @@ export function LandingPage() {
       <PricePromise />
       <SavingsCalculator />
       <FAQ />
+      <Platforms />
       <Closing />
       <Footer />
       {demo && <DemoModal onClose={() => setDemo(false)} />}

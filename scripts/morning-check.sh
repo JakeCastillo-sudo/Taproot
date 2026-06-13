@@ -9,13 +9,9 @@ echo "Health check:"
 curl -s "$API/api/health" | python3 -c "import sys,json; d=json.load(sys.stdin); print('HEALTH', d.get('status','?'), 'v'+str(d.get('version','?')), d.get('checks',{}))" 2>/dev/null \
   || echo "HEALTH FAILED (no/invalid response)"
 
-echo "Auth check:"
-curl -s -X POST "$API/api/v1/auth/login" \
-  -H "Content-Type: application/json" \
-  -H "X-Organization-Slug: demo-restaurant" \
-  -d '{"email":"demo@taproot.pos","password":"TaprootDemo2026!"}' \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); print('AUTH OK' if 'accessToken' in d else 'AUTH FAILED: ' + str(d))" 2>/dev/null \
-  || echo "AUTH FAILED (no/invalid response)"
+# Demo credentials removed from health check
+# Use API health endpoint for uptime monitoring:
+# curl $BASE/api/health
 
 echo "Live frontend bundle → backend host:"
 ASSET=$(curl -s https://taproot-pos.com/ | grep -oE '/assets/[^"]+\.js' | head -1)

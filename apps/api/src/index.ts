@@ -384,10 +384,32 @@ async function buildApp(): Promise<any> {
     });
   });
 
+  // ─── Desktop app download redirects ───────────────────────────────────────────
+  //
+  // /download/mac and /download/win 302-redirect to the latest GitHub release
+  // assets. These 404 at the target until the desktop app is built and a release
+  // exists — that is acceptable; the redirect infrastructure is ready now so the
+  // download page (taproot-pos.com/download) can link to stable URLs.
+
+  fastify.get('/download/mac', async (_req, reply) => {
+    return reply.code(302).redirect(
+      'https://github.com/JakeCastillo-sudo/Taproot/releases/latest/download/taproot-pos.dmg',
+    );
+  });
+
+  fastify.get('/download/win', async (_req, reply) => {
+    return reply.code(302).redirect(
+      'https://github.com/JakeCastillo-sudo/Taproot/releases/latest/download/taproot-pos-setup.exe',
+    );
+  });
+
   // ─── Global authentication preHandler ────────────────────────────────────────
 
   const PUBLIC_ROUTES = new Set([
     'GET /api/health',
+    // Desktop app download redirects — public (link targets for /download page)
+    'GET /download/mac',
+    'GET /download/win',
     'POST /api/v1/auth/login',
     'POST /api/v1/auth/login/mfa',
     'POST /api/v1/auth/login/pin',

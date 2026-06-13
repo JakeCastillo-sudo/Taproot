@@ -1,5 +1,16 @@
 # Taproot POS — Claude Project State
 
+> # ✅ SESSION E COMPLETE — Platform detection / download page (2026-06-13)
+> `/download` page live · `usePlatform` hook (iOS/Android/macOS/Windows/Linux + PWA/Tauri/browser
+> detection → recommendation) · `PlatformDetect` component (banner/card/inline; mobile banner
+> auto-shows + dismisses 7 days via `taproot_platform_banner_dismissed`) · DownloadPage at
+> `/download` (auto-detected highlighted card + 2×2 platform grid + web/hardware sections + FAQ;
+> native store links show "Coming soon" until `APP_STORE_LIVE`/`PLAY_STORE_LIVE` flip true) ·
+> LandingPage "Available on every device" section + mobile banner + Download nav link ·
+> API `/download/mac` + `/download/win` 302→GitHub releases (PUBLIC_ROUTES; 404 until desktop
+> app built — infra ready) · `docs/REMOVE_DEMO_DATA.sql` · demo creds removed from
+> `scripts/morning-check.sh`. tsc 0 both apps.
+
 > # 📧 EMAIL BACKEND COMPLETE (2026-06-13)
 > Combined commit: weekly marketing campaigns (dormant prior-session work, reconciled) +
 > employee invites + onboarding drip + demo-login removal. Built EXTEND-not-replace on the
