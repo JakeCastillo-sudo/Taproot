@@ -307,6 +307,9 @@ export type WeeklyCampaignType = 'weekly_stats' | 'feature_tip' | 'menu_insight'
 
 export interface WeeklyCampaignParams {
   to: string;
+  orgId: string;
+  /** Date-stamped slug used as email_logs.template_name (dedup key), e.g. "weekly_stats_2026-06-13". */
+  templateName: string;
   campaignType: WeeklyCampaignType;
   ownerName: string;
   restaurantName: string;
@@ -349,6 +352,8 @@ export async function sendWeeklyCampaign(p: WeeklyCampaignParams): Promise<void>
   }
 
   await sendEmail({ to: p.to, subject: rendered.subject, html: rendered.html, text: rendered.text });
+  // Record to the shared email_logs ledger (dedup source for the weekly scheduler).
+  await logEmail({ orgId: p.orgId, recipient: p.to, template: p.templateName });
 }
 
 // ─── email_logs (best-effort audit trail + onboarding-sequence dedup) ──────────

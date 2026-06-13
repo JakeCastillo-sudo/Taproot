@@ -480,8 +480,8 @@ buildApp()
     await seedFirstAdminUser();
 
     // Weekly marketing campaigns (STEP 5D). Ticks hourly; the job acts only on
-    // Sundays and dedups per campaign (campaign_sends), so it's at-most-once-per-
-    // Sunday even across restarts. GATED behind CAMPAIGNS_ENABLED so NO real
+    // Sundays and dedups via email_logs (date-stamped template_name), so it's
+    // at-most-once-per-Sunday even across restarts. GATED behind CAMPAIGNS_ENABLED so NO real
     // customer emails go out until you opt in (set CAMPAIGNS_ENABLED=true on Railway).
     if (process.env.CAMPAIGNS_ENABLED === 'true') {
       const tick = (): void => void runWeeklyCampaignJob().catch((err) =>

@@ -2,10 +2,11 @@
  * Weekly marketing campaign job (STEP 5D) — separate from onboarding emails.
  *
  * Runs Sundays only. Rotates 4 data-driven campaigns by week-of-month and sends
- * each ACTIVE (paying) org's owner one personalized email, deduped via the
- * campaign_sends ledger (slug embeds the date, so the same type recurs next cycle).
+ * each ACTIVE (paying) org's owner one personalized email, deduped via the shared
+ * email_logs ledger using a date-stamped template_name (so the same campaign type
+ * recurs next cycle but never double-sends within a cycle).
  *
- * Resilient: no-ops if migration 023 (campaign_sends) hasn't been applied. The
+ * Resilient: no-ops if migration 024 (email_logs) hasn't been applied. The
  * scheduler (index.ts) ticks hourly but is gated behind CAMPAIGNS_ENABLED — see
  * index.ts — so no real emails go out until that flag is set.
  */
@@ -38,8 +39,8 @@ interface CustomerRow {
 export async function runWeeklyCampaignJob(now: Date = new Date()): Promise<void> {
   if (now.getDay() !== 0) return; // Sundays only (0 = Sunday)
 
-  if (!(await tableExists('campaign_sends'))) {
-    logger.warn('[WeeklyCampaign] campaign_sends table missing — run migration 023, then it will send on the next Sunday tick');
+  if (!(await tableExists('email_logs'))) {
+    logger.warn('[WeeklyCampaign] email_logs table missing — run migration 024, then it will send on the next Sunday tick');
     return;
   }
 
@@ -78,7 +79,7 @@ export async function runWeeklyCampaignJob(now: Date = new Date()): Promise<void
      WHERE o.subscription_status = 'active'
        AND e.email IS NOT NULL
        AND NOT EXISTS (
-         SELECT 1 FROM campaign_sends cs WHERE cs.organization_id = o.id AND cs.campaign_slug = $1
+         SELECT 1 FROM email_logs el WHERE el.organization_id = o.id AND el.template_name = $1
        )
      ORDER BY o.created_at ASC`,
     [campaignSlug],
@@ -106,6 +107,8 @@ export async function runWeeklyCampaignJob(now: Date = new Date()): Promise<void
 
       await sendWeeklyCampaign({
         to: c.email,
+        orgId: c.id,
+        templateName: campaignSlug,
         campaignType,
         ownerName: c.first_name,
         restaurantName: c.name,
@@ -123,12 +126,8 @@ export async function runWeeklyCampaignJob(now: Date = new Date()): Promise<void
         topItems,
         platformAvgOrders7d,
       });
-
-      await query(
-        `INSERT INTO campaign_sends (organization_id, campaign_slug)
-         VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        [c.id, campaignSlug],
-      );
+      // sendWeeklyCampaign records the send to email_logs (template_name = slug),
+      // which the NOT EXISTS filter above uses to dedup the next tick.
       sent++;
       await new Promise((r) => setTimeout(r, 300)); // gentle throttle between sends
     } catch (err) {
