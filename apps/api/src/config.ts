@@ -160,6 +160,20 @@ export const config = {
    */
   APP_URL: process.env.APP_URL ?? 'http://localhost:5173',
 
+  /**
+   * Resend API key (transactional/marketing email). Optional — when empty, the
+   * existing SendGrid/jsonTransport path (apps/api/src/email.ts) remains the
+   * active transport and email features degrade gracefully (dev mode logs only).
+   * @example RESEND_API_KEY=re_...
+   */
+  RESEND_API_KEY: process.env.RESEND_API_KEY ?? '',
+
+  /** Default From address for product email. */
+  EMAIL_FROM: process.env.EMAIL_FROM ?? 'Taproot POS <noreply@taproot-pos.com>',
+
+  /** From address for support-flavored email (replies routed to support). */
+  EMAIL_FROM_SUPPORT: process.env.EMAIL_FROM_SUPPORT ?? 'Taproot Support <support@taproot-pos.com>',
+
   // ─── AI ──────────────────────────────────────────────────────────────────────
 
   /**

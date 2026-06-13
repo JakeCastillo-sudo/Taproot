@@ -11,6 +11,7 @@ import { InventoryPage } from './pages/InventoryPage';
 import { ImportPage } from './pages/ImportPage';
 import { MigrationPage } from './pages/MigrationPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { AcceptInvitePage } from './pages/AcceptInvitePage';
 import { BillingPage } from './pages/BillingPage';
 import { UpgradePage } from './pages/UpgradePage';
 import { LandingPage } from './pages/LandingPage';
@@ -242,6 +243,7 @@ export default function App() {
           />
           <Route path="/login"    element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/accept-invite" element={<AcceptInvitePage />} />
           <Route path="/privacy"  element={<PrivacyPage />} />
           <Route path="/terms"    element={<TermsPage />} />
           <Route path="/hardware" element={<HardwarePage />} />

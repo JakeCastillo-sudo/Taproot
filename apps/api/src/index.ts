@@ -12,6 +12,9 @@ import { validateConfig, config } from './config';
 import { logger } from './lib/logger';
 import { pool } from './db/client';
 import bcrypt from 'bcrypt';
+import { runWeeklyCampaignJob } from './jobs/weeklyCampaign.job';
+import { runEmailSequenceJob } from './jobs/emailSequence.job';
+import inviteRoutes from './routes/invite.routes';
 import { getPublisher } from './db/redis';
 import { registerValidationHooks } from './middleware/validation';
 import { registerErrorHandler } from './middleware/errorHandler';
@@ -283,6 +286,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(settingsRoutes);
   await fastify.register(modifierRoutes);
   await fastify.register(employeeRoutes);
+  await fastify.register(inviteRoutes);
   await fastify.register(cashDrawerRoutes);
   await fastify.register(tableRoutes);
   await fastify.register(kitchenRoutes);
@@ -398,6 +402,9 @@ async function buildApp(): Promise<any> {
     // Registration — public
     'POST /api/v1/register',
     'POST /api/v1/register/check-email',
+    // Employee invite acceptance — public (invitee has no account yet)
+    'GET /api/v1/invite/verify',
+    'POST /api/v1/invite/accept',
     // Public QR-code storefront
     'GET /public/:orgSlug/menu',
     'POST /public/:orgSlug/order',
@@ -471,6 +478,33 @@ buildApp()
   .then(async (app) => {
     await app.listen({ port: config.PORT, host: '0.0.0.0' });
     await seedFirstAdminUser();
+
+    // Weekly marketing campaigns (STEP 5D). Ticks hourly; the job acts only on
+    // Sundays and dedups per campaign (campaign_sends), so it's at-most-once-per-
+    // Sunday even across restarts. GATED behind CAMPAIGNS_ENABLED so NO real
+    // customer emails go out until you opt in (set CAMPAIGNS_ENABLED=true on Railway).
+    if (process.env.CAMPAIGNS_ENABLED === 'true') {
+      const tick = (): void => void runWeeklyCampaignJob().catch((err) =>
+        logger.error('[WeeklyCampaign] tick failed', { error: err instanceof Error ? err.message : String(err) }));
+      setInterval(tick, 60 * 60 * 1000);
+      tick();
+      logger.info('[WeeklyCampaign] scheduler ENABLED (hourly tick; Sundays only)');
+    } else {
+      logger.info('[WeeklyCampaign] scheduler OFF — set CAMPAIGNS_ENABLED=true to send weekly campaigns');
+    }
+
+    // Onboarding drip sequence (Day 1/3/7/12). Ticks every 24h; the job dedups
+    // per template (email_logs) so it's at-most-once per step. GATED behind
+    // ONBOARDING_EMAILS_ENABLED so NO real customer emails go out until you opt in.
+    if (process.env.ONBOARDING_EMAILS_ENABLED === 'true') {
+      const tick = (): void => void runEmailSequenceJob().catch((err) =>
+        logger.error('[EmailSequence] tick failed', { error: err instanceof Error ? err.message : String(err) }));
+      setInterval(tick, 24 * 60 * 60 * 1000);
+      tick();
+      logger.info('[EmailSequence] scheduler ENABLED (24h tick)');
+    } else {
+      logger.info('[EmailSequence] scheduler OFF — set ONBOARDING_EMAILS_ENABLED=true to send onboarding drip');
+    }
   })
   .catch((err) => {
     logger.error('Server failed to start', { error: err instanceof Error ? err.stack : String(err) });

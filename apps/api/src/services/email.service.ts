@@ -15,6 +15,11 @@
 
 import { sendEmail } from '../email';
 import { config } from '../config';
+import { query } from '../db/client';
+import { buildWeeklyStats } from '../lib/email/campaigns/weeklyStats';
+import { buildFeatureTip } from '../lib/email/campaigns/featureTip';
+import { buildMenuInsight, type MenuInsightItem } from '../lib/email/campaigns/menuInsight';
+import { buildBenchmarks } from '../lib/email/campaigns/benchmarks';
 
 // ─── HTML template helpers ────────────────────────────────────────────────────
 
@@ -26,7 +31,15 @@ function escape(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function emailLayout(title: string, body: string): string {
+/**
+ * @param unsubscribeUrl  When provided (marketing emails — drip nudges + weekly
+ *   campaign), an unsubscribe line is added to the footer for CAN-SPAM
+ *   compliance. Transactional emails omit it.
+ */
+function emailLayout(title: string, body: string, unsubscribeUrl?: string): string {
+  const unsub = unsubscribeUrl
+    ? `<br/><a href="${unsubscribeUrl}" style="color:#bbb;">Unsubscribe from tips &amp; updates</a>`
+    : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -51,11 +64,17 @@ function emailLayout(title: string, body: string): string {
         © ${new Date().getFullYear()} Taproot POS · <a href="https://taprootpos.com" style="color:#1D9E75;">taprootpos.com</a>
         <br/>
         <a href="mailto:support@taprootpos.com" style="color:#aaa;">support@taprootpos.com</a>
+        ${unsub}
       </p>
     </div>
   </div>
 </body>
 </html>`;
+}
+
+/** Format integer cents as $X.XX for email bodies. */
+function fmtUsd(cents: number): string {
+  return `$${(Math.round(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function btnPrimary(href: string, label: string): string {
@@ -280,4 +299,246 @@ export async function sendLowStockAlertEmail(
     html,
     text: `Hi ${employee.firstName},\n\nLow stock alert:\n${textRows}\n\nView inventory: ${inventoryUrl}`,
   });
+}
+
+// ─── weeklyCampaign (marketing — driven by jobs/weeklyCampaign.job.ts) ─────────
+
+export type WeeklyCampaignType = 'weekly_stats' | 'feature_tip' | 'menu_insight' | 'benchmarks';
+
+export interface WeeklyCampaignParams {
+  to: string;
+  campaignType: WeeklyCampaignType;
+  ownerName: string;
+  restaurantName: string;
+  stats?: { orders7d: number; revenue7d: number; productCount: number; modifierCount: number };
+  flags?: { onlineOrderingEnabled: boolean; loyaltyEnabled: boolean };
+  topItems?: MenuInsightItem[];
+  platformAvgOrders7d?: number;
+}
+
+/**
+ * Render + send one weekly marketing campaign. Selects the template by type and
+ * sends through the shared transport (jsonTransport in dev → logs; SMTP in prod).
+ */
+export async function sendWeeklyCampaign(p: WeeklyCampaignParams): Promise<void> {
+  const appUrl = config.APP_URL;
+  const common = { ownerName: p.ownerName, restaurantName: p.restaurantName, appUrl };
+  const s = p.stats ?? { orders7d: 0, revenue7d: 0, productCount: 0, modifierCount: 0 };
+
+  let rendered: ReturnType<typeof buildWeeklyStats>;
+  switch (p.campaignType) {
+    case 'weekly_stats':
+      rendered = buildWeeklyStats({ ...common, orders7d: s.orders7d, revenue7d: s.revenue7d, productCount: s.productCount });
+      break;
+    case 'feature_tip':
+      rendered = buildFeatureTip({
+        ...common,
+        modifierCount: s.modifierCount,
+        onlineOrderingEnabled: p.flags?.onlineOrderingEnabled ?? false,
+        loyaltyEnabled: p.flags?.loyaltyEnabled ?? false,
+      });
+      break;
+    case 'menu_insight':
+      rendered = buildMenuInsight({ ...common, topItems: p.topItems ?? [] });
+      break;
+    case 'benchmarks':
+      rendered = buildBenchmarks({ ...common, yourOrders7d: s.orders7d, platformAvgOrders7d: p.platformAvgOrders7d ?? 0 });
+      break;
+    default:
+      throw new Error(`Unknown weekly campaign type: ${String(p.campaignType)}`);
+  }
+
+  await sendEmail({ to: p.to, subject: rendered.subject, html: rendered.html, text: rendered.text });
+}
+
+// ─── email_logs (best-effort audit trail + onboarding-sequence dedup) ──────────
+
+/**
+ * Record an email send to email_logs. Best-effort: never throws and never blocks
+ * the send (the row is the dedup source for the onboarding sequence job, so a
+ * missing table — migration 024 not yet applied — simply means the job can't
+ * dedup and will re-evaluate next tick; it does not break sending).
+ */
+async function logEmail(params: {
+  orgId?: string;
+  recipient: string;
+  template: string;
+  status?: string;
+  errorMessage?: string;
+}): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO email_logs
+         (organization_id, recipient_email, template_name, status, error_message)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        params.orgId ?? null,
+        params.recipient,
+        params.template,
+        params.status ?? 'sent',
+        params.errorMessage ?? null,
+      ],
+    );
+  } catch {
+    // email_logs may not exist yet (migration 024 pending) — non-fatal.
+  }
+}
+
+// ─── employeeInviteEmail ───────────────────────────────────────────────────────
+
+/**
+ * Send an employee invite (email-based invite → verify → accept flow). Renders
+ * through the shared layout/transport and records the send in email_logs.
+ */
+export async function sendEmployeeInvite(params: {
+  to: string;
+  employeeName: string;
+  restaurantName: string;
+  inviterName: string;
+  role: string;
+  inviteToken: string;
+  orgId: string;
+  expiresHours?: number;
+}): Promise<void> {
+  const expiresHours = params.expiresHours ?? 48;
+  const inviteUrl = `${config.APP_URL}/accept-invite?token=${encodeURIComponent(params.inviteToken)}`;
+  const html = emailLayout(`You're invited to join ${params.restaurantName} on Taproot POS`, `
+    <h2 style="margin-top:0;color:#111;font-size:22px;">You&apos;re invited! 🌿</h2>
+    <p style="color:#444;line-height:1.6;">Hi ${escape(params.employeeName)},</p>
+    <p style="color:#444;line-height:1.6;"><strong>${escape(params.inviterName)}</strong> has invited you to join
+    <strong>${escape(params.restaurantName)}</strong> as a <strong>${escape(params.role)}</strong> on Taproot POS —
+    the point-of-sale system their restaurant runs on.</p>
+
+    <div style="margin:24px 0;">
+      ${btnPrimary(inviteUrl, 'Accept Invitation →')}
+    </div>
+
+    <p style="color:#888;font-size:13px;">This invitation expires in ${expiresHours} hours. If you weren&apos;t
+    expecting this, you can safely ignore this email.</p>
+  `);
+
+  await sendEmail({
+    to: params.to,
+    subject: `You've been invited to join ${params.restaurantName} on Taproot POS`,
+    html,
+    text: `Hi ${params.employeeName},\n\n${params.inviterName} has invited you to join ${params.restaurantName} as a ${params.role} on Taproot POS.\n\nAccept your invitation: ${inviteUrl}\n\nThis invitation expires in ${expiresHours} hours. If you weren't expecting this, ignore this email.`,
+  });
+
+  await logEmail({ orgId: params.orgId, recipient: params.to, template: 'employee_invite' });
+}
+
+// ─── onboarding sequence (driven by jobs/emailSequence.job.ts) ─────────────────
+
+export type OnboardingTemplate =
+  | 'onboarding_day1'
+  | 'onboarding_day3'
+  | 'onboarding_day7'
+  | 'trial_ending_soon';
+
+/**
+ * Render + send one onboarding-sequence email and record it in email_logs (the
+ * template_name row is what the sequence job uses to avoid re-sending). Returns
+ * silently for an unknown template.
+ */
+export async function sendOnboardingSequenceEmail(params: {
+  to: string;
+  template: OnboardingTemplate | string;
+  ownerName: string;
+  restaurantName: string;
+  orgId: string;
+  trialEndsAt?: string | null;
+  hasProducts?: boolean;
+  hasOrders?: boolean;
+  hasEmployees?: boolean;
+}): Promise<void> {
+  const appUrl = config.APP_URL;
+  const importUrl = `${appUrl}/import`;
+  const posUrl = `${appUrl}/`;
+  const settingsUrl = `${appUrl}/settings`;
+  const billingUrl = `${appUrl}/billing`;
+  const name = escape(params.ownerName);
+  const rest = escape(params.restaurantName);
+
+  let subject: string;
+  let body: string;
+  let text: string;
+
+  switch (params.template) {
+    case 'onboarding_day1':
+      subject = 'Did you import your menu yet? (takes 60 seconds)';
+      body = `
+        <h2 style="margin-top:0;color:#111;font-size:22px;">Import your menu in 60 seconds 🌿</h2>
+        <p style="color:#444;line-height:1.6;">Hi ${name}, most restaurants spend 8 hours hand-entering their
+        menu into a new POS. Taproot takes about 60 seconds.</p>
+        <ol style="color:#444;line-height:2;padding-left:20px;">
+          <li>Open the menu importer</li>
+          <li>Upload your menu PDF</li>
+          <li>Our AI reads and imports everything</li>
+          <li>Review and confirm</li>
+        </ol>
+        <div style="margin:24px 0;">${btnPrimary(importUrl, 'Import My Menu Now →')}</div>
+        <p style="color:#888;font-size:13px;">No PDF? Just type your top 10 items and we&apos;ll build from there.
+        Reply to this email if you need help.</p>`;
+      text = `Hi ${params.ownerName},\n\nMost restaurants spend 8 hours entering their menu. Taproot takes 60 seconds:\n1. Open ${importUrl}\n2. Upload your menu PDF\n3. AI imports everything\n4. Review and confirm\n\nImport now: ${importUrl}`;
+      break;
+
+    case 'onboarding_day3':
+      subject = '3 things that make the biggest difference this week';
+      body = `
+        <h2 style="margin-top:0;color:#111;font-size:22px;">3 quick wins for ${rest}</h2>
+        <p style="color:#444;line-height:1.6;">Hi ${name}, three things our most successful restaurants set up early:</p>
+        <ol style="color:#444;line-height:2;padding-left:20px;">
+          <li>Set your tax rate (Settings → Business → Tax)</li>
+          <li>Add employees with PIN login (Settings → Employees)</li>
+          <li>Take one test order so you know the flow cold</li>
+        </ol>
+        <div style="margin:24px 0;">${btnPrimary(posUrl, 'Go to My POS →')}</div>
+        <p style="color:#888;font-size:13px;">Reply any time — we read every email.</p>`;
+      text = `Hi ${params.ownerName},\n\n3 quick wins this week:\n1. Set your tax rate (Settings → Business → Tax)\n2. Add employees with PIN login (Settings → Employees)\n3. Take one test order\n\nGo to your POS: ${posUrl}`;
+      break;
+
+    case 'onboarding_day7': {
+      const mark = (done?: boolean): string => (done ? '✅' : '⬜');
+      subject = "One week in — here's what other restaurants do first";
+      body = `
+        <h2 style="margin-top:0;color:#111;font-size:22px;">Your first week at ${rest}</h2>
+        <p style="color:#444;line-height:1.6;">Hi ${name}, here&apos;s where you are:</p>
+        <ul style="list-style:none;padding-left:0;color:#444;line-height:2.2;">
+          <li>${mark(params.hasProducts)} Imported your menu</li>
+          <li>⬜ Set your tax rate</li>
+          <li>${mark(params.hasEmployees)} Added employees with PINs</li>
+          <li>${mark(params.hasOrders)} Taken your first order</li>
+          <li>⬜ Set up QR code ordering</li>
+          <li>⬜ Connected a Stripe Terminal reader</li>
+        </ul>
+        <div style="margin:24px 0;">${btnPrimary(settingsUrl, "See What's Left →")}</div>
+        <p style="color:#888;font-size:13px;">Reply and tell me how it&apos;s going. Seriously. — Jake</p>`;
+      text = `Hi ${params.ownerName},\n\nYour first week checklist:\n${params.hasProducts ? '[x]' : '[ ]'} Imported your menu\n[ ] Set your tax rate\n${params.hasEmployees ? '[x]' : '[ ]'} Added employees with PINs\n${params.hasOrders ? '[x]' : '[ ]'} Taken your first order\n[ ] Set up QR code ordering\n[ ] Connected a Stripe Terminal reader\n\nSee what's left: ${settingsUrl}`;
+      break;
+    }
+
+    case 'trial_ending_soon': {
+      const ends = params.trialEndsAt
+        ? new Date(params.trialEndsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+        : 'soon';
+      subject = 'Your free trial ends in 2 days';
+      body = `
+        <h2 style="margin-top:0;color:#B45309;font-size:22px;">Your free trial ends ${escape(ends)}</h2>
+        <p style="color:#444;line-height:1.6;">Hi ${name}, your trial for <strong>${rest}</strong> ends on
+        <strong>${escape(ends)}</strong>.</p>
+        <p style="color:#444;line-height:1.6;">With payment info on file, your account continues at $99/month —
+        everything included, no add-ons, no contracts. Without it, access pauses (your data stays safe).</p>
+        <div style="margin:24px 0;">${btnPrimary(billingUrl, 'Add Payment Info →')}</div>
+        <p style="color:#888;font-size:13px;">Cancel anytime. No contract. No penalty. Questions? Just reply. — Jake Castillo, Founder</p>`;
+      text = `Hi ${params.ownerName},\n\nYour free trial for ${rest} ends ${ends}.\n\nWith payment info: continues at $99/month. Without it: access pauses (data safe).\n\nAdd payment info: ${billingUrl}\n\nCancel anytime. No contract.`;
+      break;
+    }
+
+    default:
+      console.warn(`[Email] Unknown onboarding template: ${params.template}`);
+      return;
+  }
+
+  await sendEmail({ to: params.to, subject, html: emailLayout(subject, body), text });
+  await logEmail({ orgId: params.orgId, recipient: params.to, template: String(params.template) });
 }

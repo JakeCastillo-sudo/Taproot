@@ -81,7 +81,7 @@ export class ApiError extends Error {
 }
 
 // Public routes that should never be hard-redirected away from on auth failure
-const PUBLIC_PATHS = new Set(['/login', '/register', '/privacy', '/terms']);
+const PUBLIC_PATHS = new Set(['/login', '/register', '/accept-invite', '/privacy', '/terms']);
 
 export async function apiFetch<T>(
   path: string,

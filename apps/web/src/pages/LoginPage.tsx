@@ -156,29 +156,6 @@ export function LoginPage() {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-gray-100" />
-            <span className="text-xs text-gray-400">or</span>
-            <div className="flex-1 h-px bg-gray-100" />
-          </div>
-
-          {/* Demo credentials */}
-          <div className="bg-gray-50 rounded-lg border border-gray-100 px-3 py-3">
-            <p className="text-xs text-gray-400 text-center mb-2">Demo credentials</p>
-            <div className="text-xs text-gray-600 font-mono space-y-0.5 text-center">
-              <div>demo@taproot.pos</div>
-              <div>TaprootDemo2026!</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => { setEmail('demo@taproot.pos'); setPassword('TaprootDemo2026!'); }}
-              className="w-full mt-2 text-xs font-medium text-primary hover:text-primary-dark transition-colors"
-            >
-              Fill demo credentials
-            </button>
-          </div>
-
           <p className="text-center text-sm text-gray-500 mt-6">
             Don&apos;t have an account?{' '}
             <Link to="/register" className="text-primary font-semibold hover:underline">Start your free trial →</Link>

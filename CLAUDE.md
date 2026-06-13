@@ -1,5 +1,24 @@
 # Taproot POS — Claude Project State
 
+> # 📧 EMAIL BACKEND COMPLETE (2026-06-13)
+> Combined commit: weekly marketing campaigns (dormant prior-session work, reconciled) +
+> employee invites + onboarding drip + demo-login removal. Built EXTEND-not-replace on the
+> existing `services/email.service.ts` (SendGrid/nodemailer transport) — no overwrites.
+> - **Employee invites**: `routes/invite.routes.ts` (invite/verify/accept/resend) using
+>   `req.user.orgId` + DB-fetched inviter, NO `is_active` column; `sendEmployeeInvite` appended
+>   to email.service; `AcceptInvitePage.tsx` at public `/accept-invite`.
+> - **Onboarding drip** (Day 1/3/7/12): `jobs/emailSequence.job.ts` + `sendOnboardingSequenceEmail`,
+>   deduped via `email_logs`, gated behind `ONBOARDING_EMAILS_ENABLED`.
+> - **Weekly campaigns** (prior session): `jobs/weeklyCampaign.job.ts` + `lib/email/`, gated behind
+>   `CAMPAIGNS_ENABLED`. Orphan `023_email_campaigns.js` (email_log/email_unsubscribes — unreferenced)
+>   was discarded.
+> - **Config**: RESEND_API_KEY/EMAIL_FROM/EMAIL_FROM_SUPPORT added (scaffolding; transport still
+>   SendGrid/jsonTransport). **Demo credentials removed from LoginPage** (LandingPage already clean).
+>
+> ⚠️ **MIGRATIONS NEEDED** (Railway console): `npx node-pg-migrate up --migrations-dir migrations`
+>   → **023_campaign_sends** (campaign_sends) + **024_employee_invites** (employee invite columns +
+>   email_logs). Both jobs no-op until their tables exist + the *_ENABLED flag is set. tsc 0 both apps.
+
 > # 🛡️ PSR CERTIFIED SECURE — 2026-06-12 (tag psr-2026-06-12)
 > Production Security Review (OWASP Top 10 + PCI DSS 4.0 + Toast/Square parity).
 > Result: **0 CRITICAL, 0 FAIL**, 38 PASS, 2 known/accepted WARN. No code changes needed.
