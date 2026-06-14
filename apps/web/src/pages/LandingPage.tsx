@@ -53,6 +53,7 @@ function Nav() {
           <a href="#pricing" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Pricing</a>
           <Link to="/hardware" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Hardware</Link>
           <Link to="/download" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Download</Link>
+          <Link to="/support" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Support</Link>
           <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Sign in</Link>
           <Link to="/register" className="text-sm font-semibold text-white bg-primary hover:bg-primary-dark px-4 py-2 rounded-lg transition-colors">
             Start free trial
@@ -70,6 +71,7 @@ function Nav() {
           <a href="#pricing" onClick={() => setOpen(false)} className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Pricing</a>
           <Link to="/hardware" className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Hardware</Link>
           <Link to="/download" className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Download</Link>
+          <Link to="/support" className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Support</Link>
           <Link to="/login" className="block px-2 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50">Sign in</Link>
           <Link to="/register" className="block px-2 py-2 text-sm font-semibold text-white bg-primary rounded-md text-center">Start free trial</Link>
         </div>
@@ -276,17 +278,17 @@ function AIFeatures() {
 
 // ─── Comparison (Section 7) ────────────────────────────────────────────────────
 
-const COMPARE: Array<{ feature: string; toast: string; square: string; taproot: string; toastBad?: boolean; squareBad?: boolean }> = [
-  { feature: 'Monthly cost', toast: '$400+/mo', square: 'Varies', taproot: '$99 flat' },
-  { feature: 'Contract', toast: '2 years', square: 'None', taproot: 'None', toastBad: true },
-  { feature: 'Hardware required', toast: 'Yes ($700+)', square: 'Optional', taproot: 'No', toastBad: true },
-  { feature: 'Setup time', toast: 'Weeks', square: 'Days', taproot: '10 min', toastBad: true },
-  { feature: 'AI menu import', toast: 'No', square: 'No', taproot: 'Yes', toastBad: true, squareBad: true },
-  { feature: 'Hidden fees', toast: 'Yes', square: 'Yes', taproot: 'Never', toastBad: true, squareBad: true },
-  { feature: 'Online ordering', toast: '+$50/mo', square: 'Included', taproot: 'Included', toastBad: true },
-  { feature: 'Loyalty program', toast: '+$25/mo', square: '+$45/mo', taproot: 'Included', toastBad: true, squareBad: true },
-  { feature: 'Support quality', toast: 'Poor', square: 'Poor', taproot: 'Always', toastBad: true, squareBad: true },
-  { feature: 'True monthly cost', toast: '$174–320+', square: '$194+', taproot: '$99' },
+const COMPARE: Array<{ feature: string; toast: string; square: string; clover: string; taproot: string; toastBad?: boolean; squareBad?: boolean; cloverBad?: boolean }> = [
+  { feature: 'Monthly cost', toast: '$400+/mo', square: 'Varies', clover: '$90+/mo', taproot: '$99 flat' },
+  { feature: 'Contract', toast: '2 years', square: 'None', clover: '3 years', taproot: 'None', toastBad: true, cloverBad: true },
+  { feature: 'Hardware required', toast: 'Yes ($700+)', square: 'Optional', clover: 'Yes ($799+)', taproot: 'No', toastBad: true, cloverBad: true },
+  { feature: 'Setup time', toast: 'Weeks', square: 'Days', clover: 'Days', taproot: '10 min', toastBad: true, squareBad: true, cloverBad: true },
+  { feature: 'AI menu import', toast: 'No', square: 'No', clover: 'No', taproot: 'Yes', toastBad: true, squareBad: true, cloverBad: true },
+  { feature: 'Hidden fees', toast: 'Yes', square: 'Yes', clover: 'Yes', taproot: 'Never', toastBad: true, squareBad: true, cloverBad: true },
+  { feature: 'Online ordering', toast: '+$50/mo', square: 'Included', clover: 'Extra', taproot: 'Included', toastBad: true, cloverBad: true },
+  { feature: 'Loyalty program', toast: '+$25/mo', square: '+$45/mo', clover: 'Extra', taproot: 'Included', toastBad: true, squareBad: true, cloverBad: true },
+  { feature: 'Price transparency', toast: 'Poor', square: 'Poor', clover: 'Poor', taproot: 'Full', toastBad: true, squareBad: true, cloverBad: true },
+  { feature: 'True monthly cost', toast: '$174–320+', square: '$194+', clover: '$200+', taproot: '$99' },
 ];
 
 function Comparison() {
@@ -299,12 +301,13 @@ function Comparison() {
         </div>
 
         <div className="mt-10 overflow-x-auto">
-          <table className="w-full min-w-[560px] border-collapse text-sm">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
               <tr className="text-left">
                 <th className="py-3 px-3 font-semibold text-gray-500">Feature</th>
                 <th className="py-3 px-3 font-semibold text-gray-500 text-center">Toast</th>
                 <th className="py-3 px-3 font-semibold text-gray-500 text-center">Square</th>
+                <th className="py-3 px-3 font-semibold text-gray-500 text-center">Clover</th>
                 <th className="py-3 px-3 font-bold text-primary-dark text-center bg-primary-light rounded-t-lg">Taproot</th>
               </tr>
             </thead>
@@ -314,6 +317,7 @@ function Comparison() {
                   <td className="py-3 px-3 text-gray-700">{r.feature}</td>
                   <td className={clsx('py-3 px-3 text-center', r.toastBad ? 'text-danger' : 'text-gray-500')}>{r.toast}{r.toastBad && ' ✕'}</td>
                   <td className={clsx('py-3 px-3 text-center', r.squareBad ? 'text-danger' : 'text-gray-500')}>{r.square}{r.squareBad && ' ✕'}</td>
+                  <td className={clsx('py-3 px-3 text-center', r.cloverBad ? 'text-danger' : 'text-gray-500')}>{r.clover}{r.cloverBad && ' ✕'}</td>
                   <td className="py-3 px-3 text-center bg-primary-light/60 text-primary-dark font-semibold">{r.taproot} ✓</td>
                 </tr>
               ))}
@@ -418,22 +422,52 @@ function PricePromise() {
 
 // ─── Savings calculator (Section 10) ───────────────────────────────────────────
 
-const COMPETITORS = [
-  { label: '$69/mo (Toast Starter)', value: 69 },
-  { label: '$165/mo (Toast Point of Sale)', value: 165 },
-  { label: '$400/mo (Toast + add-ons)', value: 400 },
-  { label: '$49/mo (Square Plus)', value: 49 },
-  { label: '$149/mo (Square Premium)', value: 149 },
-  { label: '$194/mo (Square + add-ons)', value: 194 },
-  { label: '$84/mo (Clover)', value: 84 },
-  { label: '$233/mo (Clover + add-ons)', value: 233 },
+const COMPETITORS: Array<{ name: string; plans: Array<{ name: string; price: number }> }> = [
+  {
+    name: 'Toast',
+    plans: [
+      { name: 'Starter', price: 69 },
+      { name: 'Point of Sale', price: 165 },
+      { name: 'Toast + add-ons', price: 400 },
+    ],
+  },
+  {
+    name: 'Square',
+    plans: [
+      { name: 'Free', price: 0 },
+      { name: 'Plus', price: 60 },
+      { name: 'Premium', price: 150 },
+      { name: 'Square + add-ons', price: 194 },
+    ],
+  },
+  {
+    name: 'Clover',
+    plans: [
+      { name: 'Starter', price: 14.95 },
+      { name: 'Standard', price: 84.95 },
+      { name: 'Advanced', price: 194.95 },
+      { name: 'Clover + add-ons', price: 290 },
+    ],
+  },
 ];
 
+// Flatten to a stable index-addressable list so the <select> value is the index
+// (prices can collide / be 0, so we never key the selection on the price itself).
+const COMPETITOR_PLANS = COMPETITORS.flatMap((c) =>
+  c.plans.map((p) => ({
+    group: c.name,
+    label: p.name.includes(c.name) ? p.name : `${c.name} ${p.name}`,
+    price: p.price,
+  })),
+);
+// Default selection = Toast Point of Sale.
+const DEFAULT_PLAN_IDX = COMPETITOR_PLANS.findIndex((p) => p.label === 'Toast Point of Sale');
+
 function SavingsCalculator() {
-  const [sel, setSel] = useState(165);
+  const [sel, setSel] = useState(DEFAULT_PLAN_IDX);
   const [other, setOther] = useState('');
-  const current = sel === -1 ? (parseFloat(other) || 0) : sel;
-  const monthly = Math.max(0, current - 99);
+  const current = sel === -1 ? (parseFloat(other) || 0) : (COMPETITOR_PLANS[sel]?.price ?? 0);
+  const monthly = Math.max(0, Math.round(current - 99));
   const fmt = (n: number) => '$' + n.toLocaleString('en-US');
 
   return (
@@ -448,7 +482,15 @@ function SavingsCalculator() {
             onChange={(e) => setSel(Number(e.target.value))}
             className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/40"
           >
-            {COMPETITORS.map((c) => <option key={c.label} value={c.value}>{c.label}</option>)}
+            {COMPETITORS.map((c) => (
+              <optgroup key={c.name} label={c.name}>
+                {COMPETITOR_PLANS.map((p, i) =>
+                  p.group === c.name ? (
+                    <option key={p.label} value={i}>{p.label} — {fmt(p.price)}/mo</option>
+                  ) : null,
+                )}
+              </optgroup>
+            ))}
             <option value={-1}>Other…</option>
           </select>
           {sel === -1 && (
@@ -654,6 +696,31 @@ function Platforms() {
   );
 }
 
+// ─── Support band ──────────────────────────────────────────────────────────────
+
+function SupportBand() {
+  return (
+    <section className="bg-[#E1F5EE] py-16">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+        <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary/15 text-primary mb-4">
+          <Headphones size={24} />
+        </span>
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Support that actually shows up</h2>
+        <p className="text-gray-600 mt-3 leading-relaxed">
+          Every Taproot subscription includes direct access to the founder. Real answers within
+          2 hours during service. Under 30 minutes for emergencies. No ticket queue. No scripts. No upsells.
+        </p>
+        <Link
+          to="/support"
+          className="inline-flex items-center gap-2 mt-6 text-primary font-semibold hover:text-primary-dark transition-colors"
+        >
+          Learn more about support <ArrowRight size={18} />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export function LandingPage() {
@@ -673,6 +740,7 @@ export function LandingPage() {
       <SavingsCalculator />
       <FAQ />
       <Platforms />
+      <SupportBand />
       <Closing />
       <Footer />
       {demo && <DemoModal onClose={() => setDemo(false)} />}

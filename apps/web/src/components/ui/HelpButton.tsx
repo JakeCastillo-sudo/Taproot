@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { HelpCircle, X, Search, ExternalLink, Mail, Bug } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { HelpCircle, X, Search, ExternalLink, Mail, Bug, LifeBuoy } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface HelpArticle {
@@ -8,12 +9,12 @@ interface HelpArticle {
 }
 
 const HELP_ARTICLES: HelpArticle[] = [
-  { question: 'How do I add products?',         url: 'https://docs.taprootpos.com/products' },
-  { question: 'How do I take a payment?',        url: 'https://docs.taprootpos.com/payments' },
-  { question: 'How do I import my menu?',        url: 'https://docs.taprootpos.com/import' },
-  { question: 'How do I connect Stripe?',        url: 'https://docs.taprootpos.com/stripe' },
-  { question: 'How do I manage inventory?',      url: 'https://docs.taprootpos.com/inventory' },
-  { question: 'How do I set up employees?',      url: 'https://docs.taprootpos.com/employees' },
+  { question: 'How do I add products?',         url: 'https://docs.taproot-pos.com/products' },
+  { question: 'How do I take a payment?',        url: 'https://docs.taproot-pos.com/payments' },
+  { question: 'How do I import my menu?',        url: 'https://docs.taproot-pos.com/import' },
+  { question: 'How do I connect Stripe?',        url: 'https://docs.taproot-pos.com/stripe' },
+  { question: 'How do I manage inventory?',      url: 'https://docs.taproot-pos.com/inventory' },
+  { question: 'How do I set up employees?',      url: 'https://docs.taproot-pos.com/employees' },
 ];
 
 export function HelpButton() {
@@ -29,7 +30,7 @@ export function HelpButton() {
   const bugBody = encodeURIComponent(
     `Describe the bug:\n\n\nSteps to reproduce:\n1. \n2. \n\nExpected behaviour:\n\nActual behaviour:\n\nBrowser/device:\n`,
   );
-  const bugUrl = `mailto:support@taprootpos.com?subject=Bug%20Report%20-%20Taproot%20POS&body=${bugBody}`;
+  const bugUrl = `mailto:support@taproot-pos.com?subject=Bug%20Report%20-%20Taproot%20POS&body=${bugBody}`;
 
   return (
     <>
@@ -108,8 +109,16 @@ export function HelpButton() {
 
             {/* Footer links */}
             <div className="border-t border-gray-100 p-3 space-y-1.5">
+              <Link
+                to="/support"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium text-primary hover:bg-primary/5 transition-colors"
+              >
+                <LifeBuoy size={13} className="text-primary" />
+                View full support page →
+              </Link>
               <a
-                href="https://docs.taprootpos.com"
+                href="https://docs.taproot-pos.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-gray-600 hover:bg-gray-50 transition-colors"
@@ -118,11 +127,11 @@ export function HelpButton() {
                 Full documentation
               </a>
               <a
-                href="mailto:support@taprootpos.com"
+                href="mailto:support@taproot-pos.com"
                 className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 <Mail size={13} className="text-gray-400" />
-                support@taprootpos.com
+                support@taproot-pos.com
               </a>
               <a
                 href={bugUrl}

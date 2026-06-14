@@ -77,7 +77,7 @@ export function BillingPage() {
       window.location.href = url;
     } catch {
       // fallback: just show an error
-      alert('Unable to open billing portal. Please contact support@taprootpos.com');
+      alert('Unable to open billing portal. Please contact support@taproot-pos.com');
     } finally {
       setPortalLoading(false);
     }

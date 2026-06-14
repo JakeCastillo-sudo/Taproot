@@ -91,8 +91,8 @@ export function PrivacyPage() {
               We retain account and transaction data for the duration of your subscription plus
               7 years, as required for financial record-keeping. You may request deletion of
               your account at any time by contacting{' '}
-              <a href="mailto:support@taprootpos.com" className="text-primary hover:underline">
-                support@taprootpos.com
+              <a href="mailto:support@taproot-pos.com" className="text-primary hover:underline">
+                support@taproot-pos.com
               </a>
               . Deletion requests are processed within 30 days.
             </p>
@@ -121,8 +121,8 @@ export function PrivacyPage() {
             </ul>
             <p className="mt-2 leading-relaxed">
               To exercise these rights, email us at{' '}
-              <a href="mailto:support@taprootpos.com" className="text-primary hover:underline">
-                support@taprootpos.com
+              <a href="mailto:support@taproot-pos.com" className="text-primary hover:underline">
+                support@taproot-pos.com
               </a>.
             </p>
           </section>
@@ -131,8 +131,8 @@ export function PrivacyPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">8. Contact</h2>
             <p className="leading-relaxed">
               If you have questions about this Privacy Policy, please contact us at{' '}
-              <a href="mailto:support@taprootpos.com" className="text-primary hover:underline">
-                support@taprootpos.com
+              <a href="mailto:support@taproot-pos.com" className="text-primary hover:underline">
+                support@taproot-pos.com
               </a>.
             </p>
           </section>

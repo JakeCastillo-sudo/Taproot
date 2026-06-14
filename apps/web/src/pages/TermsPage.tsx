@@ -142,8 +142,8 @@ export function TermsPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">11. Contact</h2>
             <p className="leading-relaxed">
               Questions about these Terms? Contact us at{' '}
-              <a href="mailto:support@taprootpos.com" className="text-primary hover:underline">
-                support@taprootpos.com
+              <a href="mailto:support@taproot-pos.com" className="text-primary hover:underline">
+                support@taproot-pos.com
               </a>.
             </p>
           </section>

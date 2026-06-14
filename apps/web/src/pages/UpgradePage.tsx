@@ -235,10 +235,10 @@ export function UpgradePage() {
         <p className="text-center text-xs text-gray-400 mt-6">
           Questions?{' '}
           <a
-            href="mailto:support@taprootpos.com"
+            href="mailto:support@taproot-pos.com"
             className="text-primary hover:underline"
           >
-            support@taprootpos.com
+            support@taproot-pos.com
           </a>
         </p>
 
