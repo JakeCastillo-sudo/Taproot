@@ -1,5 +1,23 @@
 # Taproot POS — Claude Project State
 
+> # 🖥️ SESSION D — DESKTOP APP (Tauri v2) (2026-06-13)
+> `apps/desktop/` — Tauri v2 shell loading taproot-pos.com; native ESC/POS thermal
+> printing + cash-drawer (Rust `serialport`), system tray, macOS universal + Windows.
+> CI: `.github/workflows/desktop-release.yml` (triggers on `git tag desktop-v*`).
+> Docs: `docs/DESKTOP_CODE_SIGNING.md`. Built EXACTLY as specified (Jake's call).
+> **Verified here:** TS 0 errors (bridge), all JSON/config valid. **NOT verifiable here**
+> (no Rust + headless): `cargo build`, `npm run dev`. Jake: `curl …rustup.rs | sh`, then
+> `cd apps/desktop && npm run dev`; `git tag desktop-v1.0.0 && git push --tags` to build.
+> **Known caveats (accepted, build-as-written):** (1) index.html loads the site in a
+> cross-origin **iframe** → `window.__TAURI__`/`window.taproot` bridge is NOT reachable by
+> the in-iframe web app (native print won't wire until the window points directly at the
+> remote URL + a remote-IPC capability); (2) CI Windows upload path lacks the
+> `x86_64-pc-windows-msvc/` target subdir → Windows assets won't attach as-is; (3) Tauri
+> default bundle names ≠ the `taproot-pos.dmg`/`taproot-pos-setup.exe` the existing
+> `/download/*` redirects expect → rename on release; (4) `serialport` only lists serial /
+> serial-over-USB, not USB-class Epson/Star printers; (5) icons must be generated
+> (`npx @tauri-apps/cli icon …`) before `tauri build`.
+
 > # ✅ SESSION E COMPLETE — Platform detection / download page (2026-06-13)
 > `/download` page live · `usePlatform` hook (iOS/Android/macOS/Windows/Linux + PWA/Tauri/browser
 > detection → recommendation) · `PlatformDetect` component (banner/card/inline; mobile banner
