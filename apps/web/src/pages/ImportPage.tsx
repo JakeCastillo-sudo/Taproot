@@ -35,11 +35,12 @@ const ACCEPTED_TYPES = [
   'application/pdf',
   'image/png',
   'image/jpeg',
+  'image/webp',
   'text/csv',
   'text/plain',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ];
-const ACCEPTED_EXT = '.pdf,.png,.jpg,.jpeg,.csv,.xlsx,.txt';
+const ACCEPTED_EXT = '.pdf,.png,.jpg,.jpeg,.webp,.csv,.xlsx,.txt';
 const MAX_SIZE = 10 * 1024 * 1024;
 
 function fmtBytes(b: number) {
@@ -126,13 +127,14 @@ function DropZone({ onFiles, disabled }: DropZoneProps) {
         <Upload size={26} className={dragging ? 'text-primary' : 'text-gray-400'} />
       </div>
       <p className="text-gray-700 font-semibold text-sm">
-        {dragging ? 'Release to upload' : 'Drop files here or click to browse'}
+        {dragging ? 'Release to upload' : 'Upload your menu — PDF, photo, or screenshot'}
       </p>
       <p className="text-gray-400 text-xs mt-1">
-        Accepted: PDF, PNG, JPG, CSV, Excel — max 10 MB
+        Take a photo of your printed menu, screenshot your existing menu PDF, or upload
+        any image. Our AI will read it and import everything.
       </p>
       <p className="text-gray-400 text-xs mt-1">
-        Menu PDFs, supplier invoices, goods receipts, inventory lists, recipe sheets
+        Accepted: PDF, PNG, JPG, WebP, CSV, Excel — max 10 MB
       </p>
     </div>
   );

@@ -28,6 +28,7 @@ const ALLOWED_TYPES = new Set([
   'image/png',
   'image/jpeg',
   'image/jpg',
+  'image/webp',
   'text/csv',
   'text/plain',
   'application/octet-stream',                                           // curl / some browsers
@@ -48,6 +49,7 @@ const EXT_TO_MIME: Record<string, string> = {
   '.jpg':  'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.png':  'image/png',
+  '.webp': 'image/webp',
   '.txt':  'text/plain',
 };
 
@@ -56,6 +58,7 @@ const MIME_TO_IMPORT_TYPE: Record<string, ImportType> = {
   'image/png':        'document_menu',
   'image/jpeg':       'document_menu',
   'image/jpg':        'document_menu',
+  'image/webp':       'document_menu',
   'text/csv':         'generic_csv',
   'text/plain':       'document_menu',
   'application/vnd.ms-excel':                                           'generic_csv',

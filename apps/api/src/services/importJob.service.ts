@@ -269,6 +269,7 @@ export async function processImportJob(jobId: string): Promise<void> {
       '.png': 'image/png',
       '.jpg': 'image/jpeg',
       '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp',
       '.csv': 'text/csv',
       '.txt': 'text/plain',
     };
