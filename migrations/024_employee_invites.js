@@ -1,8 +1,9 @@
 /**
  * 024 — Employee invites + email audit log
  *
- * NOTE: 023 (campaign_sends) already exists — this is renumbered to 024 and does
- * NOT touch campaign_sends.
+ * NOTE: there is no 023 migration (sequence jumps 022 -> 024). The weekly
+ * campaign feature was reconciled onto the shared email_logs ledger created
+ * below — there is no separate campaign_sends table.
  *
  * Adds:
  *   - invite columns on employees (email-based invite → verify → accept flow)
