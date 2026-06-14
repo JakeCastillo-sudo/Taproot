@@ -11,11 +11,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { catalogApi, ordersApi, paymentsApi, type ApiProduct } from '../../api/endpoints';
+import { catalogApi, type ApiProduct, type OrderRow } from '../../api/endpoints';
 import { useAuthStore } from '../../store/auth.store';
-import { useCartStore, cartSubtotal } from '../../store/cart.store';
+import { useCartStore, cartSubtotal, lineTotal } from '../../store/cart.store';
 import { formatCents } from '../../utils/currency';
 import { colors, spacing, radius, fontSize } from '../../utils/colors';
+import ModifierSheet from '../../components/ModifierSheet';
+import PaymentSheet from '../../components/PaymentSheet';
 
 export default function POSScreen() {
   const user = useAuthStore((s) => s.user);
@@ -31,7 +33,8 @@ export default function POSScreen() {
   const clear = useCartStore((s) => s.clear);
 
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [charging, setCharging] = useState(false);
+  const [modifierProduct, setModifierProduct] = useState<ApiProduct | null>(null);
+  const [paymentOpen, setPaymentOpen] = useState(false);
 
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
@@ -48,54 +51,21 @@ export default function POSScreen() {
 
   function onTapProduct(p: ApiProduct) {
     Haptics.selectionAsync().catch(() => {});
-    add({ productId: p.id, name: p.name, unitPrice: p.defaultPrice });
-  }
-
-  async function charge() {
-    if (!locationId) {
-      Alert.alert('No location', 'Your account has no assigned location.');
-      return;
-    }
-    if (items.length === 0) return;
-
-    setCharging(true);
-    try {
-      const order = await ordersApi.create(locationId, {
-        items: items.map((i) => ({
-          productId: i.productId,
-          variantId: null,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-        })),
-      });
-      // Server is authoritative for totals (tax/discounts). Charge order.total as cash.
-      await paymentsApi.process(locationId, order.id, {
-        paymentMethod: 'cash',
-        amount: order.total,
-        cashTendered: order.total,
-      });
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      clear();
-      // Refresh kitchen tickets so the new order appears there.
-      qc.invalidateQueries({ queryKey: ['kitchen'] });
-      Alert.alert('Paid', `Order ${order.order_number} — ${formatCents(order.total)} (cash)`);
-    } catch (e) {
-      Alert.alert('Payment failed', e instanceof Error ? e.message : 'Unknown error');
-    } finally {
-      setCharging(false);
+    if (p.modifierGroups.length > 0) {
+      // Has options → collect selections before adding.
+      setModifierProduct(p);
+    } else {
+      add({ productId: p.id, name: p.name, basePrice: p.defaultPrice });
     }
   }
 
-  function confirmCharge() {
-    Alert.alert(
-      'Take cash payment',
-      `Charge ${formatCents(subtotal)} subtotal (tax added at checkout)?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Charge', onPress: () => void charge() },
-      ],
-    );
+  function onPaid(order: OrderRow) {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    clear();
+    setPaymentOpen(false);
+    // Refresh kitchen tickets so the new order appears there.
+    qc.invalidateQueries({ queryKey: ['kitchen'] });
+    Alert.alert('Paid', `Order ${order.order_number} — ${formatCents(order.total)}`);
   }
 
   return (
@@ -164,7 +134,7 @@ export default function POSScreen() {
                   {item.name}
                 </Text>
                 <Text style={styles.tilePrice}>{formatCents(item.defaultPrice)}</Text>
-                {item.hasModifiers && <Text style={styles.tileMod}>+ options</Text>}
+                {item.modifierGroups.length > 0 && <Text style={styles.tileMod}>+ options</Text>}
               </TouchableOpacity>
             )}
             ListEmptyComponent={<Text style={styles.empty}>No products in this category.</Text>}
@@ -181,9 +151,17 @@ export default function POSScreen() {
             style={styles.cartList}
             renderItem={({ item }) => (
               <View style={styles.cartRow}>
-                <Text style={styles.cartName} numberOfLines={1}>
-                  {item.name}
-                </Text>
+                <View style={styles.cartNameCol}>
+                  <Text style={styles.cartName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  {item.modifiers.map((m) => (
+                    <Text key={m.modifierId} style={styles.cartMod} numberOfLines={1}>
+                      + {m.name}
+                      {m.priceDelta !== 0 ? ` (${formatCents(m.priceDelta)})` : ''}
+                    </Text>
+                  ))}
+                </View>
                 <View style={styles.qtyControls}>
                   <TouchableOpacity onPress={() => dec(item.key)} style={styles.qtyBtn}>
                     <Text style={styles.qtyBtnText}>−</Text>
@@ -193,26 +171,45 @@ export default function POSScreen() {
                     <Text style={styles.qtyBtnText}>+</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.cartLineTotal}>{formatCents(item.unitPrice * item.quantity)}</Text>
+                <Text style={styles.cartLineTotal}>{formatCents(lineTotal(item))}</Text>
               </View>
             )}
           />
           <TouchableOpacity
-            style={[styles.chargeBtn, charging && styles.buttonDisabled]}
-            onPress={confirmCharge}
-            disabled={charging}
+            style={styles.chargeBtn}
+            onPress={() => setPaymentOpen(true)}
             activeOpacity={0.85}
           >
-            {charging ? (
-              <ActivityIndicator color={colors.white} />
-            ) : (
-              <Text style={styles.chargeText}>
-                Charge {formatCents(subtotal)} · {cartCount} item{cartCount === 1 ? '' : 's'}
-              </Text>
-            )}
+            <Text style={styles.chargeText}>
+              Charge {formatCents(subtotal)} · {cartCount} item{cartCount === 1 ? '' : 's'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
+
+      <ModifierSheet
+        product={modifierProduct}
+        onClose={() => setModifierProduct(null)}
+        onAdd={(modifiers) => {
+          if (modifierProduct) {
+            add({
+              productId: modifierProduct.id,
+              name: modifierProduct.name,
+              basePrice: modifierProduct.defaultPrice,
+              modifiers,
+            });
+          }
+          setModifierProduct(null);
+        }}
+      />
+
+      <PaymentSheet
+        visible={paymentOpen}
+        locationId={locationId}
+        subtotal={subtotal}
+        onClose={() => setPaymentOpen(false)}
+        onPaid={onPaid}
+      />
     </SafeAreaView>
   );
 }
@@ -273,7 +270,9 @@ const styles = StyleSheet.create({
   },
   cartList: { maxHeight: 160 },
   cartRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs },
-  cartName: { flex: 1, fontSize: fontSize.md, color: colors.dark },
+  cartNameCol: { flex: 1 },
+  cartName: { fontSize: fontSize.md, color: colors.dark },
+  cartMod: { fontSize: fontSize.xs, color: colors.gray },
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.md },
   qtyBtn: {
     width: 32,

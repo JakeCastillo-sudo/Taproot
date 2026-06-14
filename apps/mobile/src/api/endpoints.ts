@@ -32,6 +32,24 @@ export interface SelectableEmployee {
   role: string;
 }
 
+export interface ModifierOption {
+  id: string;
+  name: string;
+  priceDelta: number; // cents, may be negative
+  isDefault: boolean;
+  sortOrder: number;
+}
+
+export interface ModifierGroup {
+  id: string;
+  name: string;
+  selectionType: 'single' | 'multiple' | 'required_single' | 'required_multiple';
+  minSelections: number;
+  maxSelections: number | null;
+  sortOrder: number;
+  modifiers: ModifierOption[];
+}
+
 /** Product as returned by GET /products, normalized with a defaultPrice (cents). */
 export interface ApiProduct {
   id: string;
@@ -39,7 +57,7 @@ export interface ApiProduct {
   category_id: string | null;
   day_parts: string[] | null;
   defaultPrice: number;
-  hasModifiers: boolean;
+  modifierGroups: ModifierGroup[];
 }
 
 export interface ApiCategory {
@@ -86,11 +104,19 @@ export interface KitchenTicket {
 
 // ─── Request bodies ─────────────────────────────────────────────────────────────
 
+export interface OrderLineModifier {
+  modifierId: string;
+  name: string;
+  priceDelta: number;
+}
+
 export interface OrderLineItem {
   productId: string;
   variantId: string | null;
   quantity: number;
+  /** Base product price in cents (modifiers are sent separately). */
   unitPrice: number;
+  modifiers?: OrderLineModifier[];
   notes?: string;
 }
 
@@ -99,6 +125,8 @@ export interface PaymentBody {
   amount: number;
   tipAmount?: number;
   cashTendered?: number;
+  /** Stripe PaymentMethod id (pm_…), required for credit_card/debit_card. */
+  stripePaymentMethodId?: string;
 }
 
 // ─── Auth ───────────────────────────────────────────────────────────────────────
@@ -145,7 +173,7 @@ export const catalogApi = {
         category_id: string | null;
         day_parts: string[] | null;
         prices?: Array<{ price: number }>;
-        modifierGroups?: Array<unknown>;
+        modifierGroups?: ModifierGroup[];
       }>;
     }>(`/products${qs ? `?${qs}` : ''}`);
 
@@ -157,7 +185,7 @@ export const catalogApi = {
       defaultPrice: p.prices?.length
         ? Math.min(...p.prices.map((pp) => Number(pp.price)))
         : 0,
-      hasModifiers: (p.modifierGroups?.length ?? 0) > 0,
+      modifierGroups: p.modifierGroups ?? [],
     }));
   },
 };
@@ -184,6 +212,11 @@ export const ordersApi = {
           quantity: i.quantity,
           unitPriceOverride: i.unitPrice,
           notes: i.notes,
+          modifiers: (i.modifiers ?? []).map((m) => ({
+            modifierId: m.modifierId,
+            name: m.name,
+            priceDelta: m.priceDelta,
+          })),
         })),
       }),
     }),
