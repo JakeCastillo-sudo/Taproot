@@ -1,5 +1,27 @@
 # Taproot POS — Claude Project State
 
+> # 🏁 v1.6.0 — FINAL STATE (2026-06-13)
+> **Sessions complete:**
+> - ✅ Session A — Email backend (invites + onboarding) — `8bd5600`
+> - ✅ Session B — Remove demo login — `8bd5600`
+> - ✅ Session C — Native mobile app (Expo/React Native) — `apps/mobile/` (separate session)
+> - ✅ Session D — Tauri desktop app — `536980b`
+> - ✅ Session E — Platform detection + download page — `f60a450`
+> - ✅ PSR certified secure — tag `psr-2026-06-12` (docs/PSR_REPORT.md)
+> - ✅ Security audit — `docs/SECURITY_AUDIT_2026.md` (OWASP Top 10 + PCI DSS 4.0; 0 crit/0 high)
+>
+> **JAKE PENDING (manual):**
+> - □ Run pending migration on Railway (BLOCKING invites): `npx node-pg-migrate up --migrations-dir migrations` → **024_employee_invites** (creates `email_logs` + employee invite columns; campaign dedup reconciled onto `email_logs` — no separate `023_campaign_sends`)
+> - □ Set `RESEND_API_KEY` + `EMAIL_FROM` in Railway
+> - □ Set `ONBOARDING_EMAILS_ENABLED=true` when ready
+> - □ Set `CAMPAIGNS_ENABLED=true` — **add unsubscribe link/route first**
+> - □ Mobile: `eas login` → `eas build:configure` → `eas build --platform all --profile production`
+> - □ Apple Developer account ($99) — bundle ID registration · Google Play Console ($25)
+> - □ Desktop: install Rust → `cd apps/desktop && npm run dev` → `git tag desktop-v1.0.0 && git push --tags` → set GitHub Secrets for code signing
+> - □ Confirm Stripe `sk_live_` in Railway
+> - □ Rotate Postgres password + set `ADMIN_JWT_SECRET` explicitly
+> - □ Run `docs/PSR_CLEANUP.sql` + `docs/HOUR5_CLEANUP.sql`
+
 > # 🖥️ SESSION D — DESKTOP APP (Tauri v2) (2026-06-13)
 > `apps/desktop/` — Tauri v2 shell loading taproot-pos.com; native ESC/POS thermal
 > printing + cash-drawer (Rust `serialport`), system tray, macOS universal + Windows.

@@ -551,3 +551,9 @@ locationId in body) — app behavior is correct, not bugs.
   - **SEC-ORG-001** — low/defense-in-depth; 3 highest-traffic by-UUID lookups org-scoped (pt3),
     remaining low-risk lookups deferred to a deliberate sweep.
   - **ENH-WH-001** — enhancement (inventory.low_stock webhook not emitted), not a bug.
+
+## Recurring security hygiene (added 2026-06-13 — see docs/SECURITY_AUDIT_2026.md)
+- [ ] **Quarterly `npm audit`** in `apps/api` and `apps/web` (next: 2026-09).
+- [ ] Quarterly: review `email_logs` for anomalies; rotate Railway secrets.
+- [ ] Before enabling campaigns: add unsubscribe link + `/unsubscribe` route + `organizations.unsubscribe_at`.
+- [ ] SEC-ORG-001 sweep: org-filter the remaining ~8 by-UUID child lookups.
