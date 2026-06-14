@@ -386,8 +386,8 @@ function Pricing() {
 
 // ─── Price promise (Section 9) ─────────────────────────────────────────────────
 
-const PROMISES = [
-  { icon: Lock, title: 'Your price is locked.', body: 'We will never raise your rate more than the official US inflation rate (CPI). 90-day advance notice of any change. No surprise bills. Ever.' },
+const PROMISES: Array<{ icon: typeof Lock; title: string; body: string; example?: string }> = [
+  { icon: Lock, title: 'Your price is locked.', body: "We can only raise your price with US inflation — and only by that exact amount. If inflation is 3% this year, your $99 becomes $102. That's it. No surprise fees. No arbitrary increases. 90 days notice before any change.", example: "Example: If US inflation is 3% in 2027, your price goes from $99.00 → $101.97/month. That's the legal maximum we can ever charge." },
   { icon: Package, title: 'Everything included.', body: 'Every feature on our roadmap comes to you at no additional charge. No tiers. No premium features. No add-on packages. One price. Forever.' },
   { icon: Shield, title: 'No Taproot fees on transactions.', body: 'We make money when you subscribe. Not when you sell. No cut of your revenue. Ever.' },
 ];
@@ -407,6 +407,11 @@ function PricePromise() {
                 </div>
                 <h3 className="text-lg font-bold text-gray-900">{p.title}</h3>
                 <p className="text-gray-500 mt-2 text-sm leading-relaxed">{p.body}</p>
+                {p.example && (
+                  <p className="mt-3 text-xs text-primary-dark bg-primary-light rounded-lg p-3 leading-relaxed">
+                    {p.example}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -538,6 +543,7 @@ const FAQS = [
   { q: 'What happens to my data if I cancel?', a: "It's yours. Always. Export everything in one click — orders, customers, products, reports. We never hold your data hostage." },
   { q: 'Is there a setup fee?', a: 'No. No setup fee. No onboarding fee. No implementation consultant. Just sign up and go.' },
   { q: 'Are there any fees beyond $99/month?', a: 'Three third-party pass-through costs exist: Stripe processing (2.7% + $0.05 per card transaction), sales tax (remitted to your tax authority), and AI features (included up to fair use limits). None of these go to Taproot.' },
+  { q: 'Will my price ever go up?', a: "Only with US inflation — and only by that exact amount. If inflation is 3% in a year, your $99 becomes about $101.97. That's the legal maximum we can ever charge. No arbitrary increases, no surprise fees, and 90 days notice before any change." },
   { q: 'What if I need help?', a: 'We answer. Email, chat, or call. Especially on Friday nights when things get real.' },
   { q: 'Can I use my own payment processor?', a: "Taproot uses Stripe Connect. You keep your own Stripe account and your own processing rates. We don't take a cut of your transactions." },
   { q: 'How long does setup actually take?', a: '10 minutes if you have your menu as a PDF. Upload it, Taproot imports every item, connect Stripe, add your employees, done.' },

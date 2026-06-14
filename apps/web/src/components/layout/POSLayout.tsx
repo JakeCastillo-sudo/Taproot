@@ -226,24 +226,26 @@ interface NavItem {
   id:    string;
   icon:  React.ReactNode;
   label: string;
+  /** Short (≤8 char) label shown under the icon when the sidebar is collapsed. */
+  short?: string;
   path:  string;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'pos',       icon: <ShoppingCart size={18} />, label: 'Register',  path: '/' },
   { id: 'orders',    icon: <FileText size={18} />,     label: 'Orders',    path: '/orders' },
-  { id: 'inventory', icon: <Package size={18} />,      label: 'Inventory', path: '/inventory' },
+  { id: 'inventory', icon: <Package size={18} />,      label: 'Inventory', short: 'Menu',    path: '/inventory' },
   { id: 'reports',   icon: <BarChart3 size={18} />,    label: 'Reports',   path: '/reports' },
   { id: 'analytics', icon: <TrendingUp size={18} />,   label: 'Analytics', path: '/analytics' },
-  { id: 'insights',  icon: <Sparkles size={18} />,     label: 'Insights',  path: '/insights' },
+  { id: 'insights',  icon: <Sparkles size={18} />,     label: 'Insights',  short: 'AI',      path: '/insights' },
   { id: 'kitchen',   icon: <Utensils size={18} />,     label: 'Kitchen',   path: '/kitchen' },
   { id: 'schedule',  icon: <CalendarDays size={18} />, label: 'Schedule',  path: '/schedule' },
-  { id: 'reserve',   icon: <CalendarClock size={18} />,label: 'Reservations', path: '/reservations' },
+  { id: 'reserve',   icon: <CalendarClock size={18} />,label: 'Reservations', short: 'Reserve', path: '/reservations' },
   { id: 'customers', icon: <User size={18} />,         label: 'Customers', path: '/customers' },
   { id: 'import',    icon: <Upload size={18} />,       label: 'Import',    path: '/import' },
   { id: 'migrate',   icon: <ArrowRightLeft size={18}/>,label: 'Migrate',   path: '/migrate' },
   { id: 'settings',  icon: <Settings size={18} />,     label: 'Settings',  path: '/settings' },
-  { id: 'customize', icon: <LayoutGrid size={18} />,   label: 'Customize', path: '/settings/dashboard' },
+  { id: 'customize', icon: <LayoutGrid size={18} />,   label: 'Customize', short: 'Layout',  path: '/settings/dashboard' },
 ];
 
 // ─── Clock-out button (S9-02) ─────────────────────────────────────────────────
@@ -308,6 +310,16 @@ function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarPr
     retry: false,
   });
 
+  // Restaurant name for the header brand (falls back to "Taproot POS" until loaded).
+  const { data: business } = useQuery({
+    queryKey: ['settings', 'business'],
+    queryFn:  settingsApi.getBusiness,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const orgName      = business?.orgName?.trim() || 'Taproot POS';
+  const avatarLetter = (business?.orgName?.trim()?.charAt(0) || 'T').toUpperCase();
+
   const navItems = useMemo(() => {
     // Analytics + Schedule are manager/owner only
     let items = canAccessSettings()
@@ -336,12 +348,16 @@ function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarPr
         collapsed ? 'justify-center' : 'justify-between gap-2',
       )}>
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <span className="text-white text-sm font-bold">T</span>
+          {/* Letter avatar — placeholder for a future uploaded logo */}
+          <div
+            className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0"
+            title={orgName}
+          >
+            <span className="text-white text-sm font-bold">{avatarLetter}</span>
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-sm font-bold text-gray-900 truncate">Taproot POS</p>
+              <p className="text-sm font-bold text-gray-900 truncate">{orgName}</p>
               <LocationSwitcher />
             </div>
           )}
@@ -372,11 +388,13 @@ function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarPr
           return (
             <button
               key={item.id}
-              title={collapsed ? item.label : undefined}
+              title={item.label}
               onClick={() => { navigate(item.path); onClose?.(); }}
               className={clsx(
-                'w-full flex items-center rounded-md text-sm font-medium transition-colors min-h-[40px]',
-                collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-3 py-2.5',
+                'w-full flex rounded-md text-sm font-medium transition-colors',
+                collapsed
+                  ? 'flex-col items-center gap-1 px-1 py-2 min-h-[48px]'
+                  : 'items-center gap-2.5 px-3 py-2.5 min-h-[40px]',
                 isActive
                   ? 'bg-primary/10 text-primary'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800',
@@ -385,7 +403,17 @@ function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarPr
               <span className={clsx('shrink-0', isActive && 'text-primary')}>
                 {item.icon}
               </span>
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              {collapsed ? (
+                // Always show a short label under the icon so the emoji-only nav is legible.
+                <span className={clsx(
+                  'text-[10px] leading-none text-center truncate max-w-full',
+                  isActive ? 'text-primary' : 'text-gray-400',
+                )}>
+                  {item.short ?? item.label}
+                </span>
+              ) : (
+                <span className="truncate">{item.label}</span>
+              )}
             </button>
           );
         })}
@@ -938,6 +966,17 @@ export function POSLayout({ user }: POSLayoutProps) {
             onChange={setActiveDayPart}
             compact
           />
+
+          {/* Exit POS → Settings / menu editing (subtle, not a POS action) */}
+          <button
+            onClick={() => navigate('/settings')}
+            title="Settings"
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-2 rounded-md border border-gray-200 bg-white text-xs text-gray-500 hover:bg-gray-100 transition-colors shrink-0"
+            aria-label="Settings"
+          >
+            <Settings size={14} />
+            <span className="hidden lg:inline">Settings</span>
+          </button>
 
           {/* ⌘K hint — desktop */}
           <button
