@@ -16,7 +16,7 @@ import {
   Leaf, Menu, X, Upload, Tag, Monitor, XCircle, Headphones,
   LineChart, TrendingUp, DollarSign, Lock, Package, Shield,
   Check, ChevronDown, ArrowRight, Play, Twitter, Linkedin, Instagram,
-  Smartphone, Tablet, Globe,
+  Smartphone, Tablet, Globe, SlidersHorizontal,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { PlatformDetect } from '../components/PlatformDetect';
@@ -204,6 +204,7 @@ const FEATURES = [
   { icon: Upload, title: 'Your menu. Imported in 60 seconds.', body: "Upload your current menu as a PDF. Taproot reads it, imports every item, and has you ready to take orders before your coffee gets cold. No data entry. No consultants." },
   { icon: Tag, title: 'One price. Everything included.', body: '$99/month includes everything. Online ordering. Loyalty program. Kitchen display. AI insights. Employee management. Not as add-ons. Included.' },
   { icon: Monitor, title: 'Works on the iPad you already have.', body: "No proprietary hardware. No $700 terminal you're forced to lease. Your existing iPad, any Android tablet, any browser." },
+  { icon: SlidersHorizontal, title: 'Modifiers & options', body: 'Add milk choices, sizes, flavors, and add-ons to any menu item. Charge extra for oat milk. Require a size selection. It all flows through to the kitchen ticket automatically.' },
   { icon: XCircle, title: 'Cancel anytime. We mean it.', body: "No 2-year contract. No early termination fee. If Taproot isn't working for you, cancel today and pay nothing tomorrow. Your data exports in one click. Always." },
   { icon: Headphones, title: 'Support that actually shows up.', body: 'We know what 7pm on a Friday feels like when something breaks and 40 people are waiting. We answer. Every time.' },
 ];

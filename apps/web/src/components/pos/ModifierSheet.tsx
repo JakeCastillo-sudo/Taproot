@@ -187,7 +187,7 @@ export function ModifierSheet({ product, cartItemId, onClose, onArchive }: Props
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 {group.modifiers.map((mod) => {
                   const selected = selections[group.id]?.has(mod.id) ?? false;
                   const single   = isSingle(group.selectionType);
@@ -198,14 +198,20 @@ export function ModifierSheet({ product, cartItemId, onClose, onArchive }: Props
                       role={single ? 'radio' : 'checkbox'}
                       aria-checked={selected}
                       className={clsx(
-                        'flex items-center justify-between px-3 py-2.5 rounded-md border text-left transition-all min-h-tap',
+                        // Large tap targets: name on top, price below, thick selected border.
+                        'flex flex-col items-start gap-0.5 px-4 py-3 rounded-lg border-2 text-left transition-all min-h-tap',
                         selected
-                          ? 'bg-primary-light border-primary/30 text-primary-dark'
-                          : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100',
+                          ? 'bg-primary-light border-primary text-primary-dark'
+                          : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300',
                       )}
                     >
-                      <span className="text-sm font-medium">{mod.name}</span>
-                      <span className="text-xs text-gray-400 ml-2 shrink-0">{fmt(mod.priceDelta)}</span>
+                      <span className="text-sm font-semibold">{mod.name}</span>
+                      <span className={clsx(
+                        'text-xs font-semibold',
+                        mod.priceDelta === 0 ? 'text-gray-400' : 'text-green-600',
+                      )}>
+                        {mod.priceDelta === 0 ? 'included' : fmt(mod.priceDelta)}
+                      </span>
                     </button>
                   );
                 })}

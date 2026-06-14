@@ -40,6 +40,47 @@ function dollarsToCents(input: string): number {
   return Math.round(dollars * 100) * (neg ? -1 : 1);
 }
 
+// ─── Quick-add templates ────────────────────────────────────────────────────
+// One click creates a pre-filled modifier group + options the user can then edit.
+// Price deltas are in cents.
+
+interface QuickTemplate {
+  label:         string;
+  selectionType: ModifierSelectionType;
+  options:       Array<{ name: string; delta: number; isDefault?: boolean }>;
+}
+
+const QUICK_TEMPLATES: QuickTemplate[] = [
+  { label: 'Milk Options', selectionType: 'required_single', options: [
+    { name: 'Whole Milk',  delta: 0, isDefault: true },
+    { name: 'Oat Milk',    delta: 75 },
+    { name: 'Almond Milk', delta: 50 },
+    { name: 'Skim Milk',   delta: 0 },
+    { name: 'Coconut Milk',delta: 75 },
+  ] },
+  { label: 'Size', selectionType: 'required_single', options: [
+    { name: 'Small',  delta: 0, isDefault: true },
+    { name: 'Medium', delta: 50 },
+    { name: 'Large',  delta: 100 },
+  ] },
+  { label: 'Flavor Syrup', selectionType: 'single', options: [
+    { name: 'Vanilla',    delta: 0 },
+    { name: 'Caramel',    delta: 0 },
+    { name: 'Hazelnut',   delta: 0 },
+    { name: 'Sugar-free', delta: 0 },
+  ] },
+  { label: 'Temperature', selectionType: 'required_single', options: [
+    { name: 'Hot',     delta: 0, isDefault: true },
+    { name: 'Iced',    delta: 0 },
+    { name: 'Blended', delta: 0 },
+  ] },
+  { label: 'Espresso Shots', selectionType: 'required_single', options: [
+    { name: 'Single', delta: 0, isDefault: true },
+    { name: 'Double', delta: 0 },
+    { name: 'Triple', delta: 100 },
+  ] },
+];
+
 // ─── Group modal ────────────────────────────────────────────────────────────
 
 interface GroupEdit {
@@ -311,6 +352,27 @@ export function ModifiersSettingsPage() {
     void qc.invalidateQueries({ queryKey: ['products'] });
   };
 
+  // Quick-add: create the group, then add each option in order. Sequential so
+  // sortOrder is preserved and we surface the first error cleanly.
+  const quickAdd = useMutation({
+    mutationFn: async (tpl: QuickTemplate) => {
+      const { id } = await modifiersApi.createGroup({
+        name:          tpl.label,
+        selectionType: tpl.selectionType,
+        minSelections: tpl.selectionType.startsWith('required') ? 1 : 0,
+        maxSelections: null,
+      });
+      let sortOrder = 0;
+      for (const opt of tpl.options) {
+        await modifiersApi.addModifier(id, {
+          name: opt.name, priceDelta: opt.delta, isDefault: opt.isDefault ?? false, sortOrder: sortOrder++,
+        });
+      }
+    },
+    onSuccess: (_d, tpl) => { showToast.success(`"${tpl.label}" group created — edit it below`); invalidate(); },
+    onError: (e: unknown) => showToast.error(e instanceof Error ? e.message : 'Quick-add failed'),
+  });
+
   const list = groups ?? [];
 
   return (
@@ -326,6 +388,45 @@ export function ModifiersSettingsPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6">
+        {/* Onboarding guidance: modifiers vs separate products */}
+        <div className="max-w-2xl mb-4 rounded-lg border border-primary/20 bg-primary-light/50 p-4">
+          <p className="text-sm text-gray-700 leading-relaxed">
+            <span className="font-semibold">💡 Use modifiers for options that belong to a product</span>
+            {' '}— like size, flavor, or milk type. For example, add a <span className="font-medium">“Milk Options”</span>{' '}
+            group to your Latte with options:
+          </p>
+          <ul className="mt-2 text-sm text-gray-600 space-y-0.5 pl-1">
+            <li>Whole Milk <span className="text-gray-400">($0.00)</span></li>
+            <li>Oat Milk <span className="text-green-600 font-medium">(+$0.75)</span></li>
+            <li>Almond Milk <span className="text-green-600 font-medium">(+$0.50)</span></li>
+          </ul>
+          <p className="mt-2 text-sm text-gray-700">
+            This way customers see it as part of the Latte instead of a separate menu item.
+          </p>
+        </div>
+
+        {/* Quick-add templates */}
+        <div className="max-w-2xl mb-5">
+          <p className="text-xs font-semibold text-gray-500 mb-2">Quick add:</p>
+          <div className="flex flex-wrap gap-2">
+            {QUICK_TEMPLATES.map((tpl) => {
+              const pending = quickAdd.isPending && quickAdd.variables?.label === tpl.label;
+              return (
+                <button
+                  key={tpl.label}
+                  onClick={() => quickAdd.mutate(tpl)}
+                  disabled={quickAdd.isPending}
+                  title={`Creates "${tpl.label}" with ${tpl.options.length} options`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-sm text-gray-700 hover:border-primary/40 hover:bg-primary-light/40 transition-colors disabled:opacity-50"
+                >
+                  <Plus size={14} className="text-primary" />
+                  {pending ? 'Adding…' : tpl.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="space-y-2 max-w-2xl">
             {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded animate-shimmer" />)}
