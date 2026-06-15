@@ -81,6 +81,57 @@ export interface OrderRow {
   change_due: number;
 }
 
+/** Org-wide order history row (GET /orders). */
+export interface OrderHistoryRow {
+  id: string;
+  order_number: string;
+  status: string;
+  order_type: string;
+  total: number;
+  amount_paid: number;
+  tip_total: number;
+  created_at: string;
+  employee_name: string;
+  customer_name: string | null;
+  item_count: number;
+  payment_methods: string | null;
+}
+
+export interface ReceiptLineItem {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  modifiers: Array<{ name: string; priceDelta: number }>;
+  total: number;
+  voided: boolean;
+}
+
+export interface ReceiptPayment {
+  method: string;
+  amount: number;
+  tipAmount: number;
+  last4: string | null;
+  brand: string | null;
+}
+
+/** Structured receipt (GET /orders/:id/receipt) — subset used by mobile detail. */
+export interface ReceiptData {
+  orderNumber: string;
+  orderType: string;
+  employeeName: string;
+  customerName: string | null;
+  lineItems: ReceiptLineItem[];
+  payments: ReceiptPayment[];
+  subtotal: number;
+  discountTotal: number;
+  taxTotal: number;
+  tipTotal: number;
+  total: number;
+  amountPaid: number;
+  changeDue: number;
+  createdAt: string;
+}
+
 export interface KitchenItem {
   id: string;
   name: string;
@@ -220,6 +271,27 @@ export const ordersApi = {
         })),
       }),
     }),
+
+  /** Org-wide enriched order history (cashiers are restricted server-side to own). */
+  history: (params?: {
+    status?: string;
+    paymentMethod?: string;
+    from?: string;
+    to?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const q = new URLSearchParams();
+    Object.entries(params ?? {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== '' && v !== 'all') q.set(k, String(v));
+    });
+    const qs = q.toString();
+    return apiFetch<{ orders: OrderHistoryRow[]; total: number }>(`/orders${qs ? `?${qs}` : ''}`);
+  },
+
+  /** Structured receipt for the detail view. */
+  receipt: (orderId: string) => apiFetch<ReceiptData>(`/orders/${orderId}/receipt`),
 };
 
 export const paymentsApi = {

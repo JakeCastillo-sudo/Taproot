@@ -8,6 +8,7 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import PinLoginScreen from '../screens/auth/PinLoginScreen';
 import POSScreen from '../screens/pos/POSScreen';
 import KitchenScreen from '../screens/kitchen/KitchenScreen';
+import OrdersScreen from '../screens/orders/OrdersScreen';
 import { colors } from '../utils/colors';
 
 const Tab = createBottomTabNavigator();
@@ -25,12 +26,14 @@ function MainTabs() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.gray,
         tabBarIcon: ({ color, size }) => {
-          const icon = route.name === 'POS' ? 'pricetags' : 'restaurant';
+          const icon =
+            route.name === 'POS' ? 'pricetags' : route.name === 'Kitchen' ? 'restaurant' : 'receipt';
           return <Ionicons name={icon} size={size} color={color} />;
         },
       })}
     >
       <Tab.Screen name="POS" component={POSScreen} />
+      <Tab.Screen name="Orders" component={OrdersScreen} />
       <Tab.Screen name="Kitchen" component={KitchenScreen} />
     </Tab.Navigator>
   );
