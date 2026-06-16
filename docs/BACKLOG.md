@@ -642,3 +642,105 @@ METRICS / REPORTING:
 Toast has a basic "expected wait" field. Square does not have dynamic wait times.
 DoorDash/Uber Eats show static platform estimates. NONE of them dynamically adjust based on
 current queue depth and push back to the platform. This is a genuine differentiator.
+
+---
+
+# 🚀 Pre-Production Checklist (before paying customers)
+
+> Consolidated list of every manual step Jake must complete before going live with
+> real money. Items are PENDING unless marked otherwise.
+
+## Integrations setup
+
+### QB-SETUP-001: QuickBooks Developer App
+Status: PENDING — Jake must complete · Blocks: QuickBooks sync for any customer
+
+Steps:
+1. Go to developer.intuit.com
+2. Sign up or sign in with your Intuit account
+3. Create a new app called "Taproot POS"
+4. Set OAuth redirect URI to:
+   `https://taproot-production-3d63.up.railway.app/api/v1/quickbooks/callback`
+5. Copy Client ID and Client Secret
+6. Add to Railway → Taproot → Variables:
+   `QB_CLIENT_ID=your_client_id`
+   `QB_CLIENT_SECRET=your_client_secret`
+
+How it works:
+- ONE-TIME setup by Jake. All restaurant customers use this same app.
+- Each customer connects THEIR OWN QuickBooks via OAuth (same model as Stripe Connect).
+- Jake never sees customer QuickBooks data.
+- Customers go: Settings → Accounting → Connect QuickBooks.
+
+Cost: Free (Intuit developer account). Time: ~15 minutes.
+
+### DELIVERY-SETUP-001: Delivery Integration
+Status: SELF-SERVE — no Jake action needed · Each restaurant owner does this themselves
+
+How it works for each customer:
+- Customer goes to Settings → Delivery in Taproot.
+- They see their webhook URLs:
+  DoorDash:  `https://taproot-production-3d63.up.railway.app/api/v1/webhooks/doordash`
+  Uber Eats: `https://taproot-production-3d63.up.railway.app/api/v1/webhooks/ubereats`
+- Customer logs into their own DoorDash/Uber Eats merchant portal and adds the webhook URL.
+- They copy their webhook secret into Taproot.
+- Orders flow automatically from that point.
+
+Jake's role: NONE (fully self-serve).
+Documentation needed: help article explaining the setup steps (add to /support or help docs).
+
+## Payments
+
+### STRIPE-SETUP-001: Switch to Live Stripe Key
+Status: PENDING
+Railway → Variables: `STRIPE_SECRET_KEY=sk_live_xxxx` (currently using test key).
+
+### MOBILE-001: Add Stripe live key to mobile
+Status: PENDING
+`apps/mobile/.env.production`: `EXPO_PUBLIC_STRIPE_KEY=pk_live_xxxx`
+(currently placeholder — card payments disabled).
+
+## Security
+
+### SECURITY-001: Rotate Postgres Password
+Status: PENDING
+Railway → PostgreSQL → Settings → Reset password. Update `DATABASE_URL` with new password.
+
+### SECURITY-002: Set ADMIN_JWT_SECRET explicitly
+Status: PENDING
+Railway → Variables: `ADMIN_JWT_SECRET=generate-a-long-random-string`
+(currently falling back to a derived value; generate via `openssl rand -base64 32`).
+
+## Data cleanup
+
+### CLEANUP-001: Run PSR cleanup SQL
+Status: PENDING · `docs/PSR_CLEANUP.sql` · Run in Railway → Postgres → Data tab.
+
+### CLEANUP-002: Run Hour 5 cleanup SQL
+Status: PENDING · `docs/HOUR5_CLEANUP.sql` · Run in Railway → Postgres → Data tab.
+
+### CLEANUP-003: Remove demo data (when ready)
+Status: PENDING — do AFTER first real customers · `docs/REMOVE_DEMO_DATA.sql`
+Run only when the demo org is no longer needed for testing.
+
+## Migrations (run after the matching deploy)
+
+### MIGRATION-PENDING: Apply outstanding migrations
+Status: PENDING
+Railway console: `npx node-pg-migrate up --migrations-dir migrations`
+Pending as of this writing: **024_employee_invites** (email_logs + invites),
+**025_email_unsubscribe**, **026_delivery_orders**, **027_quickbooks**.
+Until applied, those features no-op gracefully (table-existence guards).
+
+## Apps
+
+### MOBILE-002: EAS build + App Store submission
+Status: BACKLOGGED
+Prerequisites: Apple Developer account ($99/yr), register Bundle ID `com.taproot.pos`,
+create app in App Store Connect, Google Play Console ($25).
+When ready: say "build the mobile app".
+
+### DESKTOP-001: Code signing (optional for v1)
+Status: OPTIONAL
+Current `.dmg` works but shows an unsigned warning. To sign: see
+`docs/DESKTOP_CODE_SIGNING.md` (requires an Apple Developer ID Application cert).
