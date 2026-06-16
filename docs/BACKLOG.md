@@ -645,102 +645,145 @@ current queue depth and push back to the platform. This is a genuine differentia
 
 ---
 
-# 🚀 Pre-Production Checklist (before paying customers)
+# 🚀 Pre-Production Checklist
 
-> Consolidated list of every manual step Jake must complete before going live with
-> real money. Items are PENDING unless marked otherwise.
+> Single source of truth for every manual step before (and just after) the first paying
+> customer. Organized by priority. Status legend:
+> **✅ DONE** — verified complete · **❌ PENDING** — not yet done · **⏸ BACKLOGGED** — intentionally deferred.
+>
+> Last reviewed: **2026-06-16** (migration status probed live against the production API).
 
-## Integrations setup
+---
 
-### QB-SETUP-001: QuickBooks Developer App
-Status: PENDING — Jake must complete · Blocks: QuickBooks sync for any customer
+## 🔴 BLOCKING — Must complete before first customer
+
+These gate real money / production security. Do them all before onboarding a paying customer.
+
+### STRIPE-SETUP-001: Switch to Live Stripe Key — ❌ PENDING
+Blocks: real card revenue. Railway → Variables: `STRIPE_SECRET_KEY=sk_live_xxxx`
+(currently a test key — `config.ts` defaults empty / `sk_test_` ghost mode warns at startup,
+no real charges). Confirm `sk_live_` before accepting real money.
+
+### SECURITY-001: Rotate Postgres Password — ❌ PENDING
+Railway → PostgreSQL → Settings → Reset Password → update `DATABASE_URL` with the new password.
+
+### SECURITY-002: Set ADMIN_JWT_SECRET explicitly — ❌ PENDING
+Railway → Variables: `ADMIN_JWT_SECRET=<64-char random>` (generate via `openssl rand -hex 32`
+or `openssl rand -base64 32`). Currently falls back to the derived `${JWT_SECRET}_admin`
+(`config.ts:45`) — set it explicitly in prod.
+
+### SECURITY-003: Change default admin password — ❌ PENDING
+The seeded super-admin (`admin@taproot-pos.com`) ships with a default password. Log in once at
+`/admin/login` and change it immediately (or `UPDATE admin_users SET password_hash=<new bcrypt-12>`).
+
+### CLEANUP-001: Run PSR cleanup SQL — ❌ PENDING
+`docs/PSR_CLEANUP.sql` · Railway → Postgres → Data tab.
+
+### CLEANUP-002: Run Hour 5 cleanup SQL — ❌ PENDING
+`docs/HOUR5_CLEANUP.sql` · Railway → Postgres → Data tab.
+
+### CLEANUP-004: Confirm no test data in production — ❌ PENDING
+After running the cleanup SQLs, verify there are no leftover probe/test rows
+(e.g. the `probe@check.com` employee invite created during a 2026-06-16 migration probe on the
+demo org, and `Import Test Burger/Fries/Shake` test products). These are all on the demo org and
+are removed by `docs/REMOVE_DEMO_DATA.sql` (see CLEANUP-003 — run when the demo org is retired).
+
+---
+
+## 🟡 IMPORTANT — Complete within first week
+
+### QB-SETUP-001: QuickBooks Developer App — ❌ PENDING
+Blocks: QuickBooks sync for any customer. ONE-TIME setup by Jake (all customers share this app;
+each connects THEIR OWN QuickBooks via OAuth — same model as Stripe Connect; Jake never sees
+customer QB data; customers go Settings → Accounting → Connect QuickBooks).
+Migration **027_quickbooks** is already applied (✅, verified live) — only the credentials remain.
+Cost: free (Intuit developer account). Time: ~15 min.
 
 Steps:
-1. Go to developer.intuit.com
-2. Sign up or sign in with your Intuit account
-3. Create a new app called "Taproot POS"
-4. Set OAuth redirect URI to:
+1. Go to developer.intuit.com → sign in with your Intuit account.
+2. Create a new app called "Taproot POS".
+3. Set OAuth redirect URI to:
    `https://taproot-production-3d63.up.railway.app/api/v1/quickbooks/callback`
-5. Copy Client ID and Client Secret
-6. Add to Railway → Taproot → Variables:
-   `QB_CLIENT_ID=your_client_id`
-   `QB_CLIENT_SECRET=your_client_secret`
+4. Copy Client ID and Client Secret.
+5. Railway → Taproot → Variables:
+   - `QB_CLIENT_ID=your_client_id`   (❌ PENDING — `config.ts:176`, live `/quickbooks/status` → `configured:false`)
+   - `QB_CLIENT_SECRET=your_client_secret`   (❌ PENDING — `config.ts:177`)
+6. Verify `APP_URL` in Railway matches the API domain (❌ PENDING — `config.ts:161` defaults to
+   `http://localhost:5173` if unset; OAuth callbacks depend on it).
 
-How it works:
-- ONE-TIME setup by Jake. All restaurant customers use this same app.
-- Each customer connects THEIR OWN QuickBooks via OAuth (same model as Stripe Connect).
-- Jake never sees customer QuickBooks data.
-- Customers go: Settings → Accounting → Connect QuickBooks.
+### DELIVERY-SETUP-001: Delivery Integration help doc — ❌ PENDING (self-serve for customers)
+No Jake/Railway action: migration **026_delivery_orders** is applied (✅, verified live) and setup
+is fully self-serve per restaurant. Each customer: Settings → Delivery → copy their webhook URLs into
+their own DoorDash/Uber Eats merchant portal, paste the webhook secret back into Taproot.
+- DoorDash:  `https://taproot-production-3d63.up.railway.app/api/v1/webhooks/doordash`
+- Uber Eats: `https://taproot-production-3d63.up.railway.app/api/v1/webhooks/ubereats`
+Remaining task: write a help article documenting these steps (add to `/support` or help docs).
 
-Cost: Free (Intuit developer account). Time: ~15 minutes.
+### CLEANUP-003: Remove demo data — ❌ PENDING (do AFTER first real customers)
+`docs/REMOVE_DEMO_DATA.sql` · run only when the demo org is no longer needed for testing.
 
-### DELIVERY-SETUP-001: Delivery Integration
-Status: SELF-SERVE — no Jake action needed · Each restaurant owner does this themselves
+### CUSTOMER-001: Remove demo credentials from API — ❌ PENDING (when demo org retired)
+Once the demo org is no longer needed, remove/disable the `demo@taproot.pos` login so it isn't a
+standing credential in production. Pairs with CLEANUP-003.
 
-How it works for each customer:
-- Customer goes to Settings → Delivery in Taproot.
-- They see their webhook URLs:
-  DoorDash:  `https://taproot-production-3d63.up.railway.app/api/v1/webhooks/doordash`
-  Uber Eats: `https://taproot-production-3d63.up.railway.app/api/v1/webhooks/ubereats`
-- Customer logs into their own DoorDash/Uber Eats merchant portal and adds the webhook URL.
-- They copy their webhook secret into Taproot.
-- Orders flow automatically from that point.
+### GTM-001: Record 60-second Loom demo video — ❌ PENDING
+Show: menu import → first order → receipt. Used for landing-page hero + cold outreach.
 
-Jake's role: NONE (fully self-serve).
-Documentation needed: help article explaining the setup steps (add to /support or help docs).
+### GTM-002: First-customer outreach — ❌ PENDING
+Walk into 3 local restaurants this week; post to r/restaurantowners; send first cold email;
+reply to the first user feedback personally.
 
-## Payments
+---
 
-### STRIPE-SETUP-001: Switch to Live Stripe Key
-Status: PENDING
-Railway → Variables: `STRIPE_SECRET_KEY=sk_live_xxxx` (currently using test key).
+## 🟢 NICE TO HAVE — Complete when ready
 
-### MOBILE-001: Add Stripe live key to mobile
-Status: PENDING
+### MOBILE-001: Add Stripe live key to mobile — ❌ PENDING
 `apps/mobile/.env.production`: `EXPO_PUBLIC_STRIPE_KEY=pk_live_xxxx`
-(currently placeholder — card payments disabled).
+(currently `pk_live_REPLACE_WITH_LIVE_KEY` placeholder — card payments disabled in the mobile app).
 
-## Security
+### MOBILE-002: EAS project + native builds + store submission — ⏸ BACKLOGGED
+When ready, say "build the mobile app". Prerequisites:
+- [ ] Configure EAS project ID in `apps/mobile/app.json` (currently `REPLACE_WITH_EAS_PROJECT_ID`).
+- [ ] Apple Developer account ($99/yr).
+- [ ] Bundle ID `com.taproot.pos` registered with Apple/Google (declared in `app.json`: iOS
+      `bundleIdentifier` + Android `package`; needs portal registration).
+- [ ] Create app in App Store Connect.
+- [ ] Create app in Google Play Console ($25).
+- [ ] `eas build --platform all --profile production`.
+- [ ] `eas submit --platform all`.
 
-### SECURITY-001: Rotate Postgres Password
-Status: PENDING
-Railway → PostgreSQL → Settings → Reset password. Update `DATABASE_URL` with new password.
+### DESKTOP-001: Desktop install verification + code signing — ⏸ BACKLOGGED / OPTIONAL
+- [ ] Test the `.dmg` installs on a clean Mac.
+- [ ] Test the `.exe` installs on Windows.
+- [ ] Code signing (optional for v1) — current `.dmg` shows an unsigned warning; to sign see
+      `docs/DESKTOP_CODE_SIGNING.md` (requires an Apple Developer ID Application cert).
+- [ ] Update `/download/mac` redirect to the real DMG release URL (currently 404s until the desktop
+      app is published — CI renames the artifact to `taproot-pos.dmg` to match the redirect).
+- [ ] Update `/download/win` redirect to the real EXE release URL (CI names it `taproot-pos-setup.exe`).
 
-### SECURITY-002: Set ADMIN_JWT_SECRET explicitly
-Status: PENDING
-Railway → Variables: `ADMIN_JWT_SECRET=generate-a-long-random-string`
-(currently falling back to a derived value; generate via `openssl rand -base64 32`).
+---
 
-## Data cleanup
+## ✅ COMPLETE — Already done
 
-### CLEANUP-001: Run PSR cleanup SQL
-Status: PENDING · `docs/PSR_CLEANUP.sql` · Run in Railway → Postgres → Data tab.
+### MIGRATIONS-024-027: Outstanding migrations — ✅ DONE (verified live 2026-06-16)
+Probed against the production API — **all four are applied**:
+- **024_employee_invites** (email_logs + invite columns) — ✅ `POST /employees/invite` → 201.
+- **025_email_unsubscribe** (email_unsubscribes table) — ✅ `GET /unsubscribe/verify` → 200 `{"valid":false}`.
+- **026_delivery_orders** — ✅ `GET /delivery/providers` → 200 `{"providers":[]}`.
+- **027_quickbooks** — ✅ `GET /quickbooks/status` → 200 `{"connected":false,"configured":false}`.
+Migrations 001–023 were already applied. **No pending migrations.** (To re-apply anywhere:
+`npx node-pg-migrate up --migrations-dir migrations`.)
 
-### CLEANUP-002: Run Hour 5 cleanup SQL
-Status: PENDING · `docs/HOUR5_CLEANUP.sql` · Run in Railway → Postgres → Data tab.
+### EMAIL-ENV: Email transport + flags — ✅ DONE (verified earlier)
+- `RESEND_API_KEY` — ✅ set (email sending).
+- `EMAIL_FROM` — ✅ set (sender address).
+- `ONBOARDING_EMAILS_ENABLED=true` — ✅ set.
+- `CAMPAIGNS_ENABLED=true` — ✅ set (CAN-SPAM unsubscribe shipped 2026-06-16, so campaigns are unblocked).
 
-### CLEANUP-003: Remove demo data (when ready)
-Status: PENDING — do AFTER first real customers · `docs/REMOVE_DEMO_DATA.sql`
-Run only when the demo org is no longer needed for testing.
+### DOMAIN-CORS: Domain + CORS — ✅ DONE
+`taproot-pos.com` live on Vercel; API CORS hardcodes `https://taproot-pos.com` +
+`https://www.taproot-pos.com` (BUG-AUTH-002 fix). Auth verified healthy end-to-end.
 
-## Migrations (run after the matching deploy)
-
-### MIGRATION-PENDING: Apply outstanding migrations
-Status: PENDING
-Railway console: `npx node-pg-migrate up --migrations-dir migrations`
-Pending as of this writing: **024_employee_invites** (email_logs + invites),
-**025_email_unsubscribe**, **026_delivery_orders**, **027_quickbooks**.
-Until applied, those features no-op gracefully (table-existence guards).
-
-## Apps
-
-### MOBILE-002: EAS build + App Store submission
-Status: BACKLOGGED
-Prerequisites: Apple Developer account ($99/yr), register Bundle ID `com.taproot.pos`,
-create app in App Store Connect, Google Play Console ($25).
-When ready: say "build the mobile app".
-
-### DESKTOP-001: Code signing (optional for v1)
-Status: OPTIONAL
-Current `.dmg` works but shows an unsigned warning. To sign: see
-`docs/DESKTOP_CODE_SIGNING.md` (requires an Apple Developer ID Application cert).
+### CANSPAM: Unsubscribe compliance — ✅ DONE (2026-06-16)
+HMAC-signed unsubscribe tokens, compliant footers, `/unsubscribe` route + public API.
+Cleared the "add unsubscribe before enabling campaigns" blocker.

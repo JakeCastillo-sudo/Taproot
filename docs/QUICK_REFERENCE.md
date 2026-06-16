@@ -85,9 +85,12 @@ Run on Railway: `npx node-pg-migrate up --migrations-dir migrations`
 | 021 | time_clock | `time_clock_entries` + `schedules` | applied |
 | 022 | admin_users | admin_users/sessions/impersonation_log + helpdesk tickets/messages | applied |
 | 023 | (discarded) | orphan `023_email_campaigns.js` discarded; campaign dedup reconciled onto `email_logs` | n/a |
-| 024 | employee_invites | `email_logs` + employee invite columns | **PENDING** (BLOCKS invites) |
-| 025 | email_unsubscribe | `email_unsubscribes` table (CAN-SPAM) | **PENDING** (before campaigns) |
+| 024 | employee_invites | `email_logs` + employee invite columns | applied (verified live 2026-06-16) |
+| 025 | email_unsubscribe | `email_unsubscribes` table (CAN-SPAM) | applied (verified live 2026-06-16) |
+| 026 | delivery_orders | delivery provider/order tables (DoorDash/Uber Eats) | applied (verified live 2026-06-16) |
+| 027 | quickbooks | QuickBooks OAuth connection/sync tables | applied (verified live 2026-06-16) |
 
+> **No pending migrations** as of 2026-06-16 (probed against the production API).
 > Most code degrades gracefully (existence guards) until its migration runs.
 
 ---

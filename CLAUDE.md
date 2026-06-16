@@ -25,22 +25,28 @@ Production certified and launch-ready. Sprints 1–11 + V1.0–V1.6 complete.
 
 ## ⚠️ Active Pending / Pre-Production Checklist
 
-**BLOCKING — run on Railway** (`npx node-pg-migrate up --migrations-dir migrations`):
-- [ ] **025_email_unsubscribe** (`email_unsubscribes` table) — newest; required before campaigns.
-- [ ] **024_employee_invites** (`email_logs` + invite columns) — BLOCKS employee invites.
+> 📋 **Full checklist (priority-ordered, with steps) lives in `docs/BACKLOG.md` → "🚀 Pre-Production Checklist".**
+> Below is the at-a-glance summary. Last reviewed 2026-06-16 (migrations probed live).
 
-**Manual (Jake) before first real money / launch:**
-- [ ] Set `RESEND_API_KEY` + `EMAIL_FROM` in Railway (email transport).
-- [ ] Set `ONBOARDING_EMAILS_ENABLED=true` when ready.
-- [ ] Set `CAMPAIGNS_ENABLED=true` (unsubscribe now in place → unblocked).
-- [ ] Confirm Stripe `sk_live_` in Railway.
-- [ ] Set `ADMIN_JWT_SECRET` explicitly + rotate Postgres password.
+**✅ Migrations — none pending.** 024_employee_invites, 025_email_unsubscribe, 026_delivery_orders,
+027_quickbooks all **verified applied** against the live API on 2026-06-16. Migrations 001–023 already applied.
+
+**✅ Done:** `RESEND_API_KEY`, `EMAIL_FROM`, `ONBOARDING_EMAILS_ENABLED=true`, `CAMPAIGNS_ENABLED=true`;
+CAN-SPAM unsubscribe shipped; domain + CORS live.
+
+**🔴 BLOCKING before first paying customer:**
+- [ ] Confirm Stripe `STRIPE_SECRET_KEY=sk_live_` in Railway.
+- [ ] Rotate Postgres password; set `ADMIN_JWT_SECRET` explicitly (`openssl rand -hex 32`).
 - [ ] Change default admin password (`admin@taproot-pos.com`).
-- [ ] Run `docs/PSR_CLEANUP.sql` + `docs/HOUR5_CLEANUP.sql`.
-- [ ] Mobile: `eas build --platform all --profile production`; Apple ($99) / Google Play ($25).
-- [ ] Desktop: install Rust → `cd apps/desktop && npm run dev` → `git tag desktop-v1.0.0 && git push --tags`.
+- [ ] Run `docs/PSR_CLEANUP.sql` + `docs/HOUR5_CLEANUP.sql`; confirm no test data in prod.
 
-Full per-item detail is preserved in **docs/SESSION_HISTORY.md** (v1.6.0 FINAL STATE + CAN-SPAM).
+**🟡 Within first week:** QuickBooks dev app (`QB_CLIENT_ID`/`QB_CLIENT_SECRET` + verify `APP_URL`);
+delivery help doc; record Loom demo; first-customer outreach; remove demo data/credentials after first customers.
+
+**🟢 When ready:** mobile (`EXPO_PUBLIC_STRIPE_KEY`, EAS project id, Apple $99 / Google Play $25,
+`eas build`/`submit`); desktop (DMG/EXE install tests, code signing, `/download/*` redirects).
+
+Full per-item detail also in **docs/SESSION_HISTORY.md** (v1.6.0 FINAL STATE + CAN-SPAM).
 
 ---
 
@@ -130,10 +136,10 @@ cd apps/api && npx tsc --noEmit   # → 0 errors
 
 | Bug ID | Symptom | File | Status |
 |---|---|---|---|
-| **BUG-IMP-001** | CSV uploads OK but review screen shows empty item list | `importJob.service.ts` — CSV parsing path in `processImportJob` | OPEN |
-| **BUG-IMP-002** | PDF menu import gives $0.00 for all prices | `documentParser.service.ts` — `parseMenu` prompt / cents extraction | OPEN |
-| **BUG-IMP-003** | Import review screen overflows viewport; must zoom out to reach buttons | `ImportReview.tsx` — layout/height CSS | OPEN |
-| **BUG-IMP-004** | Import workflow stops at review; confirm button doesn't push to POS | `ImportReview.tsx` + `importJob.service.ts` — confirm flow end-to-end | OPEN |
+| **BUG-IMP-001** | CSV uploads OK but review screen shows empty item list | `importJob.service.ts` — CSV parsing path in `processImportJob` | ✅ RESOLVED (Prompt 30, 2026-06-07) |
+| **BUG-IMP-002** | PDF menu import gives $0.00 for all prices | `documentParser.service.ts` — `parseMenu` prompt / cents extraction | ✅ RESOLVED (Prompt 30, 2026-06-07) |
+| **BUG-IMP-003** | Import review screen overflows viewport; must zoom out to reach buttons | `ImportReview.tsx` — layout/height CSS | ✅ RESOLVED (Prompt 30, 2026-06-07) |
+| **BUG-IMP-004** | Import workflow stops at review; confirm button doesn't push to POS | `ImportReview.tsx` + `importJob.service.ts` — confirm flow end-to-end | ✅ RESOLVED (Prompt 30, 2026-06-07) |
 
 ### P3 — Low priority (future)
 
