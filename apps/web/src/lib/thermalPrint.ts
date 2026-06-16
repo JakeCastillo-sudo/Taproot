@@ -9,6 +9,7 @@
  */
 
 import type { LastCompletedOrder } from '../store/pos.store';
+import { printReceiptNative, printKitchenNative, openCashDrawerNative } from '../services/print.service';
 
 const URL_KEY = 'taproot_print_server_url';
 const DEFAULT_URL = 'http://localhost:3333';
@@ -50,18 +51,22 @@ async function post(path: string, payload: unknown): Promise<boolean> {
 
 /** Returns true if the job was sent to the thermal printer; false → caller should fall back. */
 export async function printReceiptThermal(order: LastCompletedOrder): Promise<boolean> {
+  // Desktop app (Tauri) native ESC/POS first, when a USB/network printer is configured.
+  if (await printReceiptNative(order)) return true;
   const { available } = await checkPrintServer();
   if (!available) return false;
   return post('/print/receipt', order);
 }
 
 export async function printKitchenThermal(order: LastCompletedOrder): Promise<boolean> {
+  if (await printKitchenNative(order)) return true;
   const { available } = await checkPrintServer();
   if (!available) return false;
   return post('/print/kitchen', order);
 }
 
 export async function openCashDrawer(): Promise<boolean> {
+  if (await openCashDrawerNative()) return true;
   const { available } = await checkPrintServer();
   if (!available) return false;
   return post('/drawer/open', {});

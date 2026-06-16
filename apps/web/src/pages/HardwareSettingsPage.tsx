@@ -5,12 +5,18 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Printer, CheckCircle2, XCircle, ScanLine, Monitor, MonitorSmartphone } from 'lucide-react';
+import { Printer, CheckCircle2, XCircle, ScanLine, Monitor, MonitorSmartphone, RefreshCw, Download } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
   getPrintServerUrl, setPrintServerUrl, checkPrintServer, printReceiptThermal,
   type PrintServerStatus,
 } from '../lib/thermalPrint';
+import { useTauri } from '../hooks/useTauri';
+import {
+  getPrinterConfig, setPrinterConfig, openCashDrawerNative,
+  type PrinterConfig, type PrinterMode,
+} from '../services/print.service';
 import { getScannerEnabled, setScannerEnabled } from '../hooks/useBarcodeScanner';
 import { openCustomerDisplay, DISPLAY_IDLE_MSG_KEY } from '../lib/displayChannel';
 import { showToast } from '../components/ui/Toast';
@@ -25,6 +31,143 @@ const SAMPLE: LastCompletedOrder = {
 };
 
 const PRINTER_MODELS = ['Epson TM-T88', 'Star TSP100', 'Star TSP650', 'Generic ESC/POS'];
+
+// ─── Desktop-only native printer setup (Tauri) ──────────────────────────────────
+// USB/network ESC/POS, configured via print.service (localStorage). Only rendered
+// inside the Taproot desktop app; the web build shows a download prompt instead.
+
+function DesktopPrinterSection() {
+  const { isDesktop, listPrinters, printReceipt } = useTauri();
+  const [cfg, setCfg] = useState<PrinterConfig>(() => getPrinterConfig());
+  const [ports, setPorts] = useState<string[]>([]);
+  const [scanning, setScanning] = useState(false);
+
+  const field = 'w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/40';
+
+  const refreshPorts = async () => {
+    setScanning(true);
+    const list = await listPrinters();
+    setPorts(list);
+    setScanning(false);
+  };
+
+  useEffect(() => {
+    if (isDesktop && cfg.mode === 'usb') void refreshPorts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDesktop]);
+
+  const update = (patch: Partial<PrinterConfig>) => {
+    setCfg((prev) => { const next = { ...prev, ...patch }; setPrinterConfig(next); return next; });
+  };
+
+  const target = cfg.mode === 'usb'
+    ? { portName: cfg.usbPort || undefined }
+    : cfg.mode === 'network'
+      ? { networkHost: cfg.networkHost || undefined, networkPort: cfg.networkPort }
+      : {};
+
+  const testPrint = async () => {
+    if (cfg.mode === 'usb' && !cfg.usbPort) { showToast.error('Select a printer port first'); return; }
+    if (cfg.mode === 'network' && !cfg.networkHost) { showToast.error('Enter the printer IP first'); return; }
+    try { await printReceipt(SAMPLE, target); showToast.success('Test print sent'); }
+    catch (e) { showToast.error(e instanceof Error ? e.message : 'Print failed'); }
+  };
+
+  const testDrawer = async () => {
+    // openCashDrawerNative reads the saved printer config (USB port / network host).
+    try {
+      const sent = await openCashDrawerNative();
+      if (sent) showToast.success('Cash drawer kicked');
+      else showToast.error('Configure a USB/network printer first');
+    } catch (e) { showToast.error(e instanceof Error ? e.message : 'Drawer failed'); }
+  };
+
+  if (!isDesktop) {
+    return (
+      <section className="border border-gray-100 rounded-lg p-4">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-1"><Printer size={16} /> Receipt Printer</h2>
+        <p className="text-xs text-gray-500 mb-3">Connect a USB or network thermal printer.</p>
+        <div className="bg-gray-50 border border-gray-100 rounded-md p-3">
+          <p className="text-xs text-gray-600">
+            Direct USB / network printer setup is available in the Taproot desktop app for Mac and Windows.
+          </p>
+          <Link to="/download" className="inline-flex items-center gap-1.5 mt-2 text-sm font-semibold text-primary hover:underline">
+            <Download size={14} /> Download Desktop App →
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="border border-gray-100 rounded-lg p-4">
+      <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-1"><Printer size={16} /> Receipt Printer</h2>
+      <p className="text-xs text-gray-500 mb-3">Connect a USB or network thermal printer.</p>
+
+      {/* Mode selector */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-4">
+        {(['browser', 'usb', 'network'] as PrinterMode[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => update({ mode: m })}
+            className={clsx(
+              'px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-colors',
+              cfg.mode === m ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
+            {m === 'browser' ? 'Browser' : m === 'usb' ? 'USB' : 'Network'}
+          </button>
+        ))}
+      </div>
+
+      {cfg.mode === 'browser' && (
+        <p className="text-xs text-gray-500">Uses the system print dialog. No printer setup needed.</p>
+      )}
+
+      {cfg.mode === 'usb' && (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Printer port</label>
+            <div className="flex gap-2">
+              <select className={field + ' bg-white'} value={cfg.usbPort} onChange={(e) => update({ usbPort: e.target.value })}>
+                <option value="">Select a port…</option>
+                {ports.map((p) => <option key={p} value={p}>{p}</option>)}
+                {cfg.usbPort && !ports.includes(cfg.usbPort) && <option value={cfg.usbPort}>{cfg.usbPort}</option>}
+              </select>
+              <button onClick={() => void refreshPorts()} disabled={scanning} className="px-3 py-2 border border-gray-200 rounded-md text-sm text-gray-600 hover:bg-gray-50 shrink-0 flex items-center gap-1.5">
+                <RefreshCw size={13} className={clsx(scanning && 'animate-spin')} /> {scanning ? 'Scanning…' : 'Refresh'}
+              </button>
+            </div>
+            {ports.length === 0 && !scanning && <p className="text-[11px] text-gray-400 mt-1">No ports found — make sure the printer is connected, then Refresh.</p>}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => void testPrint()} className="px-3 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary-dark">Test print</button>
+            <button onClick={() => void testDrawer()} className="px-3 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-md hover:bg-gray-50">Test cash drawer</button>
+          </div>
+        </div>
+      )}
+
+      {cfg.mode === 'network' && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">IP address</label>
+              <input className={field} value={cfg.networkHost} onChange={(e) => update({ networkHost: e.target.value.trim() })} placeholder="192.168.1.100" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Port</label>
+              <input className={field} type="number" value={cfg.networkPort} onChange={(e) => update({ networkPort: Number(e.target.value) || 9100 })} placeholder="9100" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => void testPrint()} className="px-3 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary-dark">Test print</button>
+            <button onClick={() => void testDrawer()} className="px-3 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-md hover:bg-gray-50">Test cash drawer</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
 
 export function HardwareSettingsPage() {
   const [url, setUrl] = useState(getPrintServerUrl());
@@ -54,6 +197,9 @@ export function HardwareSettingsPage() {
         <h1 className="text-lg font-bold text-gray-900">Hardware</h1>
       </div>
       <div className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6 space-y-6 max-w-2xl">
+
+        {/* Native receipt printer (desktop app) */}
+        <DesktopPrinterSection />
 
         {/* Thermal printer */}
         <section className="border border-gray-100 rounded-lg p-4">
