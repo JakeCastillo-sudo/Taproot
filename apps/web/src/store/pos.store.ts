@@ -86,6 +86,7 @@ export interface POSStore {
   removeFromCart: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   updateNotes:    (itemId: string, notes: string) => void;
+  updateCartItem: (itemId: string, patch: { modifiers?: AppliedModifier[]; quantity?: number; notes?: string }) => void;
   clearCart:      () => void;
   undoLastRemove: () => void;
 
@@ -215,6 +216,19 @@ export const usePOSStore = create<POSStore>()(
         set((s) => {
           const item = s.cart.find((c) => c.id === itemId);
           if (item) item.notes = notes;
+        }),
+
+      // Edit an existing line in place — used by the cart's "edit modifiers"
+      // pencil. Replaces modifiers/qty/notes and recomputes lineTotal; never
+      // adds a duplicate.
+      updateCartItem: (itemId, patch) =>
+        set((s) => {
+          const item = s.cart.find((c) => c.id === itemId);
+          if (!item) return;
+          if (patch.modifiers !== undefined) item.modifiers = patch.modifiers;
+          if (patch.quantity !== undefined && patch.quantity > 0) item.quantity = patch.quantity;
+          if (patch.notes !== undefined) item.notes = patch.notes;
+          item.lineTotal = calcLineTotal(item);
         }),
 
       clearCart: () =>

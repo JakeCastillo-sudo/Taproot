@@ -59,27 +59,45 @@ interface Props {
   product:     ModifierSheetProduct;
   /** Existing cart item ID when editing (undefined = add new) */
   cartItemId?:  string;
+  /** When editing: the line's current modifiers (pre-checked instead of defaults) */
+  initialModifiers?: AppliedModifier[];
+  /** When editing: the line's current notes */
+  initialNotes?:     string;
+  /** When editing: the line's current quantity */
+  initialQuantity?:  number;
   onClose:      () => void;
   /** If provided, shows an "Archive Item" button in the header for POS quick-archive. */
   onArchive?:   (productId: string, productName: string) => void;
 }
 
-export function ModifierSheet({ product, cartItemId, onClose, onArchive }: Props) {
+export function ModifierSheet({
+  product, cartItemId, initialModifiers, initialNotes, initialQuantity, onClose, onArchive,
+}: Props) {
   const addToCart       = usePOSStore((s) => s.addToCart);
-  const updateNotes     = usePOSStore((s) => s.updateNotes);
+  const updateCartItem  = usePOSStore((s) => s.updateCartItem);
   const setSheetOpen    = usePOSStore((s) => s.setModifierSheetOpen);
 
   const [selections, setSelections] = useState<Record<string, Set<string>>>({});
   const [qty,        setQty]        = useState(1);
   const [notes,      setNotes]      = useState('');
 
-  // Initialise: pre-select any modifiers flagged isDefault
+  // Initialise selections: when editing, pre-check the line's current modifiers;
+  // otherwise pre-select any modifiers flagged isDefault. Also seed notes/qty when
+  // editing. Keyed on the product so it re-seeds when the sheet opens for a new item.
   useEffect(() => {
+    const initialIds = initialModifiers ? new Set(initialModifiers.map((m) => m.modifierId)) : null;
     const init: Record<string, Set<string>> = {};
     for (const g of product.modifierGroups) {
-      init[g.id] = new Set(g.modifiers.filter((m) => m.isDefault).map((m) => m.id));
+      init[g.id] = new Set(
+        g.modifiers
+          .filter((m) => (initialIds ? initialIds.has(m.id) : m.isDefault))
+          .map((m) => m.id),
+      );
     }
     setSelections(init);
+    if (initialNotes !== undefined) setNotes(initialNotes);
+    if (initialQuantity !== undefined && initialQuantity > 0) setQty(initialQuantity);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.modifierGroups]);
 
   const toggle = useCallback((groupId: string, modId: string, single: boolean) => {
@@ -113,8 +131,8 @@ export function ModifierSheet({ product, cartItemId, onClose, onArchive }: Props
 
   const handleConfirm = () => {
     if (cartItemId) {
-      // Editing existing item — only update notes for now
-      updateNotes(cartItemId, notes);
+      // Editing existing item — replace modifiers + qty + notes in place.
+      updateCartItem(cartItemId, { modifiers: appliedModifiers, quantity: qty, notes });
     } else {
       addToCart({
         productId: product.id,

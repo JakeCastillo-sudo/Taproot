@@ -26,11 +26,11 @@ import {
   ChevronRight, ChevronLeft, Plus, Minus, Trash2, Tag,
   FileText, AlertTriangle, User, Layers, BarChart3,
   Upload, ArrowRightLeft, Menu, Terminal, Settings,
-  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles, Network, MonitorSmartphone, TrendingUp, CalendarDays,
+  LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles, Network, MonitorSmartphone, TrendingUp, CalendarDays, Pencil,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
-import { usePOSStore, type CartItem } from '../../store/pos.store';
+import { usePOSStore, type CartItem, type AppliedModifier } from '../../store/pos.store';
 import { useUIStore } from '../../store/ui.store';
 import { products as productsApi, categories as categoriesApi, settings as settingsApi, discounts as discountsApi, franchise as franchiseApi, type ProductWithModifiers } from '../../lib/api';
 import { setPosTaxRate } from '../../store/pos.store';
@@ -157,18 +157,28 @@ function ProductTile({ product, onTap, onLongPress, index }: ProductTileProps) {
 
 // ─── Cart Line Item ───────────────────────────────────────────────────────────
 
-function CartLine({ item }: { item: CartItem }) {
+function CartLine({ item, onEdit }: { item: CartItem; onEdit?: () => void }) {
   const updateQuantity = usePOSStore((s) => s.updateQuantity);
   const removeFromCart = usePOSStore((s) => s.removeFromCart);
 
   return (
     <div className="flex items-start gap-2 py-3 border-b border-gray-50 last:border-0 group">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-800 truncate flex items-center gap-1">
+        <p className="text-sm font-medium text-gray-800 flex items-center gap-1">
           {item.notes?.startsWith(ALLERGEN_NOTE_PREFIX) && (
             <AlertTriangle size={12} className="text-red-500 shrink-0" aria-label="Allergen alert" />
           )}
-          {item.name}
+          <span className="truncate">{item.name}</span>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="shrink-0 p-0.5 text-gray-300 hover:text-primary transition-colors"
+              aria-label={`Edit ${item.name}`}
+              title="Edit modifiers"
+            >
+              <Pencil size={14} />
+            </button>
+          )}
         </p>
         {(item.modifiers ?? []).length > 0 && (
           <div className="mt-0.5 space-y-0.5">
@@ -526,6 +536,9 @@ export function POSLayout({ user }: POSLayoutProps) {
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [modifierProduct, setModifierProduct] = useState<ModifierSheetProduct | null>(null);
+  // Cart "edit modifiers" context — set when the cashier taps a cart line's pencil.
+  const [editCartItemId, setEditCartItemId] = useState<string | null>(null);
+  const [editInit, setEditInit] = useState<{ modifiers: AppliedModifier[]; notes: string; quantity: number } | null>(null);
   const [showShortcuts,  setShowShortcuts]  = useState(false);
   const [cmdOpen,        setCmdOpen]        = useState(false);
   const [showEmployeeSelect, setShowEmployeeSelect] = useState(false);
@@ -677,8 +690,69 @@ export function POSLayout({ user }: POSLayoutProps) {
       })),
     };
     setModifierProduct(pSheet);
+    setEditCartItemId(null);
+    setEditInit(null);
     setModifierSheetOpen(true);
   }, [setModifierSheetOpen]);
+
+  // Product IDs (in the current view) that have modifier groups — used to show the
+  // cart edit pencil even on lines that don't yet have a modifier selected.
+  const modifierProductIds = useMemo(
+    () => new Set(productList.filter((p) => (p.modifierGroups?.length ?? 0) > 0).map((p) => p.id)),
+    [productList],
+  );
+
+  /** Open the modifier sheet to EDIT an existing cart line (pre-checked + in place). */
+  const handleEditCartItem = useCallback((item: CartItem) => {
+    const product = productList.find((p) => p.id === item.productId);
+    let pSheet: ModifierSheetProduct;
+    if (product && (product.modifierGroups?.length ?? 0) > 0) {
+      // Full group structure available → cashier can add/remove any option.
+      pSheet = {
+        id:             product.id,
+        variantId:      item.variantId,
+        name:           item.name,
+        sku:            item.sku,
+        basePrice:      item.unitPrice,
+        modifierGroups: (product.modifierGroups ?? []).map((g) => ({
+          id:            g.id,
+          name:          g.name,
+          selectionType: g.selectionType,
+          minSelections: g.minSelections,
+          maxSelections: g.maxSelections,
+          sortOrder:     g.sortOrder,
+          modifiers:     g.modifiers.map((m) => ({
+            id: m.id, name: m.name, priceDelta: m.priceDelta, isDefault: m.isDefault, sortOrder: m.sortOrder,
+          })),
+        })),
+      };
+    } else {
+      // Product not in the current view (e.g. archived / other category) — reconstruct
+      // an editable group from the line's own modifiers so editing still works.
+      pSheet = {
+        id:        item.productId,
+        variantId: item.variantId,
+        name:      item.name,
+        sku:       item.sku,
+        basePrice: item.unitPrice,
+        modifierGroups: item.modifiers.length > 0 ? [{
+          id:            '__current__',
+          name:          'Modifiers',
+          selectionType: 'multiple',
+          minSelections: 0,
+          maxSelections: null,
+          sortOrder:     0,
+          modifiers: item.modifiers.map((m, i) => ({
+            id: m.modifierId, name: m.name, priceDelta: m.priceDelta, isDefault: true, sortOrder: i,
+          })),
+        }] : [],
+      };
+    }
+    setModifierProduct(pSheet);
+    setEditCartItemId(item.id);
+    setEditInit({ modifiers: item.modifiers, notes: item.notes, quantity: item.quantity });
+    setModifierSheetOpen(true);
+  }, [productList, setModifierSheetOpen]);
 
   // ── Allergen guard (S8-05) ─────────────────────────────────────────────────
   // When a customer with an allergen profile is attached and a tapped product
@@ -1121,7 +1195,17 @@ export function POSLayout({ user }: POSLayoutProps) {
               <p className="text-xs text-gray-300 mt-1">Tap a product to add it</p>
             </div>
           ) : (
-            <div>{cart.map((item) => <CartLine key={item.id} item={item} />)}</div>
+            <div>{cart.map((item) => (
+              <CartLine
+                key={item.id}
+                item={item}
+                onEdit={
+                  (item.modifiers.length > 0 || modifierProductIds.has(item.productId))
+                    ? () => handleEditCartItem(item)
+                    : undefined
+                }
+              />
+            ))}</div>
           )}
         </div>
 
@@ -1209,7 +1293,11 @@ export function POSLayout({ user }: POSLayoutProps) {
       {modifierProduct && (
         <ModifierSheet
           product={modifierProduct}
-          onClose={() => { setModifierProduct(null); setModifierSheetOpen(false); }}
+          cartItemId={editCartItemId ?? undefined}
+          initialModifiers={editInit?.modifiers}
+          initialNotes={editInit?.notes}
+          initialQuantity={editInit?.quantity}
+          onClose={() => { setModifierProduct(null); setModifierSheetOpen(false); setEditCartItemId(null); setEditInit(null); }}
           onArchive={handleArchiveFromPOS}
         />
       )}
