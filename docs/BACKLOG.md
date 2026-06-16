@@ -557,3 +557,88 @@ locationId in body) — app behavior is correct, not bugs.
 - [ ] Quarterly: review `email_logs` for anomalies; rotate Railway secrets.
 - [ ] Before enabling campaigns: add unsubscribe link + `/unsubscribe` route + `organizations.unsubscribe_at`.
 - [ ] SEC-ORG-001 sweep: org-filter the remaining ~8 by-UUID child lookups.
+
+## Smart Wait Time / Queue Management
+
+### FEAT-WAIT-001: Smart Wait Time + Queue Management
+- **Priority:** HIGH (P1)
+- **Status:** BACKLOG
+- **Requested by:** Restaurant owner feedback (Jun 2026)
+
+**Problem:**
+Third-party delivery orders (DoorDash, Uber Eats) and online orders don't account for
+current kitchen workload. Drivers show up expecting the quoted platform time (e.g. 20 min)
+but the kitchen is already backlogged. Drivers wait, get angry, leave bad reviews. Restaurant
+owners have no way to dynamically communicate real wait times back to the ordering platform.
+
+**Solution: Taproot Smart Wait Time Engine**
+
+Core concept — calculate a dynamic wait time based on:
+1. Current open orders in the kitchen queue
+2. Average ticket completion time (from historical data)
+3. Time of day / day of week patterns
+4. Manually set rush mode (staff can bump wait time)
+
+Formula (base):
+```
+estimated_wait = (open_kitchen_tickets × avg_ticket_time)
+               + base_prep_time
+               + buffer_minutes
+```
+
+**Components needed:**
+
+BACKEND:
+- `GET /api/v1/locations/:id/wait-time` — Returns `{ estimatedMinutes, queueDepth, rushMode, lastUpdated }`. Public endpoint (for display on order pages).
+- `POST /api/v1/locations/:id/wait-time/rush` — Auth required. Toggle rush mode manually. Body: `{ rushMode: boolean, extraMinutes: number }`.
+- Wait time calculation service: reads open kitchen tickets, averages completion time from last 7 days, applies time-of-day multiplier, adds rush buffer if rush mode on.
+- Webhook: push updated wait time to DoorDash/Uber Eats when queue depth changes significantly (>20% change).
+
+DATABASE — add `wait_time_config` to locations table:
+- `base_prep_minutes` (default: 10)
+- `minutes_per_ticket` (default: 3)
+- `rush_mode` (boolean)
+- `rush_extra_minutes` (default: 15)
+- `max_wait_minutes` (default: 60)
+- `auto_pause_threshold` (int — pause new orders if queue exceeds this depth)
+
+KITCHEN DISPLAY:
+- Show current estimated wait time at top; updates live every 60 seconds.
+- Rush mode toggle button (manager only).
+- Queue depth indicator: "12 tickets open".
+- Color coded: green < 15min, amber 15–30, red > 30.
+
+POS / REGISTER:
+- Show current wait time on POS home.
+- When creating in-store order: show "Current wait: ~18 minutes" — staff can communicate this to walk-in customers.
+
+ONLINE ORDERING (public menu):
+- Show wait time on menu page: "Current wait: ~25 minutes" (updates live).
+- Show on order confirmation: "Your order will be ready in approximately 25 minutes. Order #1234".
+
+DELIVERY INTEGRATION:
+- When DoorDash/Uber Eats order comes in: automatically calculate updated pickup time = `NOW() + estimated_wait_minutes`, push back to platform API (if supported), show on kitchen ticket: "Driver expected: 7:42 PM (~25 min)".
+- Auto-pause integrations option: if queue > threshold, automatically pause DoorDash/Uber Eats new orders; resume when queue clears (prevents the backlog from growing).
+
+SETTINGS PAGE:
+- Wait time configuration per location: base prep time slider, minutes per additional ticket, rush mode toggle + extra time, auto-pause threshold, enable/disable per ordering channel.
+
+METRICS / REPORTING:
+- Track actual vs estimated wait times; accuracy score per day/week; peak hour analysis; driver wait time incidents.
+
+**Implementation order (when building):**
+- Phase 1: Wait time calculation engine + KDS display
+- Phase 2: Show on POS + online ordering pages
+- Phase 3: Push to delivery platforms
+- Phase 4: Auto-pause + settings UI
+- Phase 5: Metrics + reporting
+
+**Dependencies:**
+- Delivery integration (Session F) must exist first.
+- Kitchen display must be working (already done).
+- Historical order data needed for avg calculation (auto-improves as more orders are processed).
+
+**Competitive advantage:**
+Toast has a basic "expected wait" field. Square does not have dynamic wait times.
+DoorDash/Uber Eats show static platform estimates. NONE of them dynamically adjust based on
+current queue depth and push back to the platform. This is a genuine differentiator.
