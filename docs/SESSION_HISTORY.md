@@ -1,0 +1,1322 @@
+# Taproot POS — Session History (Archive)
+
+> Full build history for Taproot POS. Every dated session report, sprint
+> completion note, bug-fix history, audit, and prior pending-item snapshot is
+> preserved here verbatim. Active state lives in **CLAUDE.md**; API/schema/env
+> reference lives in **docs/QUICK_REFERENCE.md**.
+>
+> Note: items below are point-in-time snapshots — pending migrations / TODOs in
+> older entries may since have been resolved. Trust CLAUDE.md for current status.
+
+---
+> # ✉️ CAN-SPAM UNSUBSCRIBE (2026-06-16)
+> Unsubscribe system + compliant footers; clears the "add unsubscribe before enabling campaigns" blocker.
+> - HMAC-signed unsubscribe tokens (no DB lookup to verify) in `email.service.ts`:
+>   `generateUnsubToken`/`verifyUnsubToken`/`unsubUrlFor`/`isUnsubscribed`/`recordUnsubscribe`.
+> - CAN-SPAM footer (unsubscribe + support + privacy + physical address) on campaign emails
+>   (`lib/email/layout.ts` + 4 builders thread `unsubUrl`) and onboarding drip (`emailLayout` 3rd arg).
+>   Transactional email (invites/receipts/resets) intentionally NOT gated.
+> - `sendWeeklyCampaign` + `sendOnboardingSequenceEmail` early-return if `isUnsubscribed`;
+>   weekly job also adds a guarded `email_unsubscribes` NOT-EXISTS filter.
+> - Public routes `GET/POST /api/v1/unsubscribe(/verify)` (in PUBLIC_ROUTES) + `UnsubscribePage` at `/unsubscribe`.
+> - Also fixed stale `taprootpos.com` → `taproot-pos.com` in both backend email layouts.
+>
+> ⚠️ **MIGRATION 025 NEEDED** (Railway): `npx node-pg-migrate up --migrations-dir migrations`
+>   → **025_email_unsubscribe** (`email_unsubscribes` table). Then set `CAMPAIGNS_ENABLED=true`
+>   to enable weekly Sunday campaigns (unsubscribed users auto-skipped). tsc 0 both apps.
+
+> # 🏁 v1.6.0 — FINAL STATE (2026-06-13)
+> **Sessions complete:**
+> - ✅ Session A — Email backend (invites + onboarding) — `8bd5600`
+> - ✅ Session B — Remove demo login — `8bd5600`
+> - ✅ Session C — Native mobile app (Expo/React Native) — `apps/mobile/` (separate session)
+> - ✅ Session D — Tauri desktop app — `536980b`
+> - ✅ Session E — Platform detection + download page — `f60a450`
+> - ✅ PSR certified secure — tag `psr-2026-06-12` (docs/PSR_REPORT.md)
+> - ✅ Security audit — `docs/SECURITY_AUDIT_2026.md` (OWASP Top 10 + PCI DSS 4.0; 0 crit/0 high)
+>
+> **JAKE PENDING (manual):**
+> - □ Run pending migration on Railway (BLOCKING invites): `npx node-pg-migrate up --migrations-dir migrations` → **024_employee_invites** (creates `email_logs` + employee invite columns; campaign dedup reconciled onto `email_logs` — no separate `023_campaign_sends`)
+> - □ Set `RESEND_API_KEY` + `EMAIL_FROM` in Railway
+> - □ Set `ONBOARDING_EMAILS_ENABLED=true` when ready
+> - □ Set `CAMPAIGNS_ENABLED=true` — **add unsubscribe link/route first**
+> - □ Mobile: `eas login` → `eas build:configure` → `eas build --platform all --profile production`
+> - □ Apple Developer account ($99) — bundle ID registration · Google Play Console ($25)
+> - □ Desktop: install Rust → `cd apps/desktop && npm run dev` → `git tag desktop-v1.0.0 && git push --tags` → set GitHub Secrets for code signing
+> - □ Confirm Stripe `sk_live_` in Railway
+> - □ Rotate Postgres password + set `ADMIN_JWT_SECRET` explicitly
+> - □ Run `docs/PSR_CLEANUP.sql` + `docs/HOUR5_CLEANUP.sql`
+
+> # 🖥️ SESSION D — DESKTOP APP (Tauri v2) (2026-06-13)
+> `apps/desktop/` — Tauri v2 shell loading taproot-pos.com; native ESC/POS thermal
+> printing + cash-drawer (Rust `serialport`), system tray, macOS universal + Windows.
+> CI: `.github/workflows/desktop-release.yml` (triggers on `git tag desktop-v*`).
+> Docs: `docs/DESKTOP_CODE_SIGNING.md`. Built EXACTLY as specified (Jake's call).
+> **Verified here:** TS 0 errors (bridge), all JSON/config valid. **NOT verifiable here**
+> (no Rust + headless): `cargo build`, `npm run dev`. Jake: `curl …rustup.rs | sh`, then
+> `cd apps/desktop && npm run dev`; `git tag desktop-v1.0.0 && git push --tags` to build.
+> **✅ All four blockers FIXED (2026-06-16) — see `desktop-v1.0.0` tag / CI build:**
+> (1) iframe → window now loads `https://taproot-pos.com` directly + `withGlobalTauri:true`
+> + capability `remote.urls` so `window.__TAURI__` (the native bridge) is reachable on the
+> live site; (2) CI Windows paths now use the `x86_64-pc-windows-msvc/` target subdir;
+> (3) CI renames artifacts to `taproot-pos.dmg` / `taproot-pos-setup.exe` to match the
+> `/download/*` redirects; (4) added network (TCP 9100) ESC/POS commands
+> (`print_receipt_network`/`print_kitchen_network`/`open_cash_drawer_network`) — the standard
+> path for Epson/Star Ethernet/WiFi printers (USB-class still needs network or a serial adapter,
+> documented). Plus: CI generates icons via `tauri icon` and `beforeBuildCommand: vite build`
+> produces `../dist`. **Verified locally:** JSON/TS valid. **Verified by CI:** Rust build
+> (no Rust in the authoring env). Release is a **draft** (reversible). Remaining web-side
+> integration: wire apps/web's print flow to call `window.__TAURI__` when present (separate task).
+
+> # ✅ SESSION E COMPLETE — Platform detection / download page (2026-06-13)
+> `/download` page live · `usePlatform` hook (iOS/Android/macOS/Windows/Linux + PWA/Tauri/browser
+> detection → recommendation) · `PlatformDetect` component (banner/card/inline; mobile banner
+> auto-shows + dismisses 7 days via `taproot_platform_banner_dismissed`) · DownloadPage at
+> `/download` (auto-detected highlighted card + 2×2 platform grid + web/hardware sections + FAQ;
+> native store links show "Coming soon" until `APP_STORE_LIVE`/`PLAY_STORE_LIVE` flip true) ·
+> LandingPage "Available on every device" section + mobile banner + Download nav link ·
+> API `/download/mac` + `/download/win` 302→GitHub releases (PUBLIC_ROUTES; 404 until desktop
+> app built — infra ready) · `docs/REMOVE_DEMO_DATA.sql` · demo creds removed from
+> `scripts/morning-check.sh`. tsc 0 both apps.
+
+> # 📧 EMAIL BACKEND COMPLETE (2026-06-13)
+> Combined commit: weekly marketing campaigns (dormant prior-session work, reconciled) +
+> employee invites + onboarding drip + demo-login removal. Built EXTEND-not-replace on the
+> existing `services/email.service.ts` (SendGrid/nodemailer transport) — no overwrites.
+> - **Employee invites**: `routes/invite.routes.ts` (invite/verify/accept/resend) using
+>   `req.user.orgId` + DB-fetched inviter, NO `is_active` column; `sendEmployeeInvite` appended
+>   to email.service; `AcceptInvitePage.tsx` at public `/accept-invite`.
+> - **Onboarding drip** (Day 1/3/7/12): `jobs/emailSequence.job.ts` + `sendOnboardingSequenceEmail`,
+>   deduped via `email_logs`, gated behind `ONBOARDING_EMAILS_ENABLED`.
+> - **Weekly campaigns** (prior session): `jobs/weeklyCampaign.job.ts` + `lib/email/`, gated behind
+>   `CAMPAIGNS_ENABLED`. Orphan `023_email_campaigns.js` (email_log/email_unsubscribes — unreferenced)
+>   was discarded.
+> - **Config**: RESEND_API_KEY/EMAIL_FROM/EMAIL_FROM_SUPPORT added (scaffolding; transport still
+>   SendGrid/jsonTransport). **Demo credentials removed from LoginPage** (LandingPage already clean).
+>
+> ⚠️ **MIGRATIONS NEEDED** (Railway console): `npx node-pg-migrate up --migrations-dir migrations`
+>   → **023_campaign_sends** (campaign_sends) + **024_employee_invites** (employee invite columns +
+>   email_logs). Both jobs no-op until their tables exist + the *_ENABLED flag is set. tsc 0 both apps.
+
+> # 🛡️ PSR CERTIFIED SECURE — 2026-06-12 (tag psr-2026-06-12)
+> Production Security Review (OWASP Top 10 + PCI DSS 4.0 + Toast/Square parity).
+> Result: **0 CRITICAL, 0 FAIL**, 38 PASS, 2 known/accepted WARN. No code changes needed.
+> Verified live: JWT alg=none/expired/wrong-secret all rejected; tenant isolation (JWT orgId,
+> not header); SQLi/XSS/object-injection sanitized; refund capped at charged amount; all
+> security headers + CORS; rate limiting (login 429@4, general 429); no secret/card-data leaks;
+> perf <250ms all endpoints. See docs/PSR_REPORT.md. Cleanup: docs/PSR_CLEANUP.sql.
+
+> # 🌿 PRODUCTION CERTIFIED — 2026-06-10
+> All 6 critical paths pass (CP1 signup, CP2 import, CP3 sale+receipt, CP4 settings,
+> CP5 admin portal, CP6 reports) — live, no P0/P1 failures. First customer: ready.
+> See `docs/PRODUCTION_CERTIFICATION.md`. Pre-flight before real money: confirm Stripe
+> `sk_live_`, set/rotate `ADMIN_JWT_SECRET`, rotate Postgres password, run `docs/HOUR5_CLEANUP.sql`.
+
+---
+
+
+---
+
+
+---
+
+> ## 🔍 Hour 1 Infra/Security Verification (2026-06-10) — see docs/HOUR1_REPORT.md
+> No code changed. Live verification: API health ok (db/redis/stripe ok), both apps tsc 0,
+> admin portal login/metrics/helpdesk all working, demo data clean (50 products page 1, 0 at
+> $0; 16 categories). **Redis: ok** — `/api/health` timed ~2.5s cold≈warm because it's an
+> uncached liveness probe pinging 3 services per call (not a cache benchmark).
+> Env source-of-truth: `docs/ENV_CHECKLIST.md` (corrects the old template: JWT_REFRESH_SECRET
+> doesn't exist; MFA_TOKEN_SECRET + MFA_ENCRYPTION_KEY are required; ADMIN_JWT_SECRET has a
+> fallback). Jake TODOs: run docs/MIGRATIONS_CHECK.sql + docs/ADMIN_USER_CHECK.sql; rotate
+> ADMIN_JWT_SECRET + Postgres password; confirm STRIPE key is sk_live_ before real payments.
+
+> # ✅ Session 1 Complete (2026-06-09) — Executive/Helpdesk Portal backend
+> Parallel-session scope (only owned files + append-only to index.ts/config.ts):
+> - **docs/TECH_SPEC.md** — full product spec (v1.5.0), the helpdesk AI's knowledge base.
+> - **migrations/022_admin_users.js** — admin_users, admin_sessions, admin_impersonation_log,
+>   helpdesk_tickets, helpdesk_messages (+ seeded super admin with a REAL bcrypt-12 hash).
+> - **apps/api/src/middleware/adminAuth.ts** — admin JWT auth (separate ADMIN_JWT_SECRET +
+>   issuer/audience) with server-side admin_sessions revocation; `requireAdminRole`.
+> - **apps/api/src/services/admin.service.ts** — admin login (lockout), org list/detail/update
+>   (admin actions audit-logged as actor_type 'system' — the audit CHECK forbids 'admin'),
+>   impersonation (1h org token + impersonation log), platform metrics.
+> - **apps/api/src/services/helpdesk.service.ts** — Claude support assistant grounded ONLY in
+>   TECH_SPEC.md (loaded once at startup), JSON answer + escalation tier; org-context fetch.
+> - **apps/api/src/routes/admin.routes.ts** — all /api/v1/admin/* routes; registered in index.ts.
+> - Adapted the spec's `db.query`/`import { db }` to the real `query` from `db/client`.
+>
+> ⚠️ **MIGRATION NEEDED** (Railway console): `npx node-pg-migrate up --migrations-dir migrations`
+>   → applies **022_admin_users**.
+> ⚠️ **ENV VAR NEEDED** (Railway): `ADMIN_JWT_SECRET=$(openssl rand -base64 32)` (falls back to
+>   `${JWT_SECRET}_admin` if unset, but set it explicitly in prod).
+>
+> Admin login: `POST /api/v1/admin/auth/login` `{ email: 'admin@taproot-pos.com',
+> password: 'TaprootAdmin2026!' }` — **CHANGE PASSWORD IMMEDIATELY** after first login.
+> tsc: 0 errors both apps. Next: Session 3 builds the admin portal UI.
+
+> # ✅ Session 3 Complete (2026-06-09) — Executive Admin Portal + Helpdesk UI
+> Frontend-only scope (all new files under `apps/web/src/pages/admin/*` + `lib/adminApi.ts`
+> + `store/adminAuth.store.ts`; `App.tsx` append-only admin routes). No backend touched.
+> - **Admin login** at `/admin/login` — separate auth (`taproot_admin_token`/`taproot_admin_user`,
+>   persist key `taproot-admin-auth`), no shared state with org auth.
+> - **Dashboard** `/admin/dashboard` — 4 KPI cards, recent orgs, live service-health panel.
+> - **Organizations** `/admin/organizations` — searchable/filterable/paginated table.
+> - **Org detail** `/admin/organizations/:id` — Overview / Employees / Orders / Audit Log /
+>   Settings tabs; edit modal (super_admin + support); impersonation modal (super_admin only,
+>   reason required → applies 1h org token to localStorage + opens POS in a new tab).
+> - **Helpdesk** `/admin/helpdesk` — two-column AI chat (org context + open tickets + spec-grounded
+>   answers with escalation tiers, suggested-action chips, related docs).
+> - **Metrics** `/admin/metrics` — Revenue / Growth / Usage / Health sections.
+>
+> ⚠️ **adminApi.ts NORMALIZES the backend payloads**: the admin endpoints return raw snake_case
+>   Postgres rows with numeric aggregates as strings; the client maps snake_case→camelCase and
+>   coerces numbers. Money stays in CENTS (format with `fmtCurrency`). The prompt's literal
+>   camelCase response types did NOT match the backend — normalization layer bridges them.
+> ⚠️ Employee reset/deactivate + a dedicated orders endpoint are NOT in the admin API yet; those
+>   UI areas show available data + a note instead of calling nonexistent endpoints.
+>
+> Admin credentials (after migration 022 runs on Railway):
+> URL: taproot-pos.com/admin/login · Email: admin@taproot-pos.com · Password: TaprootAdmin2026!
+> ⚠️ **TODO — change admin password immediately** (Railway console):
+> `UPDATE admin_users SET password_hash = <new bcrypt cost-12 hash> WHERE email = 'admin@taproot-pos.com';`
+> ⚠️ Live admin login stays 401 until **migration 022** is applied on Railway
+>   (`npx node-pg-migrate up --migrations-dir migrations`) and `ADMIN_JWT_SECRET` is set.
+> tsc: 0 errors both apps; `vite build` clean.
+
+> ## 🛡️ SECURITY HARDENING COMPLETE (2026-06-07) — financial grade
+> Verified + extended the Prompt-13 baseline to PCI DSS 4.0 / OWASP Top 10 posture.
+> ALREADY IN PLACE (verified): Helmet CSP/HSTS/frameguard, restrictive CORS, global +
+> per-route rate limits, zod auth schemas, global XSS/body/UUID validation hooks,
+> bcrypt 12/10, JWT 15m/30d w/ algorithm allowlist + prod secret ≥64, refresh ROTATION,
+> account lockout, enumeration-resistant login, HTTPS redirect, insert-only audit_logs
+> across auth/payments/voids/settings.
+> ADDED THIS PASS: refresh-token REUSE theft detection (revokes ALL sessions, critical
+> alert) · concurrent session cap (5/employee, oldest revoked) · brute-force detector
+> (5 org failures/5min → deduped alert) · account-lock alerts · lockout 15→30 min (PCI
+> 8.3.4) · boot-time fail-secure assertions (JWT secret/bcrypt/lockout) · extra headers
+> (X-Permitted-Cross-Domain-Policies, fingerprint removal) + CSP stripe/plausible ·
+> 429 abuse signal · lib/security.ts (validator catalog) · lib/rateLimit.ts (limit
+> catalog) · lib/audit.ts (severity taxonomy + raiseSecurityAlert w/ Redis dedupe) ·
+> web lib/security.ts (escape/scrub/safe-redirect) · docs/SECURITY.md (reality-based,
+> incl. PCI table + accepted risks).
+> VERIFIED BY GREP: zero stored card data, zero secrets in query strings. npm audit:
+> residual highs are DEP-AUDIT-001 (build-time tar via bcrypt — accepted). New:
+> SEC-ORG-001 (low, BACKLOG) — by-UUID child lookups defense-in-depth sweep.
+> Deviations from the hardening spec are each STRICTER or justified — see BACKLOG
+> SEC-NOTE + docs/SECURITY.md.
+
+
+> # ⚠️ MIGRATIONS NEEDED (run in Railway console)
+> ```bash
+> npx node-pg-migrate up --migrations-dir migrations
+> ```
+> Pending: **017_franchise**, **018_api_keys**, **019_allergens**, **020_performance_indexes**, **021_time_clock**.
+> All Sprint 8/9 code degrades gracefully until migrations run (existence guards).
+
+> # 🚀 V1.3.0 — LAUNCH READY (Sprint 10 complete, 2026-06-07)
+>
+> Good morning Jake. Sprint 10 is done. Your product is ready to launch. The only thing
+> between you and your first customer is a conversation. Go have it. 🌿
+>
+> **Sprint 10 (Launch Polish) — frontend/docs only, ran alongside Sprint 9 AI with no file
+> collisions:** production landing page (13 sections, $99 GTM, savings calculator, FAQ accordion,
+> demo modal); split-screen login/register (all auth logic preserved); SVG favicon + OG image +
+> SEO/social meta tags; error-page support contact + login analytics; production README +
+> docs/ONBOARDING.md; V1.3 launch kit in docs/LAUNCH.md. **tsc 0 errors both apps; web build green.**
+>
+> **Pending actions for Jake:**
+> 1. Run pending migrations in Railway: `npx node-pg-migrate up --migrations-dir migrations`
+> 2. Set up Plausible Analytics — add site taproot-pos.com (script already in index.html).
+> 3. Record the 60-second demo video (the hero "Watch demo" opens a placeholder modal for now).
+> 4. Review docs/LAUNCH.md → post to Product Hunt + Reddit, send outreach, walk into 3 restaurants.
+> 5. Replace the demo org's placeholder menu prices with real prices when convenient.
+
+> # ✅ BUG-IMP-004 RESOLVED (2026-06-07)
+> Menu (PDF) **and** CSV imports now append products to the POS correctly. Root cause:
+> `applyMenuImport`/`applyGenericCsvImport` did a manual `product_variants` INSERT that omitted the
+> NOT NULL `organization_id`, so every item threw (caught → counted "failed") and products were left
+> priceless — the same priceless-products symptom seen in the perfection pass. Fix: pass `price` to
+> `createProduct` (which creates the variant + price WITH org_id) and delete the broken manual insert
+> in both functions; `ImportReview` now invalidates the `['products']`/`['categories']` caches so the
+> POS shows imported items immediately.
+
+> # ✅ COMPREHENSIVE FIX PASS (2026-06-07 pt3)
+>
+> Lookback green (health ok, tsc 0 both apps). Worked the priority list:
+> - **Auth** ✅ live: login 200+token, register 201+token (BUG-AUTH-002 stays RESOLVED).
+> - **Import** ✅ BUG-IMP-004 fixed + live-verified (CSV upload→confirm→product with price).
+> - **Payment** ✅ BUG-PAY-001 modifier `?? []` guards confirmed present.
+> - **BUG-SCHED-001 FIXED** ✅ — `GET /schedules` 500'd (Postgres 42883: `to_char(timetz)` has no
+>   overload). Now slices "HH:MM" via `substring(col::text,1,5)`. This proves **migration 021 IS
+>   applied** (schedules/time_clock tables exist) — the "pending" banner above is stale for 021.
+> - **SEC-ORG-001 PARTIAL** — added `AND organization_id=$org` to the 3 documented by-UUID lookups
+>   (order→customer, inventory→product, receipt→employee). Remaining low-risk lookups noted in BACKLOG.
+> - **Feature Verification Audit — 15/15 working** (live): tables, public menu, kitchen, loyalty,
+>   gift cards, AI forecast, analytics (menu-engineering + menu-insights), api-keys, webhooks,
+>   reservations, cash-drawer, end-of-day (needs `date=`), locations, schedules (post-fix). No broken
+>   features remained → nothing else for Priority 7.
+> - **Scroll** ✅ verified on InventoryPage / ImportReview / OrderHistoryPage (fixed-shell +
+>   `overflow-y-auto min-h-0`; sticky theads on Order History).
+> - **Demo data** — already priced 50/50 (perfection pass); `docs/DEMO_DATA_FIX.sql` is a safe
+>   diagnostic + guarded archive (no blind delete) in case $0 items reappear.
+> - **BUG-IMP-005** (sub-$1 price normalization) stays OPEN (minor).
+>
+> 12-step new-owner flow: all steps verified working at the API level. tsc 0 both apps.
+
+> # 🌿 SPRINT 11 — "Perfect Product" pass (2026-06-07) — v1.5.0 (PARTIAL, honest)
+>
+> **Scope honesty:** the browser-dependent audits (visual walkthroughs, 375px mobile sizing,
+> Lighthouse, network-throttle, click-through of every screen) were NOT run — there is no browser
+> in the build environment. Claiming "all 14 audits passed" would be false. What WAS done:
+> - **BUG-IMP-005 RESOLVED** — `normalizeMenuPrice` no longer corrupts sub-$1 prices / modifier
+>   deltas (e.g. +$0.75 = 75 was becoming $75). Trusts integer cents; ×100 only for decimals/$-strings;
+>   preserves negative deltas. Parser prompt strengthened with explicit cents examples.
+> - **Performance (live):** server fast; latency is Railway-RTT-dominated (health ~380ms from here);
+>   products 495 / categories 614 / orders 367 / business 289 ms. No N+1 fixes needed.
+> - **Static checks:** 0 console.log in web prod; no raw HTTP/undefined/null strings shown to users;
+>   2 TODOs, both known P3 (ArchivedProducts permanent-delete; LoginPage MFA = BUG-QA-011).
+>   tsc 0 both apps; web build green. Feature audit (pt3): 15/15 API endpoints working.
+> - **STILL NEEDS A REAL-DEVICE QA PASS** before claiming "perfect": Audits 1,3,4,5,6,7,8,10,12
+>   (visual/interaction) + Lighthouse. Recommended on an iPad + phone before first customer.
+
+> # ✅ ADMIN BACKEND COMPLETE & LIVE (2026-06-09)
+> The executive-portal backend (built+committed in c1cbc77: admin.routes / admin.service /
+> helpdesk.service / adminAuth middleware / migration 022) was present but BLOCKED by two
+> integration gaps, both fixed in `7656e29` (index.ts only):
+> 1. The global org-auth preHandler caught every `/api/v1/admin/*` route (login → 401). Admin
+>    routes use a SEPARATE admin JWT and self-authenticate via `authenticateAdmin`; they're now
+>    exempted from the org-auth + subscription guard.
+> 2. `seedFirstAdminUser` was never wired — added an idempotent startup seed (resilient if
+>    migration 022 isn't applied).
+> - **Verified LIVE:** `POST /api/v1/admin/auth/login` (admin@taproot-pos.com / TaprootAdmin2026!)
+>   → 200 + accessToken (role super_admin). `/admin/metrics`, `/admin/organizations`,
+>   `/admin/helpdesk/tickets` → 200 with token; → 401 without. Migration 022 was already applied
+>   on Railway, so the startup seed created the admin user automatically.
+> - ⚠️ CHANGE THE DEFAULT ADMIN PASSWORD. Session 3 (admin UI) can proceed.
+
+> # ✅ Session 2 (2026-06-09) — account workflow test + backlog clearance
+> - **New-account workflow: 8/8 PASS** (live) — register → login → empty products → create product
+>   → correct price → order → cash payment → receipt. See docs/ACCOUNT_WORKFLOW_TEST.md. No app bugs;
+>   the only initial failures were test-payload omissions (register needs businessName/businessType;
+>   POST /products needs locationId in body — both correct app behavior).
+> - **Bugs:** no P0/P1 OPEN. Reconciled stale BUG-IMP-005 → RESOLVED. Remaining are P3/low/enh:
+>   QA-011 (MFA UI — feature, no MFA accounts), QA-014 (top-customers — demo seed data, report code
+>   correct), SEC-ORG-001 (low, 3/~11 done), ENH-WH-001 (enhancement). tsc 0 both apps.
+> - Respected parallel-session no-touch list (admin/helpdesk/022/TECH_SPEC).
+
+> # 🚀 V1.2.0 COMPLETE — AI INTELLIGENCE LAYER (tagged)
+>
+> Built (7/7 prompts, June 7 2026) — every feature useful on day one, honest about confidence
+> with sparse data:
+> - **Demand forecasting** — /ai/forecast + ForecastWidget on /reports (revenue range, prep
+>   quantities + checklist; statistical fallback w/ confidence ≤0.5)
+> - **AI staff scheduling + time clock** (021_time_clock) — /schedule week grid, AI suggestion,
+>   labor tracker, PIN-screen clock-in + POS clock-out
+> - **Menu engineering AI** — per-item recommendations + one-click archive/reprice quick wins
+> - **Daily intelligence feed** — owner landing view (/, dismissible per day): yesterday vs last
+>   week, alerts, ONE AI insight, prep checklist, reorder ETAs
+> - **Food cost intelligence** — recipe-based plate costs vs target, AI fix suggestions,
+>   savings potential, Fix modal (/analytics Food Cost tab)
+> - **Enhanced copilot** — context-aware suggested questions, action buttons, copy/CSV export
+>
+> AI rules enforced everywhere: claude-sonnet-4-6 (config.CLAUDE_MODEL), Redis caching
+> (forecast/schedule/menu/food-cost 4h, daily-intel 1h, suggested-q 1h), no per-page-load API
+> calls, structural graceful degradation (askClaude* → null → deterministic fallback;
+> "AI insights temporarily unavailable" in every widget).
+>
+> Migrations needed (Railway console): `npx node-pg-migrate up --migrations-dir migrations`
+> → **017, 018, 019, 020, 021** (017–020 still pending from Sprint 8).
+>
+> Verified: tsc 0 errors both apps · 206/206 jest · live AI endpoint sweep (see below).
+> Blocked prompts: **none.** New URLs: /schedule · /analytics (Food Cost tab) · / (owner feed) ·
+> /reports (forecast widget). Key AI endpoints: /ai/forecast · /ai/daily-intelligence ·
+> /ai/schedule-suggestion · /ai/suggested-questions · /analytics/menu-insights ·
+> /analytics/food-cost(+/summary).
+>
+> Next: **Sprint 10 — Launch Polish.** Jake: run migrations 017–021, click through the AI
+> features (feed on login, forecast on /reports, AI schedule, menu quick wins, food-cost Fix).
+
+## ✅ SPRINT 9 — AI Intelligence Layer (COMPLETE, v1.2.0)
+
+### S9-01 — AI Demand Forecasting ✅ COMPLETE
+- `aiForecast.service.ts` (new — services/forecast.service.ts is the Prompt-04 INVENTORY
+  forecaster, hence the name): `getForecast(orgId, loc, date, tz)` — 90d history grouped by
+  DOW (avg revenue/orders, top-10 items per DOW, last7-vs-last30 trend) → Claude JSON
+  (predictedRevenue low/mid/high CENTS, predictedOrders, predictedTopItems, 3-5 prep recs,
+  confidence) with full shape validation; statistical fallback (±20% band, confidence ≤0.5,
+  note "Statistical estimate") when no key / <7 days history / bad AI output. Redis cache
+  `ai:forecast:{org}:{loc}:{date}` 4h.
+- `ai.routes.ts`: GET `/api/v1/ai/forecast?date&locationId&timezone` (AI_COPILOT).
+- Web: `ai.forecast()` client + `components/ai/ForecastWidget.tsx` — date selector
+  (tomorrow +2), confidence line, revenue range + likely bar, ~orders, top-seller prep
+  quantities, prep checklist card; loading skeleton + "AI insights temporarily unavailable"
+  error state. Mounted at top of /reports above NLQueryBar.
+
+### S9-02 — AI Staff Scheduling + Time Clock ✅ COMPLETE
+- `migrations/021_time_clock.js` ⚠️ PENDING: time_clock_entries (clock in/out, break_minutes,
+  hours_worked, hourly_rate, labor_cost — rate/cost in DOLLARS to match employees.hourly_rate;
+  cents at API boundary) + schedules (shift_date/timetz start+end, role, ai_suggested) + indexes.
+- `scheduling.service.ts` (new, `timeClockReady()` resilient): clockIn (one open entry guard)/
+  clockOut (hours + labor computed in SQL)/getCurrentEntry/getTimeClockReport;
+  listSchedules/saveWeekSchedule (whole-week replace, HH:MM validation); `getAIScheduleSuggestion`
+  — S5 staffing plan + roster → Claude JSON shifts (validated: roster ids, in-week dates, HH:MM)
+  w/ deterministic round-robin fallback; labor% = shift hours × employee rates vs forecast revenue.
+  Cache `ai:schedule:{org}:{loc}:{week}` 4h.
+- `scheduling.routes.ts` (new, registered): POST /timeclock/clockin|clockout (self), GET
+  /timeclock/current, GET /timeclock/report (mgr), GET/POST /schedules (GET any, POST mgr),
+  GET /ai/schedule-suggestion (mgr).
+- Web: timeclock/schedules clients; `SchedulePage.tsx` (/schedule, mgr/owner nav-gated) — week
+  nav, employees × Mon-Sun grid w/ shift chips (AI ones tinted), add-shift modal, remove, live
+  labor tracker (green<30/amber≤35/red), ✨ AI suggest → draft preview → "Apply AI Schedule"
+  (saves week); EmployeeSelect post-PIN choice [Clock In + Start Shift] / [Just Login];
+  POSLayout `ClockOutButton` in top bar (hidden pre-migration via null /timeclock/current).
+- NOTE: drag-to-move/resize shifts deferred (add/remove + AI apply shipped).
+
+### S9-03 — AI Menu Engineering Recommendations ✅ COMPLETE
+- `analytics.service.getMenuInsights` (new): S8 matrix + avg sell price per item → Claude JSON
+  per-item {recommendation, suggestedAction promote|reprice|reposition|archive|none,
+  suggestedPrice cents|null} + 2-3 sentence narrative + 3 quickWins (validated, merged by
+  productId). Deterministic fallback (quadrant→action map, generated quick wins). Cache
+  `ai:menu-insights:{org}:{loc}:{fromDay}:{toDay}` 4h.
+- `analytics.routes.ts`: GET /api/v1/analytics/menu-insights (REPORTS_VIEW).
+- Web: `analytics.menuInsights` client + MenuTab rework — AI assessment box, 3 quick-win cards
+  w/ live action buttons (archive → real archive; reprice → prompt prefilled w/ suggested price
+  → products.update; promote/reposition → guidance toast), AI-rec column color-coded by action,
+  per-row one-click action, detail card uses aiRecommendation + action button.
+
+### S9-04 — Daily Intelligence Feed (owner dashboard) ✅ COMPLETE
+- `intelligence.service.getDailyIntelligence` (new): yesterday (revenue + % vs same weekday last
+  week, orders, avg ticket, best/worst item, voids count+$, cash discrepancy from latest closed
+  drawer session — try/catch resilient), today (single-date AI forecast low/high/orders + prep
+  checklist via aiForecast, staffScheduled from schedules table [0 pre-021] vs staffRecommended
+  from staffing plan), alerts (≥3 voids, drawer off, low stock ETAs, understaffed, no-sales,
+  clean-reconcile success), reorderNeeded w/ daysUntilStockout (on-hand ÷ 14d daily usage),
+  ONE AI insight sentence (deterministic trend fallback). Cache `ai:daily-intel:{org}:{loc}:{day}` 1h.
+- `ai.routes.ts`: GET /api/v1/ai/daily-intelligence (AI_COPILOT).
+- Web: `ai.dailyIntelligence` client; `components/ai/IntelligenceFeed.tsx` — greeting, green AI
+  insight card, yesterday cards (↑/↓ vs last week), today outlook (forecast range + staffing ✅),
+  alert cards, prep checklist, reorder ETAs, big "Start taking orders →" button.
+- POSLayout: feed is the LANDING VIEW for owner/manager (canAccessSettings) until dismissed —
+  dismissal sticks per-day per-tab (sessionStorage taproot_feed_dismissed). Cashiers go straight
+  to tiles. Search/table-mode/items view bypass the feed; POS always one tap away.
+- NOTE: 7am email digest cron deferred (spec optional) — endpoint is poll-ready for it.
+
+### S9-05 — Recipe-Based Food Cost Intelligence ✅ COMPLETE
+- `foodCost.service.ts` (new — distinct from S5-04's line-item COGS view): theoretical PLATE
+  COST per product from active recipes (Σ qty × (1+waste_factor) × ingredient cost_price ÷
+  yield_factor); products without recipes fall back to their own cost_price (flagged "no recipe").
+  Status by org target (organizations.settings.foodCostTargetPct, default 30): healthy ≤ target,
+  warning ≤ +8, critical above. ONE batched Claude call writes fix suggestions for flagged items
+  (price/portion/substitution w/ numbers) + deterministic price-for-target fallback. 4h cache.
+- `getFoodCostSummary`: blended actual food cost (30d sales mix), variance vs target, items over,
+  potential monthly savings (flagged items' 30d revenue × pct gap), top offenders, 90d weekly trend.
+- Routes: GET /api/v1/analytics/food-cost (+/summary) — REPORTS_VIEW.
+- Web: analytics.foodCost/foodCostSummary clients; Analytics "Food Cost" tab — summary KPIs,
+  90d trend line w/ dashed target ReferenceLine, items table (sale/plate/% /status), "Fix →"
+  modal (AI suggestion + one-click raise-price-to-target via products.update, recipe-edit hint).
+- ProductsSettingsPage: "Ingredient cost" $ field (→ products.cost_price cents; recipe overrides);
+  sent only when non-empty; create path applies via follow-up update.
+
+### S9-06 — Enhanced AI Copilot ✅ COMPLETE
+- `ai.routes.ts`: GET /api/v1/ai/suggested-questions (AI_REPORTS) — context-aware chips seasoned
+  with live data (busiest day → "When is my busiest hour on Xs?", top employee, low-stock → "What
+  should I 86…"), 1h cached, static fallback. nl-query now returns validated `suggestedAction`
+  {label, action: view_orders|view_employee|archive_product|update_price, params} (prompt + parse).
+- Web: `ai.suggestedQuestions` client; NLQueryResponse.suggestedAction type. InsightsPage Copilot:
+  server-fetched starter chips, action button on answers (navigates to /orders, /analytics, or
+  /settings/products), Copy button per answer, Export CSV when tabular data present, Clear
+  conversation. Existing chart/table rendering (S5-06) retained.
+
+> # 🚀 SPRINT 8 COMPLETE — V1.1.0 (tagged)
+>
+> Built (7/7 prompts, June 7 2026):
+> - **Franchise/chain mode** (017_franchise) — join codes, network dashboard, corporate menu push + locks
+> - **Customer-facing display** (BroadcastChannel, /display — no server)
+> - **Advanced analytics dashboard** (/analytics — cohort, menu matrix, staff, peak hours, customers)
+> - **Public API keys + webhooks** (018_api_keys — scoped taproot_live_* keys, HMAC outbound events)
+> - **Food allergen system** (019_allergens — FDA Big 9, POS alert, kitchen-ticket warnings)
+> - **Performance** (020_performance_indexes + Redis read-through cache + React.lazy chunks)
+>
+> Migrations needed in Railway console: `npx node-pg-migrate up --migrations-dir migrations`
+> (017, 018, 019, 020). Everything degrades gracefully until then.
+>
+> Verified: **tsc 0 errors both apps · 206/206 jest tests (fixed 7 stale loyalty mocks) ·
+> vite build green (4 lazy chunks) · live endpoint sweep green** (franchise/api-keys/webhooks
+> respond resiliently pre-migration; all 5 analytics endpoints return real data; Redis cache
+> cuts /products 0.84s→0.33s, /categories 0.62s→0.23s).
+> Bugs found: 1 fixed (TEST-LOY-001 stale tests), 1 enhancement logged (ENH-WH-001
+> inventory.low_stock not yet emitted) — see BACKLOG.md.
+> Blocked prompts: **none.**
+>
+> New URLs: taproot-pos.com/**analytics** · /**franchise** · /**display** · /**settings/franchise**
+> · /**settings/api**
+>
+> Next: **Jake reviews → runs migrations 017–020 → tests live site** (browser flows:
+> customer display window, allergen alert, API key create, franchise enable) →
+> Sprint 9 (AI Intelligence Layer) or go to market with V1.1.
+
+## ✅ PERFECTION PASS (2026-06-07) — 10-step new-owner flow verified live
+
+Audited the live stack (curl against prod) against the 10-step new-owner journey
+(landing → register → import menu → correct prices → edit → confirm → POS →
+cart+modifiers → cash payment → receipt → still-logged-in-tomorrow). **All green.**
+
+- Landing `taproot-pos.com` → 200; `/api/health` → ok (db/redis/stripe ok).
+- Demo login → accessToken. Registration → accessToken. **Note:** the register
+  body fields are `businessName` + `businessType` — `organizationName` is NOT a
+  field (a payload with it 400s; the app sends the right fields).
+- `GET /products` → 50 items, **all now priced** (fix below).
+- `tsc --noEmit` → **0 errors** in apps/web AND apps/api.
+- End-to-end Flow 1 (create order → cash payment → receipt) → **201/201/200, no
+  crash**; receipt renders full data for org "Haven Health Bar".
+- All page-backing endpoints (products/orders/employees/business/reports/kitchen/
+  categories/customers) → 200; SPA serves /, /login, /register, /pos.
+
+**Fix applied this pass (data-only, no repo code change):** the demo org had 32
+products with **no price** (a prior menu-import that came in at $0; the org is a
+health café, so these ARE the intended menu). Assigned placeholder café prices via
+`PATCH /products/:id` — `updateProduct` auto-creates a Default variant + price row
+when missing. Now **50/50 products priced**; demo POS shows no $0 items.
+
+**Verified already-resolved (code review):** BUG-PAY-001 (`(c.modifiers ?? [])`
+guards present), login redirect cycle (App `useLocation()` + apiFetch auto-refresh),
+global scroll fix, import price path (prompt forces integer cents + create inserts
+when price>0).
+
+**Known minor (not blocking, logged in BACKLOG):** `normalizeMenuPrice` treats any
+value `<100` as dollars, so a genuine sub-$1 price (e.g. 99¢) would be 100×'d — rare.
+Migrations 017/018/019 (Sprint 8: franchise/api-keys/allergens) pending on Railway —
+graceful guards, unrelated to the 10-step flow.
+
+**Status: ready for first real customer.**
+
+## 🏗️ SPRINT 8 — Enterprise Foundations (IN PROGRESS, target v1.1.0)
+
+### S8-01 — Franchise Mode ✅ COMPLETE
+- `migrations/017_franchise.js` ⚠️ PENDING: organizations.parent_org_id/org_type/franchise_code
+  (+ partial unique idx on code) and products.corporate_source_id (franchisee copies of pushed items).
+- `franchise.service.ts` (new): info/enable(code gen FR-XXXXXXXX)/network(30d revenue+orders per
+  franchisee)/invite(email w/ code)/join(guards: self/already-linked/franchisor)/corporate menu/
+  pushMenu (upsert into each franchisee via product.service, marks corporate_source_id, un-archives
+  on re-push). ALL entry points check `franchiseReady()` (information_schema, cached) → graceful
+  when 017 pending.
+- `product.service.ts`: local `corporateLockCheck` in archive+delete (franchisee + corporate item →
+  Conflict). Local (not imported from franchise.service) to avoid circular import.
+- `franchise.routes.ts` (new, registered): GET info/network/menu, POST enable/invite/join,
+  PATCH menu/push. Owner for enable/join; owner/manager for network/invite/push.
+  (Spec said settings.routes.ts; dedicated file matches the one-domain-one-file pattern.)
+- `email.service.ts`: `sendFranchiseInviteEmail` (code + join steps; dev logs via jsonTransport).
+- Web: `api.ts` `franchise.*` client + types; `FranchisePage.tsx` (/franchise — franchisor dashboard
+  w/ network stats + cards + invite + push-menu modals; franchisee view w/ 🔒 corporate items;
+  independent explainer); `FranchiseSettingsPage.tsx` (/settings/franchise — enable + code copy,
+  join with code, brand-standards stub "coming soon"); POSLayout sidebar "Franchise" item (only
+  when org_type=franchisor, via /franchise/info query); SettingsLayout nav item.
+- NOTE: lock icons on /settings/products for corporate items deferred (delete/archive is blocked
+  server-side with a clear message); brand standards PDF upload deferred (no asset storage).
+
+### S8-02 — Customer Facing Display ✅ COMPLETE
+- `lib/displayChannel.ts` (new): BroadcastChannel bridge ('taproot-customer-display') — types,
+  `broadcastToDisplay`/`listenToDisplay`, `initDisplayBroadcast()` (idempotent pos.store
+  subscription: cart/discount change → cart_update|idle; lastCompletedOrder null→order →
+  payment_complete; answers `request_state` so a late-opened display syncs), `openCustomerDisplay()`.
+  No-ops without BroadcastChannel support. NO server/backend involved.
+- `CustomerDisplayPage.tsx` (new, `/display`, NO auth): green-gradient full-screen — idle (logo,
+  org name, clock, rotating marketing messages incl. custom idle msg from localStorage
+  `taproot_display_idle_message`), live cart (items+modifier sublines, subtotal/discount/tax/TOTAL),
+  payment-complete (✓ THANK YOU, change due for cash, auto-idle after 5s).
+- POSLayout: `initDisplayBroadcast()` effect + 📺 top-bar button (MonitorSmartphone icon).
+- HardwareSettingsPage: "Customer display" section — idle-message input (localStorage), open
+  display window + preview buttons. Logo upload deferred (no asset storage).
+
+### S8-03 — Advanced Analytics Dashboard ✅ COMPLETE
+- `analytics.service.ts` (new): `getCohortAnalysis` (signup-month cohorts × M1/M2/M3/M6 retention %),
+  `getMenuEngineeringMatrix` (custom range; units/revenue/foodCost%/margin → star/plow_horse/puzzle/dog
+  + per-quadrant recommendation), `getStaffPerformance` (orders/revenue/avgTicket/tips/voidRate;
+  hoursWorked=null — NO time-clock table yet, documented), `getPeakHours` (7×24 revenue heatmap,
+  intensity normalized, peak/slowest day+hour ignoring closed hours), `getCustomerInsights`
+  (new vs returning [EXISTS prior order], churn risk >30d by LTV, top customers).
+- `analytics.routes.ts` (new, registered): GET /analytics/{cohort,menu-engineering,staff-performance,
+  peak-hours,customer-insights} — REPORTS_VIEW; from/to default last 30d.
+- Web: `api.ts` `analytics.*` client + types; `AnalyticsPage.tsx` (/analytics) — 5 tabs:
+  Overview (KPIs incl. repeat rate, revenue trend line 30/60/90d, top-5, deterministic quick
+  insights from peak+menu data), Menu Engineering (recharts scatter w/ quadrant colors, click→
+  recommendation card, one-click ARCHIVE for dogs — real products.archive; sortable table),
+  Staff (top-performer banner, revenue bars, void-rate red flag >3%), Customers (cohort retention
+  grid, churn list w/ mailto reach-out, new-vs-returning donut, top customers), Peak Hours
+  (7×24 CSS-grid heatmap + staffing recommendation).
+- POSLayout: Analytics nav item (manager/owner only via canAccessSettings). Route in App.tsx.
+
+### S8-04 — Public API Keys + Webhooks ✅ COMPLETE
+- `migrations/018_api_keys.js` ⚠️ PENDING: api_keys (sha256 key_hash unique, scopes[], expiry,
+  revoked_at) + webhooks (url, events[], HMAC secret, failure_count, is_active).
+- `apiKey.service.ts` (new): create (`taproot_live_` + 32 chars, full key returned ONCE, sha256
+  stored)/list/revoke + `resolveApiKey()` → synthetic AccessTokenPayload (role 'readonly';
+  capability via SCOPE_MAP: orders|products|customers:read/write + reports:read → internal
+  Permission strings; locationIds=[] = all). Fire-forget last_used_at stamp.
+- `auth/middleware.ts`: `authenticate` now routes Bearer `taproot_live_*` through resolveApiKey
+  (401 on invalid/revoked/expired) — API keys hit the same /api/v1 endpoints.
+- `webhook.service.ts` (new — OUTBOUND; routes/webhook.routes.ts stays INBOUND Stripe):
+  list/create (whsec_ secret shown once)/delete/test + `deliverWebhook(orgId,event,payload)` —
+  HMAC-SHA256 X-Taproot-Signature/-Event/-Delivery headers, 3 attempts (1s/3s backoff, 10s
+  timeout), failure_count++ (reset on success), auto-disable at 10. NEVER throws; no-ops while
+  018 pending.
+- Events wired: payment.completed + order.completed (payment.service processPayment),
+  order.voided (transaction.voidOrder), payment.refunded (transaction.refundOrder),
+  customer.created (customer.service). `inventory.low_stock` is an allowed event type but not
+  yet emitted (no low-stock event source hook) — documented.
+- `apiKeys.routes.ts` + `webhooks.routes.ts` (new, registered): /api-keys CRUD + /webhooks CRUD
+  + /:id/test. Owner/manager JWT sessions only (API keys can't manage API keys). No routing
+  conflict with /webhooks/stripe/* (static segments win).
+- Web: `api.ts` apiKeys/webhooksApi clients; `ApiSettingsPage.tsx` (/settings/api) — API Keys tab
+  (create modal w/ scope checkboxes + expiry, show-key-ONCE modal w/ copy + confirm checkbox,
+  revoke) + Webhooks tab (add modal w/ event checkboxes, secret-shown-once, test button,
+  failure-count badge, active/disabled pill). Settings nav "API & Webhooks".
+
+### S8-05 — Food Allergen System ✅ COMPLETE
+- `migrations/019_allergens.js` ⚠️ PENDING: products.allergens varchar(50)[] + allergen_notes text
+  (GIN idx) + customers.allergens. Values = FDA Big 9 (milk/eggs/fish/shellfish/tree_nuts/peanuts/
+  wheat/soybeans/sesame).
+- `product.service.ts`: UpdateProductData.allergens/allergenNotes — sanitized to Big 9; clear
+  ValidationError when 019 pending (column-existence guard). `SELECT p.*` → list/get include
+  allergens automatically post-migration. `customer.service.ts`: UpdateCustomerInput.allergens —
+  separate guarded UPDATE. Shared `Product`/`Customer` types get optional allergens fields.
+- `lib/allergens.ts` (web, new): FDA_ALLERGENS + labels, `allergenConflicts()`,
+  ALLERGEN_NOTE_PREFIX ('⚠ ALLERGEN') + `buildAllergenNote()`.
+- POSLayout: customer-detail query when a customer is attached; `handleProductTap`/LongPress run
+  the conflict check FIRST → red Allergen Alert modal ("[name] has a [x] allergy / [product]
+  contains [x]" → Remove | Add anyway — customer confirmed). Fast-path adds carry the allergen
+  note in CartItem.notes → red ⚠ icon on the cart line → flows to order line_items.notes →
+  KDS shows it as specialInstructions. PaymentSheet receipt snapshot appends the note as a
+  modifier sub-line so browser/thermal kitchen tickets + receipts print it.
+- ProductsSettingsPage modal: Allergens checkbox grid (Big 9) + kitchen notes field — only sent
+  when touched (saves keep working pre-019); create path applies allergens via follow-up update.
+- CustomersPage modal: "Allergens on file" checkbox grid (same touched-only rule).
+- NOTE: "Add anyway" on items WITH modifier groups proceeds to the ModifierSheet — the kitchen
+  note isn't auto-attached on that path (cashier can type it in the sheet's notes); top-of-ticket
+  banner deferred in favor of per-item ⚠ sub-lines.
+
+### S8-06 — Performance Optimization ✅ COMPLETE
+- `migrations/020_performance_indexes.js` ⚠️ PENDING: composites on products(org,deleted,archived),
+  orders(org,location,created), order_line_items(product,created), customers(org,deleted,tier),
+  inventory_levels(org,location,product).
+- `lib/cache.ts` (api, new): `getCached(key,ttl,fetchFn)` best-effort read-through +
+  `invalidatePrefix` (SCAN+DEL) + `invalidateOrgCache(orgId,domains)`. Keys `org:{id}:{domain}[:variant]`.
+- Cached 5 min: GET /categories (per org), GET /products (per sorted filter variant),
+  GET /reports/sales (per from/to/loc/granularity/tz).
+- Invalidation: product create/update/delete/archive/restore + category create/update/delete/
+  reorder → products+categories (covers franchise pushes); order completion → reports.
+- Web: queryClient staleTime 2m / gcTime 10m / retry 2; React.lazy + Suspense(PageSkeleton)
+  for Reports/Analytics/DashboardEditor/FloorPlan pages → separate chunks (47/23/12/8 kB).
+- Verified: vite build green w/ 4 lazy chunks; live /products ~0.5s (RTT-bound; Redis cache
+  effective post-deploy). EXPLAIN ANALYZE on Railway = Jake (console-only access); 020 should
+  flip the org-products seq scan to an index scan.
+- NOTE: no product images in the UI yet → loading="lazy" n/a.
+
+> # 🌿 V1.0 COMPLETE — Sprints 1–7 done
+> **49/49 prompts** (S1-01…S7-07) over 7 sprints, tagged **v0.2.0** → **v1.0.0**.
+> - Migrations needed: **none** (001–016 all applied on Railway).
+> - Bugs found this build: 0 new blockers. npm audit: **nodemailer high-severity FIXED (→8.0.10)**;
+>   remaining advisories (esbuild dev-only, tar via bcrypt build, uuid via bull) are not
+>   runtime-exploitable in our usage and need breaking major bumps → accepted, see DEP-AUDIT-001.
+> - Blocked prompts: **none**.
+> - API timing from remote ~1.0–1.2s (Railway RTT + small instance) — over the 500ms target; candidate
+>   for index/caching tuning post-launch (not a blocker).
+> - Next: Jake reviews, does a final live click-through, then **LAUNCHES** (see docs/LAUNCH.md).
+>
+> ✅ **Auth working. Landing page updated ($99 flat, origin story, comparison, price promise). All
+> TypeScript errors resolved. Taproot POS ready for first real customers.** (BUG-AUTH-002 fixed —
+> `.env.production` host + hardcoded CORS domains; registration verified live with businessName/businessType.)
+>
+> ✅ **GLOBAL SCROLL FIX COMPLETE (2026-06-06)** — BUG-UX-001/002 re-verified app-wide. Root cause:
+> `html, body, #root { overflow: hidden }` (PWA shell, design-system.css) means the document NEVER
+> scrolls — any page on bare `min-h-screen` was clipped. Every page now owns its scroll region:
+> marketing/auth/legal/public pages use `h-screen overflow-y-auto`; app pages keep the fixed-shell
+> pattern (`h-screen overflow-hidden flex flex-col` + `flex-1 overflow-y-auto min-h-0` body, or
+> `ScrollablePage`). `min-h-0` added to all flex scroll bodies (POSLayout nav/content/cart, all
+> sheets/modals/drawers); unconstrained modals got `max-h-[90vh]`; sticky theads on Order History /
+> Customers / Gift Cards / Archived Products via `overflow-clip` card wrappers; `.no-scrollbar`
+> utility defined (was referenced but missing); motion-safe smooth scrolling added. 43 files,
+> tsc 0 errors both apps, vite build green.
+>
+> **41/49 prompts** (S1-01…S6-07) over 6 sprints, tagged **v0.2.0** → **v0.7.0**.
+> - **Sprints 1–3:** Settings/Admin (products, categories, modifiers, employees+PIN, tax, payments);
+>   Transactions (order history, void/refund, tips, cash drawer, EOD, split check — fixed P0 BUG-ORD-001);
+>   Table Service (floor plan, table mode, QR ordering, KDS, reservations).
+> - **Sprint 4 (Online Ordering & Engagement):** online checkout, loyalty (auto-accrual), gift cards,
+>   discount engine, customer mgmt. Verified live: 10% discount + 97 loyalty pts on $97.94.
+> - **Sprint 5 (AI Intelligence):** `/insights` — forecast, staffing, menu engineering, food-cost
+>   (auto reorder), daily feed, copilot. Deterministic-first (works without ANTHROPIC_API_KEY).
+> - **Sprint 6 (Scale & Infra):** multi-location (CRUD+switcher), offline order queue (IndexedDB),
+>   ESC/POS print server, barcode scanner, advanced reports (heatmap+cross-location), QuickBooks/Xero
+>   CSV export. Verified live: locations CRUD, QB export, heatmap.
+> - ✅ **Migrations 001–016 all applied on Railway** (Jake ran 013–016). No pending migrations.
+> - TypeScript: 0 errors in apps/web + apps/api. All work committed + pushed to main.
+> - **Now building Sprint 7 (V1.0 GTM polish):** text ordering, kiosk, onboarding rewrite, landing
+>   page, observability, polish → v1.0.0.
+
+## ✅ Sprint 4 — Beta 1.4: Online Ordering & Engagement (COMPLETE)
+
+### S4-01 — Online Checkout + Stripe ✅ COMPLETE
+- `public.service.ts`: getPublicMenu now returns `online` block (enabled/pickup/delivery/fees/
+  minOrder/prepMinutes + `paymentAvailable` = connected Stripe acct + STRIPE_PUBLISHABLE_KEY).
+  createPublicOrder accepts fulfillmentType/address/requestedTime (stored in metadata+notes),
+  honors `enabled`. New `createOnlinePaymentIntent` (Connect direct charge w/ application fee) +
+  `confirmOnlinePayment` (verifies PI, records payment, completes order).
+- `public.routes.ts`: POST `/public/:slug/payment-intent`, POST `/public/:slug/order/:id/confirm`
+  (added to PUBLIC_ROUTES). 
+- `api.ts`: `publicApi.paymentIntent/confirmPayment`, `online` on PublicMenu, `PublicOrderBody`.
+- `PublicMenuPage`: pickup/delivery toggle + address, delivery fee + min-order, pay-at-counter
+  (always) + "Pay now with card" (only when paymentAvailable). `OnlinePaymentSheet.tsx` (new) —
+  Stripe Elements on the connected account.
+- NOTE: card path requires Stripe Connect + STRIPE_PUBLISHABLE_KEY — UNTESTED on demo (no Connect);
+  pay-at-counter is the verified path. @stripe/stripe-js + react-stripe-js already installed.
+
+### S4-02 — Online Ordering Settings ✅ COMPLETE
+- `settings.routes.ts`: GET/PATCH `/settings/online-ordering` (org settings.onlineOrdering:
+  enabled/pickup/delivery/prepMinutes/radius/feeCents/minOrderCents). Public menu already reads it.
+- `api.ts`: `settings.getOnlineOrdering/saveOnlineOrdering` + `OnlineOrderingConfig`.
+- `OnlineOrderingSettingsPage.tsx` (new, `/settings/online-ordering`): toggles + prep/min/radius/fee.
+  Online Ordering nav item.
+
+### S4-03 — Loyalty Program ✅ COMPLETE
+- `loyalty.service.ts`: was dead code reading a non-existent `loyalty_config` column —
+  rewired to `organizations.settings.loyalty` (enabled/pointsPerDollar/redeemRate/minimumRedemption/
+  tiers). Configurable tier thresholds.
+- **Automatic accrual:** `payment.service.processPayment` awards points when an order is paid in
+  full AND has a customer attached (non-fatal, never blocks payment).
+- `settings.routes.ts`: GET/PATCH `/settings/loyalty`. `customer.routes.ts`: POST
+  `/customers/:id/loyalty/adjust` (manual). `api.ts`: `settings.getLoyalty/saveLoyalty` + type.
+- `LoyaltySettingsPage.tsx` (new, `/settings/loyalty`): earn/redeem rates + tier thresholds. Nav item.
+- NOTE: redeem-at-checkout UI in PaymentSheet DEFERRED (POS payment flow is sacred); redeemPoints +
+  manual adjust are available programmatically. Points/tier shown on the customer record (S4-06).
+
+### S4-04 — Gift Cards ✅ COMPLETE
+- Backend already complete (giftcard.service + /gift-cards routes; processPayment gift_card method
+  validates + DEDUCTS balance + logs gift_card_transactions, refund restores). No backend change.
+- `api.ts`: `giftCards.list/lookup/issue/reload/deactivate` + `GiftCardRow`.
+- `GiftCardsSettingsPage.tsx` (new, `/settings/gift-cards`): issue (sell), list w/ balances, lookup
+  by code, copy, deactivate. Nav item.
+- `PaymentSheet`: gift_card method now shows a code-entry sub-flow and passes `giftCardCode` →
+  real balance redemption at the POS.
+- NOTE: selling a gift card as a cart line item deferred (issued via settings/admin instead);
+  digital email delivery is a stub.
+
+### S4-05 — Discount Code Engine ✅ COMPLETE
+- `discount.service.ts` + `discount.routes.ts` (new, registered): list/create/update/delete +
+  `validate` (active window/usage/min-order, computes savings, matches order.service value
+  semantics: percentage=percent#, fixed=cents) + `report` (usage + total_saved from applied_discounts).
+  Uses the existing `discounts` table (001).
+- `api.ts`: `discounts.list/report/create/update/remove/validate` + types; `discountCodes` on
+  OrderCreateBody + transform.
+- `pos.store`: `appliedDiscount` {code, amount} + `setAppliedDiscount`; `discountTotal` now real
+  (was placeholder 0); persisted + cleared on clearCart. tax computed on (subtotal − discount).
+- `POSLayout`: "Add discount" prompts a code → validates → applies (toggles to "Remove"); cart
+  preview + charged total both correct. PaymentSheet + SplitCheckModal send `discountCodes`.
+- `DiscountsSettingsPage.tsx` (new, `/settings/discounts`): CRUD (%, fixed, BOGO, free item),
+  min-order/usage-limit/active-until/stackable, redemption report column. Discounts nav item.
+- NOTE: bogo/free_item preview shows base value (computed precisely server-side at order creation).
+
+### S4-06 — Customer Management ✅ COMPLETE
+- Backend already complete (customer.service + routes: list/search/create/get/patch/delete/orders/
+  merge/credit + loyalty/adjust from S4-03). No backend change.
+- `api.ts`: `customers.list/update/remove/orders/adjustLoyalty` (+ create tags/notes).
+- `CustomersPage.tsx` (new, `/customers`): searchable list (name/contact/LTV/visits/points/tier/tags),
+  CSV export, profile drawer (stats, recent orders, edit, ±points), create/edit modal. Customers nav item.
+- `CustomerSearch.tsx`: **BUG-QA-012 resolved** — "Create new customer" now creates inline from the
+  query (email/phone/name heuristic) and attaches to the cart.
+
+## ✅ Sprint 5 — Beta 1.5: AI Intelligence Layer (COMPLETE)
+
+Pattern: every feature computes deterministic numbers from SQL, then layers an optional Claude
+narrative (`aiUsed` flag). `ai.service.ts` (new): `askClaudeJSON`/`askClaudeText` (graceful null on
+no-key/parse/API failure, mirrors ai.routes pattern — `new Anthropic`, `config.CLAUDE_MODEL`) +
+Redis `cacheGet/cacheSet`. All features degrade gracefully without ANTHROPIC_API_KEY.
+
+### S5-01 — Demand Forecasting Engine ✅ COMPLETE
+- `intelligence.service.ts` (new): `getDemandForecast` — 56-day history → day-of-week averaged
+  7-day forecast (confidence by sample size) + Claude narrative; **cached 4h in Redis**.
+- `intelligence.routes.ts` (new, registered): `GET /intelligence/forecast` (REPORTS_VIEW).
+- `api.ts`: `intelligence.forecast` + `DemandForecast`. `InsightsPage.tsx` (new, `/insights`):
+  tabbed AI dashboard, Forecast tab (narrative + bar chart + detail table). Insights nav item.
+
+### S5-02 — AI Staff Scheduling ✅ COMPLETE
+- `intelligence.service.getStaffingPlan`: forecast → recommended staff (sales/$900-per-shift),
+  labor cost (avg `employees.hourly_rate` resilient → $15 fallback) + labor % with >30% alerts;
+  Claude action narrative. `GET /intelligence/staffing`.
+- `api.ts`: `intelligence.staffing` + `StaffingPlan`. InsightsPage Staffing tab (table + alerts).
+
+### S5-03 — AI Menu Engineering ✅ COMPLETE
+- `intelligence.service.getMenuEngineering`: 90-day per-product units + margin (price−cost), classified
+  into Stars/Plowhorses/Puzzles/Dogs vs avg-units/avg-margin thresholds + per-class action + Claude
+  narrative. `GET /intelligence/menu`.
+- `api.ts`: `intelligence.menu` + `MenuEngineering`/`MenuClass`. InsightsPage Menu tab (4 quadrant cards).
+
+### S5-04 — AI Food Cost Intelligence ✅ COMPLETE
+- `intelligence.service.getFoodCostIntelligence`: overall food cost % (COGS from
+  order_line_items.cost_price vs revenue, 30d), high-cost item list (flag >33%), auto **reorder
+  draft** from inventory_levels ≤ reorder_point, + Claude action. `GET /intelligence/food-cost`.
+- `api.ts`: `intelligence.foodCost` + `FoodCostIntelligence`. InsightsPage Food Cost tab
+  (headline %, high-cost items, reorder draft).
+
+### S5-05 — Daily Intelligence Feed ✅ COMPLETE
+- `intelligence.service.getDailyFeed`: yesterday summary (sales/orders/avg/top item, tz day window) +
+  aggregated alerts (food cost, reorder, labor, no-sales) + Claude morning briefing.
+  `GET /intelligence/feed`; `POST /intelligence/feed/send` (SMS/email stub → logs).
+- `api.ts`: `intelligence.feed/sendFeed` + `DailyFeed`. InsightsPage Daily Feed tab (default; briefing
+  + yesterday cards + alerts, polls 5m, Send button).
+
+### S5-06 — Enhanced AI Copilot ✅ COMPLETE
+- `ai.routes.ts` nl-query: **fixed a latent bug** (queried non-existent `total_amount` / status
+  `draft` → would 500). Now uses `total` / `parked`, adds top-products context, accepts conversation
+  `history` (multi-turn), and returns `suggestedQuestions`.
+- `api.ts`: `ai.nlQuery(query, locationId, history)` + `suggestedQuestions` on NLQueryResponse.
+- InsightsPage Copilot tab: chat UI (history bubbles), suggested-question chips, data tables + bar
+  charts from responses.
+
+## ✅ Sprint 6 — Beta 2.0: Scale & Infrastructure (COMPLETE)
+
+### S6-01 — Multi-Location ✅ COMPLETE
+- `location.service.ts` (new): create/update/delete/list; createLocation grants access to
+  owner/manager `location_ids`. Routes POST/PATCH/DELETE `/api/v1/locations` in settings.routes
+  (GET already existed).
+- `session.ts`: `getActiveLocationId`/`setActiveLocationId`; `getLocationId` now honors the switcher
+  selection (localStorage `taproot_active_location`) → all client queries follow active location.
+- `LocationSwitcher.tsx` (new) in POS sidebar (hidden when 1 location; reloads on switch).
+- `LocationsSettingsPage.tsx` (new, `/settings/locations`): CRUD. `api.ts`: `locations.create/update/remove`.
+- NOTE: cross-location report comparison lands in S6-05 (reporting suite). New-location WRITES may need
+  a re-login so the JWT picks up the added location_id (reads work immediately).
+
+### S6-02 — Offline Mode ✅ COMPLETE
+- `offlineQueue.ts` (new): IndexedDB queue (enqueueOrder/getQueue/processQueue/pendingCount/
+  clearSynced); replays create-order → process-payment on reconnect with real order numbers.
+- `useOfflineSync.ts` (new): mirrors navigator.onLine → pos.store `isOffline`, auto-syncs on
+  reconnect with toasts, polls pending count. Wired in POSLayout.
+- POSLayout: red pulsing **offline banner**; existing SyncStatus shows queued count.
+- PaymentSheet: when offline (cash/card) → enqueue + offline receipt snapshot (TEMP-xxxx), no API call.
+- NOTE: queued card orders sync only where Stripe is configured; cash syncs everywhere.
+
+### S6-03 — ESC/POS Printer Support ✅ COMPLETE
+- `apps/print-server/` (new, standalone Node, no deps): ESC/POS bridge — `/health`,
+  `/print/receipt`, `/print/kitchen`, `/drawer/open`; TCP:9100 to network printers or log mode.
+  `docs/PRINT_SERVER.md` setup guide.
+- `thermalPrint.ts` (new): detect server (configurable URL), `printReceiptThermal`/
+  `printKitchenThermal`/`openCashDrawer`/`checkPrintServer`. ReceiptPage tries thermal → falls back to browser.
+- `HardwareSettingsPage.tsx` (new, `/settings/hardware`): server status, URL, model, test print
+  (+ barcode toggle for S6-04). Nav item.
+- NOTE: print server runs on **3333** (prompt said 3001 = API port).
+
+### S6-04 — Barcode Scanner Support ✅ COMPLETE
+- Existing `useBarcode` (POS scan→add-to-cart) now gated on the Hardware scanner toggle.
+- `useBarcodeScanner.ts` (new, generic, gates on `enabled` arg; default-on `getScannerEnabled`).
+- ProductsSettingsPage modal: **Barcode field + "Scan to assign"** (arms a one-shot capture);
+  `barcode` flows through product create/update.
+- HardwareSettingsPage: scanner enable toggle (S6-03).
+- NOTE: inventory scan→jump deferred — POS scan-lookup already covers finding products by barcode.
+
+### S6-05 — Advanced Reporting Suite ✅ COMPLETE
+- Report endpoints (sales/top-products/employee-perf/payment-methods/hourly-heatmap) + tabs
+  (Dashboard/Sales/Products/Customers/Staff/Tips) already existed. Added:
+  - **Heatmap tab** (`HeatmapTab.tsx`): 7×24 day×hour revenue grid, peak callout, CSV export.
+  - **Cross-location filter** (S6-01 deliverable): "All Locations" + per-location dropdown in
+    ReportsPage header → `apiParams.locationId` (omitted = org-wide).
+- Menu engineering matrix lives in `/insights` (S5-03). CSV export present on Heatmap/EOD/Orders.
+
+### S6-06 — QuickBooks Integration ✅ COMPLETE
+- `integrations.routes.ts` (new, registered): `GET /integrations/export/:provider` (quickbooks|xero)
+  → daily-sales CSV (Date/Description/Amount/Account/Tax) download (REPORTS_VIEW).
+- `api.ts`: `integrations.exportCsv` (auth'd fetch → text). `IntegrationsSettingsPage.tsx` (new,
+  `/settings/integrations`): date range + QuickBooks/Xero download + Mailchimp/Gusto/OpenTable/
+  DoorDash "coming soon" stubs. Nav item.
+
+## ✅ Sprint 7 — V1.0 Go-To-Market Polish (COMPLETE)
+
+### S7-01 — AI Text Ordering ✅ COMPLETE
+- `sms.service.ts` (Twilio REST via fetch, logs in dev) + `textOrdering.service.ts` (Claude parse →
+  fuzzy product match → `createPublicOrder` pickup → SMS reply). `config.ts`: Twilio vars.
+- `POST /webhook/sms/:orgSlug` (public, Twilio-signature checked, TwiML reply); urlencoded body parser
+  added to Fastify. Online-ordering `textEnabled` opt-in toggle (UI + service requires `=== true`).
+
+### S7-02 — Kiosk Mode ✅ COMPLETE
+- `KioskPage.tsx` (new, `/kiosk`, RequireAuth): full-screen self-serve — category chips → product
+  grid → cart → "Pay at Counter" (in_store order) → thank-you screen. Large touch targets, upsell
+  prompt, 90s idle auto-reset (30s warning), 3-tap top-right + manager PIN (default 1234) to exit.
+- HardwareSettingsPage: "Open Kiosk Mode" launcher. Uses authenticated product/order API.
+
+### S7-03 — Onboarding Wizard Rewrite ✅ COMPLETE
+- 7-step flow (was 6): Welcome → Menu Upload → Menu Review → **Add Team** → Connect Payments →
+  **Tax Rate** → Complete. Replaced recipe step with team + tax.
+- `onboarding.store.ts`: STEP_ORDER updated. New `TeamSetupStep.tsx` (add employees + PIN, skippable)
+  and `TaxSetupStep.tsx` (state→auto-fill rate, saves via settings.saveTax). OnboardingPage rewired
+  (labels, numbered steps, handlers). Progress/resume/skip retained.
+
+### S7-04 — Landing Page ✅ COMPLETE
+- `LandingPage.tsx`: V1.0 hero ("reads your menu and sets itself up"), social-proof bar,
+  feature grid (kept), **Toast/Square/Taproot comparison table**, "8 hours vs 10 minutes" line,
+  **FAQ** (hardware/import/data/setup fee), pricing + footer retained.
+
+### S7-05 — Error Monitoring + Analytics ✅ COMPLETE
+- `lib/logger.ts` (api): structured JSON logger (timestamp/level/message/context). Process-level
+  `unhandledRejection`/`uncaughtException` handlers in index.ts (log, no silent crash).
+- `ErrorBoundary.tsx` (web): friendly recovery page + refresh; wraps App in main.tsx.
+- Already present: `/api/health` (status/version/uptime/checks/timestamp), Plausible analytics
+  (index.html + analytics.ts track→window.plausible), Sentry init.
+
+### S7-06 — Performance + Polish Pass ✅ COMPLETE
+- Audit: favicon (🌿 green SVG) + PWA manifest ("Taproot POS", theme #1D9E75, all 8 icons present)
+  verified; production `vite build` green (PWA SW + 16 precache entries).
+- New Sprint 4–7 pages confirmed to follow patterns: loading skeletons, empty states (Customers/
+  Discounts/Locations/Insights/Gift Cards), `h-screen overflow-hidden` + `flex-1 overflow-y-auto
+  min-h-0` scroll, ErrorBoundary now catches render errors app-wide.
+
+
+---
+
+
+---
+
+## 📋 Pending Migrations (Railway Console)
+
+Migrations 001–013 are applied on Railway (011/012/013 confirmed live during S1-08 verification).
+**Pending: 014_employee_hourly_rate** — run when convenient:
+```bash
+# In Railway service console:
+npx node-pg-migrate up --migrations-dir migrations
+```
+Code degrades gracefully until 014 runs (employee.service column-existence guard).
+
+---
+
+## 🗺️ Next Prompts Queue (27–30)
+
+### Prompt 27 — Item modifier sheet ✅ COMPLETE
+- **BUG-PAY-001 RESOLVED**: `(c.modifiers ?? []).map(...)` in both receipt snapshot builder and order create body in PaymentSheet.tsx
+- Backend: `buildProductWithRelations` in `product.service.ts` now fetches modifier groups + options via single SQL query with `JSON_AGG`; new types `ModifierGroupData`, `ModifierOptionData`, `ProductWithModifiers`
+- Frontend `api.ts`: `ProductWithModifiers` type; `products.list()` includes `modifierGroups` from API; `ProductListResponse` updated
+- `ModifierSheet.tsx`: added `minSelections`, `maxSelections`, `sortOrder`, `isDefault` to types; pre-selects default modifiers; "Add to Order" label
+- `POSLayout.tsx`: `handleProductTap` checks `modifierGroups.length > 0`; if yes → opens ModifierSheet; if no → fast path direct add; `handleProductLongPress` always opens sheet; cart display shows modifiers as indented sub-lines with price deltas
+- **Demo**: Tap "Classic Burger" → modifier sheet opens; tap "Draft Beer" → adds instantly
+
+### Prompt 28 — Archive/Seasonal Items ✅ COMPLETE
+Three-state product model: Active / Archived / Deleted.
+- **PRODUCT STATE RULE**: every POS query must filter `deleted_at IS NULL AND archived_at IS NULL`
+- `migrations/012_product_archive.js`: `archived_at TIMESTAMPTZ`, `archive_reason VARCHAR(255)`, `archived_by UUID→employees` + partial GIN index
+  ⚠️ Needs `npx node-pg-migrate up --migrations-dir migrations` on Railway
+- `product.service.ts`: state rule comment, `archived_at IS NULL` added to `listProducts` + barcode search; new exports `archiveProduct`, `restoreProduct`, `listArchivedProducts`, `ArchivedProductRow`
+- `inventory.routes.ts`: `GET /products/archived`, `POST /products/:id/archive`, `POST /products/:id/restore`
+- `api.ts`: `products.archive()`, `products.restore()`, `products.listArchived()`, `ArchivedProductRow` type
+- `InventoryPage.tsx`: 5th tab "Archived" (Archive icon)
+- `ArchivedProducts.tsx` (new): archived items table with name/category/price/date/reason; Restore button; "Delete permanently" stub
+- `StockLevels.tsx`: Archive icon per row → confirmation dialog with optional reason; removes row from list on success
+- `ModifierSheet.tsx`: `onArchive?` prop + Archive icon in header (amber on hover)
+- `POSLayout.tsx`: `handleArchiveFromPOS` → `window.confirm` → archive + invalidate queries + close sheet
+- `docs/ARCHITECTURE.md` (new): canonical query pattern, state table, day-part rule, auth/cart patterns
+
+**Demo**: Inventory → Stock Levels → Classic Burger → Archive icon → enter reason → POS no longer shows it → Inventory → Archived → Restore → back on POS
+
+### Prompt 29 — Dashboard Layout Editor ✅ COMPLETE
+Fixes BUG-NAV-001 (non-uniform tiles, no color/order control).
+
+- `migrations/013_org_settings.js`: adds `settings JSONB` to organizations table
+  ⚠️ Needs `npx node-pg-migrate up --migrations-dir migrations` on Railway
+- `settings.routes.ts` (new): `GET /api/v1/settings/dashboard-layout` reads from
+  `organizations.settings->'dashboardLayout'`; `PATCH` uses `jsonb_set` to store
+- `index.ts`: registers `settingsRoutes`
+- `api.ts`: `DashboardLayout`, `CategoryLayoutConfig`, `DEFAULT_DASHBOARD_LAYOUT`
+  types; `settings.getDashboardLayout` / `saveDashboardLayout` API methods
+- `layout.store.ts` (new): Zustand persist store; `fetchLayout()`, `saveLayout()`,
+  `resetLayout()`; persists to `taproot-dashboard-layout` localStorage key
+- `CategoryTileGrid.tsx` rewrite: **BUG-NAV-001 fixed** — all tiles now `aspect-square`
+  (uniform size); reads `useLayoutStore`; applies color/icon/order/hidden/pinned from
+  config; respects `gridColumns` (2/3/4); safe-default rule (null layout → original behavior)
+- `DashboardEditorPage.tsx` (new): `/settings/dashboard` — live preview (left 55%) +
+  sortable category list (right 45%); drag-to-reorder via `@dnd-kit/sortable` (touch
+  + mouse); `ColorPicker` (10 presets + hex input); `IconPicker` (20 food emojis);
+  pin/hide per category; grid columns selector; All Items tile toggle + color; Save / Reset
+- `App.tsx`: `/settings/dashboard` route (RequireAuth)
+- `POSLayout.tsx`: "Customize" nav item → `/settings/dashboard`
+- Installed: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`
+
+**Demo**: POS → sidebar Customize → change Classic Burger to red + 🍔 icon → drag Food to top → Save → POS tiles update immediately
+
+### Prompt 30 — Beta 1.0 Bug Fixes ✅ COMPLETE
+All P0 + P1 bugs resolved (commit 2dbace5):
+- BUG-PAY-001: already fixed (Prompt 27), BACKLOG.md updated
+- BUG-IMP-001: CSV full records stored in mappingConfig.parsed.records; GenericImportReview reads them
+- BUG-IMP-002: normalizeMenuPrice() added — values < 100 multiplied × 100; prompt updated with examples
+- BUG-IMP-003: ImportPage h-screen overflow-hidden + flex-1 min-h-0 card; GenericImportReview min-h-0
+- BUG-IMP-004: case 'generic_csv': added to confirmImportJob switch; applyGenericCsvImport() implemented
+- BUG-UX-001/002: InventoryPage h-screen overflow-hidden; <main> overflow-y-auto min-h-0
+- BUG-NAV-001: already fixed (Prompt 29), BACKLOG.md updated
+
+## ✅ Sprint 1 COMPLETE — Beta 1.1 (tag v0.2.0-beta-1.1)
+All 8 prompts done (S1-01…S1-08). New `/settings` area: Products, Categories, Modifiers,
+Employees (+ PIN login lock screen), Business (configurable tax — resolves BUG-QA-013),
+Payments, plus the Dashboard editor. New backend: category/modifier/employee services + routes,
+business/tax/receipt/payments settings endpoints, `/auth/pin-login`, `/api/v1/locations`.
+Live-verified S1-08: product create (default variant+price), tax round-trip, all routes 401-gated,
+employees/selectable 200. Only migration 014 (hourly_rate) pending; code degrades gracefully.
+
+## ✅ Sprint 3 — Beta 1.3: Table Service (COMPLETE)
+
+### S3-01 — Floor Plan Editor ✅ COMPLETE
+- `table.service.ts` + `table.routes.ts` (new, registered): GET/POST/PATCH/DELETE `/tables`,
+  PATCH `/tables/bulk-positions` (declared before `:id`). Uses existing `tables` table (001).
+- `api.ts`: `tables.*` + `TableRow`/`TableInput`/`TableShape`.
+- `FloorPlanEditorPage.tsx` (new, `/settings/floor-plan`): dotted 20px grid canvas, pointer-based
+  drag-to-move (snap) + corner resize, select + properties panel (name/seats/section/shape),
+  add/delete, undo/redo (20-deep, positions), deterministic section colors, Save → bulk-positions.
+- `SettingsLayout`: Floor Plan nav item. `App.tsx`: `/settings/floor-plan` route.
+
+### S3-02 — Table Service POS Mode ✅ COMPLETE
+- `table.service.ts`: `getTableStatus` (tables + current open order via LATERAL join: itemCount,
+  total, minutesOpen), `assignOrderToTable`. Routes `GET /tables/status`, `PATCH /orders/:id/table`.
+- `api.ts`: `tables.status/assignOrder` + `TableStatus`; `tableId` on `OrderCreateBody` (orderType
+  defaults to 'table_service' when a table is set); create transform passes tableId.
+- `TableView.tsx` (new): read-only floor plan, green=available/amber=occupied, section tabs, polls
+  10s. Tap available → `setTable` + switch to grid; tap occupied → toast order summary.
+- `POSLayout`: Grid/Table toggle in top bar; renders TableView in table mode. PaymentSheet +
+  SplitCheckModal send `tableId` (clearCart already resets it).
+- NOTE: "Move table" reassignment UI deferred (endpoint exists). Occupied-table tap shows summary
+  rather than loading the order into the cart (quick-service cart model).
+
+### S3-03 — QR Code Ordering ✅ COMPLETE
+- `public.service.ts` + `public.routes.ts` (new, NO auth — keys added to PUBLIC_ROUTES, registered
+  before auth plugin): `GET /public/:slug/menu`, `POST /public/:slug/order`, `GET /public/:slug/order/:id/status`.
+  Online orders attributed to a system employee (prefer owner), orderType 'online', fires realtime event.
+- `settings.routes.ts`: GET /settings/business now returns `orgSlug`.
+- `api.ts`: `publicApi.menu/createOrder/orderStatus` (uses `/public` base, no JWT); `orgSlug` on BusinessSettings.
+- `PublicMenuPage.tsx` (new, routes `/order/:slug` + `/order/:slug/table/:tableId`, no auth): branded menu,
+  cart, checkout (name/phone), place order (pay at counter), confirmation w/ order # + ETA.
+- `QrCodesSettingsPage.tsx` (new, `/settings/qr-codes`): per-table + general-menu QR via
+  api.qrserver.com (no dependency), PNG download, Print all. QR Codes nav item.
+- `OnlineOrdersBell.tsx` (new) in POS top bar: polls history 15s, badges open online orders, toasts on new.
+- NOTE deferred: Stripe "Pay Now" (pay-at-counter only), modifiers on public menu, PDF-all (print used).
+
+### S3-04 — Kitchen Display System ✅ COMPLETE
+- `kitchen.service.ts` + `kitchen.routes.ts` (new, registered): GET `/kitchen/tickets`,
+  PATCH `/kitchen/items/:itemId/ready`, PATCH `/kitchen/orders/:orderId/bump`. Kitchen state stored
+  in `orders.metadata.kitchen` ({ readyItems[], bumpedAt }) — NO migration. Bumped orders drop off.
+- `api.ts`: `kitchen.tickets/itemReady/bump` + types.
+- `KitchenDisplayPage.tsx` (new, `/kitchen`): dark full-screen, polls 5s, ticket cards w/ elapsed
+  color (green<5/amber5-10/red>10 flashing), tap item → ready (strikethrough), BUMP (green when all
+  ready), large-text mode. Kitchen nav item in POS sidebar.
+- NOTE: stations deferred (no station config — all items station 'all').
+
+### S3-05 — Reservations & Waitlist ✅ COMPLETE
+- `migrations/016_reservations.js` ⚠️ NEEDS RAILWAY MIGRATION (prompt called it "014"; renumbered
+  to 016 since 014/015 were used this sprint).
+- `reservation.service.ts` (resilient) + `reservation.routes.ts` (registered): list/create/update/
+  delete + `/:id/notify` (Twilio stub → logs when unconfigured) + `/:id/seat`.
+- `api.ts`: `reservations.*` + types.
+- `ReservationsPage.tsx` (new, `/reservations`): Waitlist | Reservations tabs (date picker for
+  reservations), add modal, notify, seat (table prompt), remove. Reservations nav item in POS.
+
+## ✅ Sprint 2 COMPLETE — Beta 1.2 (tag v0.3.0-beta-1.2)
+Order History, Void/Refund, Tips, Cash Drawer, End-of-Day, Split Check. **Found + fixed
+BUG-ORD-001** (P0): the POS order-create body shape didn't match the backend, so live cash/card
+order creation 500'd — `orders.create` now translates items→lineItems + orderType. Live-verified:
+full create→pay(+tip)→void lifecycle, all Sprint 2 endpoints 200, resilience fixes (employees,
+cash-drawer) confirmed in prod. Migrations 014 + 015 still pending on Railway (code degrades
+gracefully).
+
+## ✅ Sprint 2 — Beta 1.2: Transaction Management (COMPLETE)
+
+### S2-01 — Order History Screen ✅ COMPLETE
+- `order.service.ts`: `listOrderHistory()` — org-wide enriched list (employee + customer name,
+  payment methods via STRING_AGG, line-item count); `OrderHistoryFilter`/`OrderHistoryRow`.
+- `order.routes.ts`: `GET /api/v1/orders` (ORDER_VIEW; cashiers restricted to own orders).
+- `api.ts`: `orders.history()` + `OrderHistoryRow`.
+- `OrderHistoryPage.tsx` (new, route `/orders`): date-preset/status/employee/payment/search
+  filters, CSV export, table, right detail drawer (line items, payments, totals) via existing
+  receipt endpoint; drawer body is `.receipt-content` so Print works.
+- `App.tsx`: `/orders` → OrderHistoryPage (replaced placeholder). `POSLayout`: Orders nav item.
+- NOTE: void/refund buttons added in S2-02.
+
+### S2-02 — Void & Refund ✅ COMPLETE
+- `transaction.service.ts` (new): `voidOrder` (works on completed orders — distributes full
+  refund across payments via existing `PaymentSvc.refundPayment` (Stripe + gift-card aware),
+  voids line items, sets status='voided'); `refundOrder` (full/partial/by-item; by-item sums
+  selected line totals); `listOrderLineItems`.
+- `order.routes.ts`: `POST /orders/:id/void` (ORDER_VOID), `POST /orders/:id/refund` (ORDER_REFUND),
+  `GET /orders/:id/line-items`.
+- `api.ts`: `orders.voidOrder/refund/lineItems`.
+- `OrderActions.tsx` (new): Void modal (reason dropdown, "cannot be undone") + Refund modal
+  (Full/Partial/By-item tabs, reason, live preview). Wired into OrderHistoryPage drawer.
+- NOTE: manager-PIN override for cashiers DEFERRED — access gated by ORDER_VOID/ORDER_REFUND
+  permissions instead (cashiers without them get 403).
+
+### S2-03 — Tip Management ✅ COMPLETE
+- `payment.service.ts`: `processPayment` now sets `orders.tip_total` and computes change_due /
+  fullyPaid from `amount` ONLY (tips no longer counted as change). Fixed double-count bug.
+- `PaymentSheet.tsx`: tip UI already existed; now sends `amount: total()` (excl tip) +
+  `tipAmount` separately (was sending tip-inclusive amount → double count).
+- `transaction.service.ts`: `adjustTip` (manager post-payment tip adjust on latest payment +
+  recompute order tip_total/amount_paid). Route `POST /orders/:id/adjust-tip` (ORDER_REFUND).
+- `reporting.service.ts`: `getTipsReport` (by day / employee / payment method + avg tip %).
+  Route `GET /reports/tips`. `reports.getTips` + `TipsReportData` in api.ts.
+- `TipsTab.tsx` (new) added to ReportsPage (6th tab "Tips": summary cards, by-day chart,
+  by-employee + by-method tables).
+
+### S2-04 — Cash Drawer Management ✅ COMPLETE
+- `migrations/015_cash_drawer.js` ⚠️ NEEDS RAILWAY MIGRATION (cash_drawer_sessions + cash_drops,
+  one-open-per-location partial unique index; money in integer cents/bigint).
+- `cashDrawer.service.ts` (new, resilient to pending migration): open/drop/close/getCurrent/
+  history. Expected = opening + cash sales − cash refunds − drops (computed from payments).
+- `cashDrawer.routes.ts` (new, registered): /cash-drawer/current|history|open|drop|close.
+- `api.ts`: `cashDrawer.*`. `CashDrawerWidget.tsx` (new) in POS cart panel — open/drop/close
+  modals + live expected; close shows discrepancy.
+- NOTE: no-sale button deferred.
+
+### S2-05 — End of Day Report ✅ COMPLETE
+- `reporting.service.ts`: `getEndOfDayReport(orgId, date, locationId?, tz)` — tz-aware day window;
+  gross/refunds/net/orders/avg ticket, tax, tips, by-payment-method, top 5 items, by-employee,
+  hourly breakdown, cash reconciliation (from that day's drawer session; resilient if 015 absent).
+  Careful param indexing (location=$4, tz appended per-query) to avoid the $N-type-infer trap.
+- `report.routes.ts`: `GET /reports/end-of-day?date=YYYY-MM-DD&location_id&timezone`.
+- `api.ts`: `reports.getEndOfDay` + `EndOfDayReport`.
+- `EndOfDayPage.tsx` (new, route `/reports/end-of-day`): date picker, summary cards, payment/hourly,
+  top items, employees, cash reconciliation; Print (.receipt-content) / CSV / Email(stub).
+- `ReportsPage`: prominent "End of Day" button.
+
+### S2-06 — Split Check ✅ COMPLETE
+- No backend change needed — the order model already accepts multiple payments (amount_paid
+  accumulates). `SplitCheckModal.tsx` (new) creates the order once on first charge, then
+  processes each split as a separate `payments.process` call (cash/card per split). On full
+  settlement → receipt snapshot → /receipt.
+- Modes: Split Evenly (2–8 ways, remainder spread to first shares) + Custom Amounts (must sum
+  to total). "Split check" button added under Charge in the cart panel.
+- NOTE: By-item split deferred (even + custom shipped).
+- CAVEAT: card splits use the real payment API like the rest of the app — needs Stripe Connect
+  in production; cash splits work everywhere.
+
+## Sprint 1 Queue — Beta 1.1: Settings & Admin
+See full roadmap at docs/ROADMAP.md
+
+### Prompt 31 (S1-01) — Product Management UI ✅ COMPLETE
+Full product create/edit/delete at /settings/products.
+- `product.service.ts`: `createProduct` now also creates a "Default" variant + active
+  `product_prices` row (price in cents) so new products are immediately sellable;
+  `CreateProductData.price` + `UpdateProductData.price` added; updateProduct expires/
+  re-inserts the default-variant price; createProduct now persists `day_parts`.
+- `api.ts`: `products.create()`, `products.remove()`, `CreateProductBody`, `day_parts` on
+  `ProductWithModifiers`.
+- `session.ts` (new): shared `getLocationId`/`getStoredUser`/`getCurrentRole`/`canAccessSettings`.
+- `SettingsLayout.tsx` (new): settings shell (sidebar + mobile tab bar + permission guard + Outlet).
+- `ProductsSettingsPage.tsx` (new): search/category/status filters, table w/ stock status from
+  inventory levels, create/edit modal (day-part chips, track-inventory/active toggles), archive/
+  restore/delete actions.
+- `App.tsx`: nested `/settings` → SettingsLayout with `/settings/products` child; index → products.
+
+### Prompt 36 (S1-06) — Settings Shell + Navigation ✅ COMPLETE
+/settings/categories — create/edit/delete, drag-to-reorder, color/icon picker, product count.
+- `category.service.ts` (new): createCategory, updateCategory, deleteCategory (detaches products
+  → category_id NULL, then soft-delete), reorderCategories.
+- `inventory.routes.ts`: POST/PATCH/DELETE `/api/v1/categories` + PATCH `/categories/reorder`
+  (declared before `:id`); GET /categories now also selects `c.icon`.
+- `api.ts`: `categories.create/update/remove/reorder`, `CategoryInput`/`CategoryRow`, `icon` on
+  `CategoryWithCount`.
+- `CategoriesSettingsPage.tsx` (new): @dnd-kit sortable rows, color palette + hex + Auto, emoji
+  icon picker + "use initials", product counts; reorder persists + invalidates layout store.
+- `App.tsx`: `/settings/categories` route.
+
+### Prompt 36 (S1-06) — Settings Shell + Navigation ✅ COMPLETE
+/settings/modifiers — full CRUD groups + options + product assignment.
+- `modifier.service.ts` (new): listModifierGroups (groups + modifiers[] + productIds via JSON_AGG),
+  create/update/delete group (soft-delete cascades modifiers + clears assignments), add/update/
+  delete modifier, setGroupProducts, setProductGroups.
+- `modifier.routes.ts` (new, registered in index.ts): /modifier-groups CRUD, /:id/modifiers,
+  /:id/products, /modifiers/:id, /products/:id/modifier-groups.
+- `api.ts`: `modifiers.*` client + `ModifierGroupFull`/`ModifierItem`/`ModifierSelectionType`.
+- `ModifiersSettingsPage.tsx` (new): accordion groups, inline add/edit/reorder(↑↓)/delete options,
+  default toggle, price delta ($, negative ok), product-assignment checkboxes (pre-checked).
+- `App.tsx`: `/settings/modifiers` route.
+- NOTE: modifier reorder uses ↑/↓ buttons (persists sort_order) rather than drag.
+
+### Prompt 36 (S1-06) — Settings Shell + Navigation ✅ COMPLETE
+/settings/business — General | Tax | Receipt | Hours tabs. **Resolves BUG-QA-013.**
+- TAX: server-side `calculateTax` already read `locations.tax_config` (BUG-QA-005); the 8.5%
+  was only a frontend cart-preview estimate in `pos.store.ts`. Now configurable.
+- `settings.routes.ts`: GET/PATCH `/settings/business` (org name + settings.businessProfile
+  website/logo + location name/address/phone/timezone/currency), GET/PATCH `/settings/tax`
+  (writes `tax_config.rates[{name,rate,included,appliesTo}]`), GET/PATCH `/settings/receipt`
+  (locations.receipt_config). `resolveLocationId` helper picks the requested/first org location.
+- `pos.store.ts`: module-level `setPosTaxRate`/`getPosTaxRate`; `taxTotal` now uses it on
+  (subtotal − discount). Default still 8.5% until settings load.
+- `POSLayout.tsx`: loads `/settings/tax`, calls `setPosTaxRate`, label shows live rate.
+  `MobileCart.tsx` label uses `getPosTaxRate()`.
+- `api.ts`: `settings.getBusiness/saveBusiness/getTax/saveTax/getReceipt/saveReceipt`,
+  `auth.changePassword` (→ existing `POST /auth/password/change`).
+- `BusinessSettingsPage.tsx` (new): General (org/location/address/tz/currency + change password),
+  Tax (rate list + inclusive toggle + live preview + empty warning), Receipt (message/footer +
+  show toggles), Hours (placeholder — note below).
+- `App.tsx`: `/settings/business` route.
+- NOTE: Hours tab is a placeholder; no business-hours backend yet (logged for a later prompt).
+
+### Prompt 36 (S1-06) — Settings Shell + Navigation ✅ COMPLETE
+/settings/employees — add/edit/deactivate, PIN, location assignment, hourly rate.
+- `migrations/014_employee_hourly_rate.js` ⚠️ NEEDS RAILWAY MIGRATION.
+- `employee.service.ts` (new): list/create/update/delete (soft, revokes tokens, blocks last
+  owner + self-deactivate)/resetPin/listSelectableEmployees. New staff get a random unusable
+  password_hash (PIN-only). PIN 4–6 digits, bcrypt-hashed.
+- `employee.routes.ts` (new): /employees CRUD (owner/manager guard) + /:id/reset-pin +
+  /employees/selectable (any authed session, minimal fields for lock screen).
+- `auth/routes.ts`: new `POST /auth/pin-login` — device-session PIN switch (terminal already
+  authenticated → select employee + PIN → fresh full session). Reuses completeLogin.
+- `settings.routes.ts`: `GET /api/v1/locations` (org locations for pickers).
+- `api.ts`: `employees.*`, `locations.list`, `auth.pinLogin`, types.
+- `EmployeesSettingsPage.tsx` (new): list + add/edit modal (role, PIN show/hide, hourly rate,
+  location chips), reset-PIN, deactivate.
+- `EmployeeSelect.tsx` (new): full-screen lock screen — employee avatar grid → PIN pad
+  (keyboard + touch), shake on wrong PIN, 3-attempt lock, "use password instead"; on success
+  stores new tokens+user and reloads. Wired into POSLayout via "Switch user" + 5-min idle.
+- `animations.css`: `animate-shake`.
+- Transaction employee attribution is server-side via JWT (order.service uses user.sub).
+- NOTE: order attribution already correct via JWT; pos.store loggedInEmployeeId not needed.
+
+### Prompt 36 (S1-06) — Settings Shell + Navigation ✅ COMPLETE
+Shell was built in S1-01 (`SettingsLayout.tsx`): desktop sidebar + mobile horizontal tab bar,
+`canAccessSettings()` permission guard (cashier/kitchen/readonly → redirect to / with toast),
+`/settings` index → `/settings/products`, `<Outlet/>` for nested pages. POSLayout Settings nav →
+`/settings`. This prompt added the `/settings/payments` route + stub page so all 7 nav links
+resolve (Products, Categories, Modifiers, Employees, Business, Payments, Dashboard).
+
+### Prompt 37 (S1-07) — Payments Settings ✅ COMPLETE
+/settings/payments — full page (replaced S1-06 stub).
+- Reuses existing `GET /payments/connect/status`, `POST /payments/connect/account`,
+  `POST /payments/connect/refresh-link`. Status 400s when no account → client catches → null
+  → "Not connected".
+- `settings.routes.ts`: GET/PATCH `/settings/payments` (org settings.paymentMethods; cash forced on).
+- `api.ts`: `settings.getPayments/savePayments`, `stripeConnect.status/start/refreshLink`.
+- `PaymentsSettingsPage.tsx`: Connect status card (masked account, payouts, manage link / connect
+  button), payment-method toggles (cash locked on; card/wallets gated on Stripe), fee display.
+
+### Prompt 37b — (was S1-07, now done above)
+
+### Prompt 37 (S1-08) — Sprint 1 Integration Test + Deploy
+Full walkthrough all settings screens, fix bugs, tag v0.2.0-beta-1.1.
+
+## NEXT PROMPT
+V1.0 shipped (all 7 sprints complete). No queued prompt — Jake-driven from here.
+
+## IMPORTANT: Pending Railway Migrations
+None. Migrations 001–016 are all applied on Railway (verified live). No pending migrations.
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+## Completed Prompts
+
+### Prompt 01 — Project scaffold + SQLite backend ✅
+React + Vite + Tailwind frontend; Express + better-sqlite3 backend.
+
+### Prompt 02 — PostgreSQL schema + seed data ✅
+32-table schema (001_initial_schema.js), seed data (002_seed_data.js), DB client, migration runner.
+
+### Prompt 03 — Complete auth system ✅
+JWT, bcrypt, TOTP, AES-256-GCM, RBAC (43 permissions, 5 roles), 12 auth routes.
+
+### Prompt 04 — Product/variant/recipe/inventory data layer ✅
+Services: product, variant, recipe, inventory, forecast, variance. 53 tests passing.
+
+### Prompt 05 — Order and transaction engine ✅
+Services: realtime (Redis pub/sub), loyalty, order, payment, purchaseOrder, receipt.
+22 REST endpoints, WebSocket routes. 113 tests passing.
+
+### Prompt 06 — Stripe Terminal + Connect ISV integration ✅
+Stripe platform + merchant-scoped clients. Connect onboarding, Terminal flow, offline AES-256-GCM queue.
+Bull queues (5 types). 155 tests passing.
+
+### Prompt 07 — Customer management, gift cards, and reporting ✅
+Customer CRUD/merge/credit. Gift cards. 7 reporting endpoints. 206 tests passing.
+
+### Prompt 08 — React PWA checkout UI ✅
+Full POS frontend. Zustand store (cart, undo, discounts). TanStack Query. Auth/refresh flow.
+Product tiles, cart, PaymentSheet, ModifierSheet.
+
+### Prompt 09 — Inventory Management UI ✅
+StockLevels, ProductDetailSheet, StockCountSheet, ForecastDashboard, RecipesManager, VarianceReports.
+
+### Prompt 10 — Reporting & Analytics Dashboard ✅
+Recharts charts. NL query bar. 5-tab reports page (Dashboard/Sales/Products/Customers/Staff).
+
+### Prompt 11 — AI Document Intelligence Pipeline ✅
+Claude-powered PDF/image/CSV parsing. Import jobs queue. ImportPage + ImportReview + ImportHistory.
+Model: `claude-sonnet-4-6` (configurable via `CLAUDE_MODEL`).
+
+### Prompt 12 — Migration Wizard ✅
+6 POS provider migrations (Square, Shopify, Toast, Lightspeed, Clover, CSV). 5-step wizard UI.
+
+### Prompt 13 — Production Hardening ✅
+CSP, HSTS, rate limiting, input validation, error handler, Prometheus metrics, pino serializers.
+
+### Prompt 14 — Beta polish: bug fixes + demo enrichment ✅
+22 products, 5 demo customers, 3 modifier groups, 3 completed orders. PWA install banner.
+
+### Prompt 15 — PWA mobile optimization for iPad and iPhone ✅
+vite-plugin-pwa, manifest, iOS CSS, useSwipeGesture, useHaptic, BottomSheet, MobileCart, CommandPalette.
+
+### Prompt 16 — CI/CD pipeline: GitHub Actions + monitoring + code quality ✅
+4-job CI workflow, deploy workflow, ESLint + Husky pre-commit, Prometheus metrics endpoint.
+
+### Prompt 17 — AWS CDK production infrastructure + Docker ✅
+VPC, ECS Fargate, RDS, ElastiCache, CloudFront, CDK stacks. Dockerfile + docker-compose.
+
+### Prompt 18 — Beta: Subscription billing & registration ✅
+Stripe subscriptions, trial management, billing portal. Registration flow with email availability check.
+LandingPage, BillingPage, UpgradePage, PrivacyPage, TermsPage.
+
+### Prompt 19 — Open for Business: Onboarding Wizard ✅
+6-step onboarding wizard (Welcome → Menu Upload → Menu Review → Recipe Setup → Stripe Connect → Complete).
+Partner codes (TAPROOT30, EARLYBIRD). Org-scoped onboarding persistence.
+
+### Prompt 20 — White-Glove QA Pass ✅ 🎉 BETA READY
+10 bugs found and fixed. All core flows verified end-to-end against live DB.
+
+### Prompt 21 — Ghost Mode Deployment: Vercel + Railway ✅
+Zero-cost live demo. Vercel frontend + Railway API + Railway PostgreSQL + Railway Redis.
+Auto-deploy on push to main. `railway.json`, `nixpacks.toml`, `docs/RAILWAY_ENV.md`.
+
+### Prompt 22 — Auth Bug Fixes ✅
+- **BUG-AUTH-001** RESOLVED: Registration redirect — `apiFetch` PUBLIC_PATHS guard + JWT decode on RegisterPage mount
+- **BUG-AUTH-002** RESOLVED: Demo login doom loop — TrialBanner `noRedirect:true`, onboarding store partialize fix, queryClient.clear() on login
+
+### Prompt 23 — Import Review Edit Screen ✅
+Inline-editable import review for menu PDFs. `confirmedItems[]` edit chain: UI → POST body → `confirmImportJob` → synthetic `ParsedMenu` → `applyMenuImport`. All items shown (not just preview 10). Zero-price warning dialog. Success screen with counts.
+
+### Prompt 24 — Customer Receipt and Kitchen Ticket Printing ✅
+`LastCompletedOrder` in pos.store (NOT persisted). PaymentSheet navigates to `/receipt` on success.
+`ReceiptPage`: renders from store data instantly, enriches from `GET /orders/:id/receipt` in background.
+`printReceipt()` uses `window.print()`. `printKitchenTicket()` opens thermal-style popup.
+`@media print` CSS hides everything except `.receipt-content`.
+
+### Prompt 25 — Collapsible Sidebar and Category Tile Navigation ✅
+- `ui.store.ts`: `sidebarCollapsed` (persisted), `posViewMode`/`selectedCategory*` (NOT persisted — always 'categories' on load)
+- `CategoryTileGrid.tsx`: large colorful tiles; "All Items" always first; product counts per category
+- `categoryColors.ts`: deterministic hash → color from 10-color palette
+- `POSLayout.tsx` rewrite: collapsible sidebar (`w-48`↔`w-14`, `transition-all`); category tile → item view with breadcrumb; search auto-switches to item view
+- Backend: `GET /api/v1/categories` now includes `product_count` via LEFT JOIN
+
+### Prompt 26 — Day-Part Toggle (Breakfast / Brunch / Lunch / Dinner) ✅
+**Additive filtering**: products with no `day_parts` are ALWAYS visible.
+- `migrations/011_day_parts.js`: `day_parts varchar(50)[]` + GIN index (⚠️ needs `npx node-pg-migrate up` on Railway)
+- `DayPartToggle.tsx`: compact emoji pill toggle in POS search bar
+- `ui.store.ts`: `activeDayPart` (NOT persisted — always 'all' on page load)
+- `ProductDetailSheet.tsx`: "When to show on register" checkboxes (Inventory → product → edit)
+- **Demo**: Inventory → Classic Burger → check Lunch+Dinner → POS Breakfast mode → burger disappears
+
+---
