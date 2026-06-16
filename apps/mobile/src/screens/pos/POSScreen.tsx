@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { catalogApi, type ApiProduct, type OrderRow } from '../../api/endpoints';
@@ -28,13 +29,18 @@ export default function POSScreen() {
 
   const items = useCartStore((s) => s.items);
   const add = useCartStore((s) => s.add);
+  const updateLine = useCartStore((s) => s.updateLine);
   const inc = useCartStore((s) => s.inc);
   const dec = useCartStore((s) => s.dec);
   const clear = useCartStore((s) => s.clear);
 
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [modifierProduct, setModifierProduct] = useState<ApiProduct | null>(null);
+  // When set, the sheet is editing an existing cart line (by key) rather than adding.
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
+
+  const editingItem = editingKey ? items.find((i) => i.key === editingKey) ?? null : null;
 
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
@@ -53,10 +59,24 @@ export default function POSScreen() {
     Haptics.selectionAsync().catch(() => {});
     if (p.modifierGroups.length > 0) {
       // Has options → collect selections before adding.
+      setEditingKey(null);
       setModifierProduct(p);
     } else {
       add({ productId: p.id, name: p.name, basePrice: p.defaultPrice });
     }
+  }
+
+  function startEdit(item: (typeof items)[number]) {
+    // Re-open the sheet for an existing line. Needs the full product (modifier
+    // groups), which we look up in the loaded list for the current category.
+    const product = (productsQuery.data ?? []).find((p) => p.id === item.productId);
+    if (!product || product.modifierGroups.length === 0) {
+      Alert.alert('Open this item’s category to edit its options.');
+      return;
+    }
+    Haptics.selectionAsync().catch(() => {});
+    setEditingKey(item.key);
+    setModifierProduct(product);
   }
 
   function onPaid(order: OrderRow) {
@@ -162,6 +182,11 @@ export default function POSScreen() {
                     </Text>
                   ))}
                 </View>
+                {item.modifiers.length > 0 && (
+                  <TouchableOpacity onPress={() => startEdit(item)} style={styles.editBtn} hitSlop={8}>
+                    <Ionicons name="pencil-outline" size={16} color={colors.gray} />
+                  </TouchableOpacity>
+                )}
                 <View style={styles.qtyControls}>
                   <TouchableOpacity onPress={() => dec(item.key)} style={styles.qtyBtn}>
                     <Text style={styles.qtyBtnText}>−</Text>
@@ -189,17 +214,32 @@ export default function POSScreen() {
 
       <ModifierSheet
         product={modifierProduct}
-        onClose={() => setModifierProduct(null)}
-        onAdd={(modifiers) => {
+        seedKey={editingKey ?? modifierProduct?.id}
+        initialModifiers={editingItem?.modifiers}
+        initialQuantity={editingItem?.quantity}
+        onClose={() => {
+          setModifierProduct(null);
+          setEditingKey(null);
+        }}
+        onAdd={(modifiers, quantity) => {
           if (modifierProduct) {
-            add({
-              productId: modifierProduct.id,
-              name: modifierProduct.name,
-              basePrice: modifierProduct.defaultPrice,
-              modifiers,
-            });
+            if (editingKey) {
+              updateLine(editingKey, modifiers, quantity);
+            } else {
+              add(
+                {
+                  productId: modifierProduct.id,
+                  name: modifierProduct.name,
+                  basePrice: modifierProduct.defaultPrice,
+                  modifiers,
+                },
+                quantity,
+              );
+            }
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           }
           setModifierProduct(null);
+          setEditingKey(null);
         }}
       />
 
@@ -273,6 +313,7 @@ const styles = StyleSheet.create({
   cartNameCol: { flex: 1 },
   cartName: { fontSize: fontSize.md, color: colors.dark },
   cartMod: { fontSize: fontSize.xs, color: colors.gray },
+  editBtn: { padding: spacing.xs, marginLeft: spacing.xs },
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.md },
   qtyBtn: {
     width: 32,

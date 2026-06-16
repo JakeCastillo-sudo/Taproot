@@ -42,12 +42,18 @@ function makeKey(productId: string, modifiers: CartModifier[]): string {
 
 interface CartState {
   items: CartItem[];
-  add: (p: {
-    productId: string;
-    name: string;
-    basePrice: number;
-    modifiers?: CartModifier[];
-  }) => void;
+  add: (
+    p: {
+      productId: string;
+      name: string;
+      basePrice: number;
+      modifiers?: CartModifier[];
+    },
+    quantity?: number,
+  ) => void;
+  /** Replace a line's modifiers + quantity (used by cart "edit"). Re-keys the line
+   *  and merges into an existing identical-combo line if one results. */
+  updateLine: (oldKey: string, modifiers: CartModifier[], quantity: number) => void;
   inc: (key: string) => void;
   dec: (key: string) => void;
   remove: (key: string) => void;
@@ -57,7 +63,7 @@ interface CartState {
 export const useCartStore = create<CartState>((set) => ({
   items: [],
 
-  add: (p) =>
+  add: (p, quantity = 1) =>
     set((state) => {
       const modifiers = p.modifiers ?? [];
       const key = makeKey(p.productId, modifiers);
@@ -65,16 +71,33 @@ export const useCartStore = create<CartState>((set) => ({
       if (existing) {
         return {
           items: state.items.map((i) =>
-            i.key === key ? { ...i, quantity: i.quantity + 1 } : i,
+            i.key === key ? { ...i, quantity: i.quantity + quantity } : i,
           ),
         };
       }
       return {
         items: [
           ...state.items,
-          { key, productId: p.productId, name: p.name, basePrice: p.basePrice, modifiers, quantity: 1 },
+          { key, productId: p.productId, name: p.name, basePrice: p.basePrice, modifiers, quantity },
         ],
       };
+    }),
+
+  updateLine: (oldKey, modifiers, quantity) =>
+    set((state) => {
+      const old = state.items.find((i) => i.key === oldKey);
+      if (!old) return {};
+      const rest = state.items.filter((i) => i.key !== oldKey);
+      const newKey = makeKey(old.productId, modifiers);
+      const merged = rest.find((i) => i.key === newKey);
+      if (merged) {
+        return {
+          items: rest.map((i) =>
+            i.key === newKey ? { ...i, quantity: i.quantity + quantity } : i,
+          ),
+        };
+      }
+      return { items: [...rest, { ...old, key: newKey, modifiers, quantity }] };
     }),
 
   inc: (key) =>

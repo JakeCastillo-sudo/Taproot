@@ -23,30 +23,50 @@ function isSingle(t: ModifierGroup['selectionType']): boolean {
 interface Props {
   product: ApiProduct | null;
   onClose: () => void;
-  onAdd: (modifiers: CartModifier[]) => void;
+  onAdd: (modifiers: CartModifier[], quantity: number) => void;
+  /** When editing an existing cart line: pre-select these + seed the quantity. */
+  initialModifiers?: CartModifier[];
+  initialQuantity?: number;
+  /** Unique per open (product id for add, cart-line key for edit) so the sheet
+   *  re-seeds even when editing the same product it was last opened for. */
+  seedKey?: string;
 }
 
 /**
  * Modifier selection sheet. Mirrors the web ModifierSheet: defaults pre-selected,
  * single groups behave as radios, required groups gate the Add button, and the
- * running price reflects modifier deltas. Selections flow back as CartModifier[].
+ * running price reflects modifier deltas × quantity. Selections flow back as
+ * CartModifier[] plus the chosen quantity. When `initialModifiers` is supplied
+ * (cart edit), those drive the initial selection instead of the group defaults.
  */
-export default function ModifierSheet({ product, onClose, onAdd }: Props) {
-  // Per-group selected modifier-id sets, initialized from isDefault.
+export default function ModifierSheet({
+  product,
+  onClose,
+  onAdd,
+  initialModifiers,
+  initialQuantity,
+  seedKey,
+}: Props) {
+  // Per-group selected modifier-id sets, initialized from isDefault (or initialModifiers when editing).
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
-  // Re-init when the product changes (cheap: keyed on product id via render).
+  const [quantity, setQuantity] = useState(1);
   const initFor = (p: ApiProduct) => {
     const init: Record<string, Set<string>> = {};
+    const editIds = initialModifiers?.length ? new Set(initialModifiers.map((m) => m.modifierId)) : null;
     p.modifierGroups.forEach((g) => {
-      init[g.id] = new Set(g.modifiers.filter((m) => m.isDefault).map((m) => m.id));
+      init[g.id] = new Set(
+        g.modifiers.filter((m) => (editIds ? editIds.has(m.id) : m.isDefault)).map((m) => m.id),
+      );
     });
     return init;
   };
-  // Lazily seed state the first render a product is present.
+  // Lazily seed state the first render of each open (keyed on seedKey ?? product id).
   const [seededFor, setSeededFor] = useState<string | null>(null);
-  if (product && seededFor !== product.id) {
-    setSeededFor(product.id);
+  const currentSeed = seedKey ?? product?.id ?? null;
+  if (product && seededFor !== currentSeed) {
+    setSeededFor(currentSeed);
     setSelected(initFor(product));
+    setQuantity(Math.max(1, initialQuantity ?? 1));
   }
 
   const groups = product?.modifierGroups ?? [];
@@ -83,11 +103,12 @@ export default function ModifierSheet({ product, onClose, onAdd }: Props) {
     .every((g) => (selected[g.id]?.size ?? 0) >= Math.max(1, g.minSelections));
 
   const modSum = appliedModifiers.reduce((s, m) => s + m.priceDelta, 0);
-  const runningPrice = (product?.defaultPrice ?? 0) + modSum;
+  const unitPrice = (product?.defaultPrice ?? 0) + modSum;
+  const lineTotal = unitPrice * quantity;
 
   function confirm() {
     if (!requiredSatisfied) return;
-    onAdd(appliedModifiers);
+    onAdd(appliedModifiers, quantity);
     setSeededFor(null); // reset for next open
   }
 
@@ -144,6 +165,27 @@ export default function ModifierSheet({ product, onClose, onAdd }: Props) {
             })}
           </ScrollView>
 
+          <View style={styles.qtyRow}>
+            <Text style={styles.qtyLabel}>Quantity</Text>
+            <View style={styles.qtyStepper}>
+              <TouchableOpacity
+                style={styles.qtyBtn}
+                onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+                hitSlop={8}
+              >
+                <Text style={styles.qtyBtnText}>−</Text>
+              </TouchableOpacity>
+              <Text style={styles.qtyValue}>{quantity}</Text>
+              <TouchableOpacity
+                style={styles.qtyBtn}
+                onPress={() => setQuantity((q) => q + 1)}
+                hitSlop={8}
+              >
+                <Text style={styles.qtyBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {!requiredSatisfied && (
             <Text style={styles.warn}>Please make all required selections above.</Text>
           )}
@@ -153,7 +195,7 @@ export default function ModifierSheet({ product, onClose, onAdd }: Props) {
             disabled={!requiredSatisfied}
             activeOpacity={0.85}
           >
-            <Text style={styles.addText}>Add to order · {formatCents(runningPrice)}</Text>
+            <Text style={styles.addText}>Add to order · {formatCents(lineTotal)}</Text>
           </TouchableOpacity>
         </SafeAreaView>
       </View>
@@ -202,6 +244,25 @@ const styles = StyleSheet.create({
   indicatorMark: { color: colors.primary, fontSize: fontSize.sm, fontWeight: '800' },
   optionName: { flex: 1, fontSize: fontSize.md, color: colors.dark },
   delta: { fontSize: fontSize.sm, color: colors.gray },
+  qtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  qtyLabel: { fontSize: fontSize.lg, fontWeight: '700', color: colors.dark },
+  qtyStepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  qtyBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    backgroundColor: colors.grayLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtyBtnText: { fontSize: fontSize.xl, color: colors.dark, fontWeight: '700' },
+  qtyValue: { fontSize: fontSize.lg, fontWeight: '700', minWidth: 28, textAlign: 'center', color: colors.dark },
   warn: { color: colors.danger, fontSize: fontSize.sm, textAlign: 'center', paddingHorizontal: spacing.md },
   addBtn: {
     backgroundColor: colors.primary,
