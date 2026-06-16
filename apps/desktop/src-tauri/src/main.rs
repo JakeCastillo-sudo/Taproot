@@ -19,6 +19,9 @@ fn main() {
       printing::print_receipt_escpos,
       printing::print_kitchen_ticket,
       printing::open_cash_drawer,
+      printing::print_receipt_network,
+      printing::print_kitchen_network,
+      printing::open_cash_drawer_network,
       get_app_version,
     ])
     .setup(|app| {

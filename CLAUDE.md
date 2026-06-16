@@ -46,15 +46,18 @@
 > **Verified here:** TS 0 errors (bridge), all JSON/config valid. **NOT verifiable here**
 > (no Rust + headless): `cargo build`, `npm run dev`. Jake: `curl …rustup.rs | sh`, then
 > `cd apps/desktop && npm run dev`; `git tag desktop-v1.0.0 && git push --tags` to build.
-> **Known caveats (accepted, build-as-written):** (1) index.html loads the site in a
-> cross-origin **iframe** → `window.__TAURI__`/`window.taproot` bridge is NOT reachable by
-> the in-iframe web app (native print won't wire until the window points directly at the
-> remote URL + a remote-IPC capability); (2) CI Windows upload path lacks the
-> `x86_64-pc-windows-msvc/` target subdir → Windows assets won't attach as-is; (3) Tauri
-> default bundle names ≠ the `taproot-pos.dmg`/`taproot-pos-setup.exe` the existing
-> `/download/*` redirects expect → rename on release; (4) `serialport` only lists serial /
-> serial-over-USB, not USB-class Epson/Star printers; (5) icons must be generated
-> (`npx @tauri-apps/cli icon …`) before `tauri build`.
+> **✅ All four blockers FIXED (2026-06-16) — see `desktop-v1.0.0` tag / CI build:**
+> (1) iframe → window now loads `https://taproot-pos.com` directly + `withGlobalTauri:true`
+> + capability `remote.urls` so `window.__TAURI__` (the native bridge) is reachable on the
+> live site; (2) CI Windows paths now use the `x86_64-pc-windows-msvc/` target subdir;
+> (3) CI renames artifacts to `taproot-pos.dmg` / `taproot-pos-setup.exe` to match the
+> `/download/*` redirects; (4) added network (TCP 9100) ESC/POS commands
+> (`print_receipt_network`/`print_kitchen_network`/`open_cash_drawer_network`) — the standard
+> path for Epson/Star Ethernet/WiFi printers (USB-class still needs network or a serial adapter,
+> documented). Plus: CI generates icons via `tauri icon` and `beforeBuildCommand: vite build`
+> produces `../dist`. **Verified locally:** JSON/TS valid. **Verified by CI:** Rust build
+> (no Rust in the authoring env). Release is a **draft** (reversible). Remaining web-side
+> integration: wire apps/web's print flow to call `window.__TAURI__` when present (separate task).
 
 > # ✅ SESSION E COMPLETE — Platform detection / download page (2026-06-13)
 > `/download` page live · `usePlatform` hook (iOS/Android/macOS/Windows/Linux + PWA/Tauri/browser

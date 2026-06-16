@@ -3,16 +3,18 @@
   "version": "1.0.0",
   "identifier": "com.taproot.pos.desktop",
   "build": {
-    "beforeDevCommand": "",
+    "beforeDevCommand": "vite",
     "devUrl": "https://taproot-pos.com",
-    "beforeBuildCommand": "",
+    "beforeBuildCommand": "vite build",
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
         "title": "Taproot POS",
+        "url": "https://taproot-pos.com",
         "width": 1280,
         "height": 800,
         "minWidth": 1024,

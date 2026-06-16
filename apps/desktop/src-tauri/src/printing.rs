@@ -1,4 +1,6 @@
 use serialport::SerialPortType;
+use std::io::Write;
+use std::net::TcpStream;
 use std::time::Duration;
 
 #[tauri::command]
@@ -70,6 +72,45 @@ pub fn open_cash_drawer(
     .map_err(|e| format!("Kick error: {}", e))?;
 
   Ok(())
+}
+
+// ── Network (TCP 9100) ESC/POS ─────────────────────────────────────────────────
+//
+// Most modern thermal printers (Epson TM, Star) are driven over Ethernet/WiFi on
+// raw TCP port 9100 — and USB-class printers do NOT enumerate as serial ports
+// (list_serial_ports only sees true serial / serial-over-USB adapters). These
+// commands cover the common networked-printer case. `host` may be "192.168.1.50"
+// or "192.168.1.50:9100"; bare hosts default to :9100.
+
+fn send_network(host: &str, bytes: &[u8]) -> Result<(), String> {
+  let addr = if host.contains(':') { host.to_string() } else { format!("{}:9100", host) };
+  let mut stream = TcpStream::connect(&addr)
+    .map_err(|e| format!("Connect error ({}): {}", addr, e))?;
+  stream.set_write_timeout(Some(Duration::from_millis(3000))).ok();
+  stream.write_all(bytes)
+    .map_err(|e| format!("Network print error: {}", e))?;
+  stream.flush().map_err(|e| format!("Flush error: {}", e))?;
+  Ok(())
+}
+
+#[tauri::command]
+pub fn print_receipt_network(host: String, order_json: String) -> Result<(), String> {
+  let order: serde_json::Value = serde_json::from_str(&order_json)
+    .map_err(|e| format!("JSON error: {}", e))?;
+  send_network(&host, &build_receipt(&order))
+}
+
+#[tauri::command]
+pub fn print_kitchen_network(host: String, order_json: String) -> Result<(), String> {
+  let order: serde_json::Value = serde_json::from_str(&order_json)
+    .map_err(|e| format!("JSON error: {}", e))?;
+  send_network(&host, &build_kitchen(&order))
+}
+
+#[tauri::command]
+pub fn open_cash_drawer_network(host: String) -> Result<(), String> {
+  // ESC/POS drawer kick: ESC p 0 25 250
+  send_network(&host, &[0x1B, 0x70, 0x00, 0x19, 0xFA])
 }
 
 fn write_str(cmds: &mut Vec<u8>, s: &str) {

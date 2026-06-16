@@ -12,6 +12,10 @@ declare global {
         portName: string, order: object
       ) => Promise<void>
       openCashDrawer: (portName: string) => Promise<void>
+      // Network (TCP 9100) — host is "ip" or "ip:port"
+      printReceiptNetwork: (host: string, order: object) => Promise<void>
+      printKitchenNetwork: (host: string, order: object) => Promise<void>
+      openCashDrawerNetwork: (host: string) => Promise<void>
     }
   }
 }
@@ -41,5 +45,14 @@ export function initTauriBridge() {
 
     openCashDrawer: (portName) =>
       invoke('open_cash_drawer', { portName }),
+
+    printReceiptNetwork: (host, order) =>
+      invoke('print_receipt_network', { host, orderJson: JSON.stringify(order) }),
+
+    printKitchenNetwork: (host, order) =>
+      invoke('print_kitchen_network', { host, orderJson: JSON.stringify(order) }),
+
+    openCashDrawerNetwork: (host) =>
+      invoke('open_cash_drawer_network', { host }),
   }
 }
