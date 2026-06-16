@@ -18,7 +18,7 @@ interface Props {
   slug: string;
   body: PublicOrderBody;
   onClose: () => void;
-  onSuccess: (orderNumber: string, estimatedMinutes: number) => void;
+  onSuccess: (orderNumber: string, estimatedMinutes: number, orderId: string) => void;
 }
 
 export function OnlinePaymentSheet({ slug, body, onClose, onSuccess }: Props) {
@@ -63,7 +63,7 @@ export function OnlinePaymentSheet({ slug, body, onClose, onSuccess }: Props) {
 
 function PayForm({ slug, orderId, orderNumber, estimatedMinutes, onSuccess }: {
   slug: string; orderId: string; orderNumber: string; estimatedMinutes: number;
-  onSuccess: (orderNumber: string, estimatedMinutes: number) => void;
+  onSuccess: (orderNumber: string, estimatedMinutes: number, orderId: string) => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -78,7 +78,7 @@ function PayForm({ slug, orderId, orderNumber, estimatedMinutes, onSuccess }: {
     if (paymentIntent && paymentIntent.status === 'succeeded') {
       try {
         await publicApi.confirmPayment(slug, orderId, paymentIntent.id);
-        onSuccess(orderNumber, estimatedMinutes);
+        onSuccess(orderNumber, estimatedMinutes, orderId);
       } catch (e) { setErr(e instanceof Error ? e.message : 'Could not confirm payment'); }
     }
     setBusy(false);
