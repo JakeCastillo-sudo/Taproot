@@ -769,6 +769,29 @@ export interface LoyaltyConfig {
   tiers:             { none: number; bronze: number; silver: number; gold: number; platinum: number };
 }
 
+export interface DeliveryProviderConfig {
+  id: string;
+  provider: string;
+  is_enabled: boolean;
+  store_id: string | null;
+  has_secret: boolean;
+  settings: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export const delivery = {
+  list: () =>
+    apiFetch<{ providers: DeliveryProviderConfig[] }>('/delivery/providers').then((r) => r.providers),
+  save: (
+    provider: string,
+    cfg: { isEnabled: boolean; webhookSecret?: string; storeId?: string },
+  ) =>
+    apiFetch<{ success: boolean }>(`/delivery/providers/${provider}`, {
+      method: 'PUT',
+      body: JSON.stringify(cfg),
+    }),
+};
+
 export const settings = {
   getDashboardLayout: () =>
     apiFetch<{ dashboardLayout: DashboardLayout | null }>(

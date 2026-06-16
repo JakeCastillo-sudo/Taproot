@@ -81,8 +81,18 @@ function TicketCard({ ticket, big, onItemReady, onBump }: {
     <div className={clsx('bg-gray-800 rounded-lg overflow-hidden flex flex-col border-2', ticket.minutesOpen > 10 ? 'border-red-600 animate-pulse' : 'border-gray-700')}>
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700">
         <span className={clsx('font-bold', big ? 'text-xl' : 'text-base')}>{ticket.orderNumber}</span>
-        <span className={clsx('text-xs px-2 py-0.5 rounded-full bg-gray-700', big && 'text-sm')}>
-          {ticket.tableName ? ticket.tableName : ticket.orderType.replace(/_/g, ' ')}
+        <span
+          className={clsx(
+            'text-xs px-2 py-0.5 rounded-full',
+            ticket.orderType === 'delivery' ? 'bg-orange-600 font-bold' : 'bg-gray-700',
+            big && 'text-sm',
+          )}
+        >
+          {ticket.orderType === 'delivery'
+            ? '🚗 DELIVERY'
+            : ticket.tableName
+              ? ticket.tableName
+              : ticket.orderType.replace(/_/g, ' ')}
         </span>
         <span className={clsx('font-bold tabular-nums', timeColor(ticket.minutesOpen), big ? 'text-lg' : 'text-sm')}>{ticket.minutesOpen}m</span>
       </div>

@@ -164,7 +164,14 @@ export function OrderHistoryPage() {
                 <tbody>
                   {list.map((o) => (
                     <tr key={o.id} className="border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer" onClick={() => setDetailId(o.id)}>
-                      <td className="px-4 py-3 font-semibold text-gray-800">{o.order_number}</td>
+                      <td className="px-4 py-3 font-semibold text-gray-800">
+                        {o.order_number}
+                        {o.order_type === 'delivery' && (
+                          <span className="ml-2 inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 align-middle">
+                            🚗 Delivery
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-3 hidden sm:table-cell text-gray-500 text-xs">{new Date(o.created_at).toLocaleString()}</td>
                       <td className="px-3 py-3 text-right text-gray-600">{o.item_count}</td>
                       <td className="px-3 py-3 text-right font-medium text-gray-800">{fmt(o.total)}</td>

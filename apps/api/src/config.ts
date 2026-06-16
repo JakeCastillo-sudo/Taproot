@@ -168,6 +168,14 @@ export const config = {
    */
   RESEND_API_KEY: process.env.RESEND_API_KEY ?? '',
 
+  /**
+   * QuickBooks Online OAuth app credentials (developer.intuit.com). Optional —
+   * when QB_CLIENT_ID is empty, QuickBooks sync features are disabled gracefully.
+   * @example QB_CLIENT_ID=ABc... / QB_CLIENT_SECRET=...
+   */
+  QB_CLIENT_ID: process.env.QB_CLIENT_ID ?? '',
+  QB_CLIENT_SECRET: process.env.QB_CLIENT_SECRET ?? '',
+
   /** Default From address for product email. */
   EMAIL_FROM: process.env.EMAIL_FROM ?? 'Taproot POS <noreply@taproot-pos.com>',
 
@@ -331,6 +339,10 @@ export function validateConfig(): void {
 
     if (!config.ANTHROPIC_API_KEY) {
       warnings.push('[WARNING] ANTHROPIC_API_KEY is not set — AI import and NL query features will be unavailable');
+    }
+
+    if (!config.QB_CLIENT_ID) {
+      warnings.push('[WARNING] QB_CLIENT_ID is not set — QuickBooks sync features will be unavailable');
     }
   }
 

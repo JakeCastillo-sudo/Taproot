@@ -14,8 +14,10 @@ import { pool } from './db/client';
 import bcrypt from 'bcrypt';
 import { runWeeklyCampaignJob } from './jobs/weeklyCampaign.job';
 import { runEmailSequenceJob } from './jobs/emailSequence.job';
+import { runDailySyncJob } from './jobs/quickbooksSync.job';
 import inviteRoutes from './routes/invite.routes';
 import unsubscribeRoutes from './routes/unsubscribe.routes';
+import deliveryRoutes from './routes/delivery.routes';
 import { getPublisher } from './db/redis';
 import { registerValidationHooks } from './middleware/validation';
 import { registerErrorHandler } from './middleware/errorHandler';
@@ -50,6 +52,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import apiKeysRoutes from './routes/apiKeys.routes';
 import webhooksRoutes from './routes/webhooks.routes';
 import schedulingRoutes from './routes/scheduling.routes';
+import quickbooksRoutes from './routes/quickbooks.routes';
 import { registerAdminRoutes } from './routes/admin.routes';
 import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
@@ -289,6 +292,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(employeeRoutes);
   await fastify.register(inviteRoutes);
   await fastify.register(unsubscribeRoutes);
+  await fastify.register(deliveryRoutes);
   await fastify.register(cashDrawerRoutes);
   await fastify.register(tableRoutes);
   await fastify.register(kitchenRoutes);
@@ -302,6 +306,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(webhooksRoutes);
   await fastify.register(schedulingRoutes);
   await fastify.register(smsRoutes);
+  await fastify.register(quickbooksRoutes);
 
   // ─── Admin / Executive portal (separate admin JWT — see middleware/adminAuth) ──
   await registerAdminRoutes(fastify);
@@ -432,6 +437,11 @@ async function buildApp(): Promise<any> {
     // Email unsubscribe (CAN-SPAM) — public (recipient may have no session)
     'GET /api/v1/unsubscribe/verify',
     'POST /api/v1/unsubscribe',
+    // QuickBooks OAuth redirect target — public (no JWT during the OAuth round-trip)
+    'GET /api/v1/quickbooks/callback',
+    // Delivery provider webhooks — public (verified by HMAC signature, not JWT)
+    'POST /api/v1/webhooks/doordash',
+    'POST /api/v1/webhooks/ubereats',
     // Public QR-code storefront
     'GET /public/:orgSlug/menu',
     'POST /public/:orgSlug/order',
@@ -531,6 +541,22 @@ buildApp()
       logger.info('[EmailSequence] scheduler ENABLED (24h tick)');
     } else {
       logger.info('[EmailSequence] scheduler OFF — set ONBOARDING_EMAILS_ENABLED=true to send onboarding drip');
+    }
+
+    // QuickBooks daily sales sync. Ticks hourly; acts during the 2am hour, syncing
+    // the previous day for every connected org. Idempotent (quickbooks_sync_log),
+    // so a repeated tick never double-posts. Disabled when QB_CLIENT_ID is unset.
+    if (config.QB_CLIENT_ID) {
+      const tick = (): void => {
+        if (new Date().getHours() === 2) {
+          void runDailySyncJob().catch((err) =>
+            logger.error('[QuickBooks] tick failed', { error: err instanceof Error ? err.message : String(err) }));
+        }
+      };
+      setInterval(tick, 60 * 60 * 1000);
+      logger.info('[QuickBooks] daily sync scheduler ENABLED (runs ~2am server time)');
+    } else {
+      logger.info('[QuickBooks] sync scheduler OFF — set QB_CLIENT_ID to enable');
     }
   })
   .catch((err) => {

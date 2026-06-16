@@ -35,9 +35,11 @@ import { EndOfDayPage } from './pages/EndOfDayPage';
 import { PublicMenuPage } from './pages/PublicMenuPage';
 import { QrCodesSettingsPage } from './pages/QrCodesSettingsPage';
 import { OnlineOrderingSettingsPage } from './pages/OnlineOrderingSettingsPage';
+import { DeliverySettingsPage } from './pages/DeliverySettingsPage';
 import { LoyaltySettingsPage } from './pages/LoyaltySettingsPage';
 import { LocationsSettingsPage } from './pages/LocationsSettingsPage';
 import { HardwareSettingsPage } from './pages/HardwareSettingsPage';
+import { QuickBooksSettingsPage } from './pages/QuickBooksSettingsPage';
 import { IntegrationsSettingsPage } from './pages/IntegrationsSettingsPage';
 import { GiftCardsSettingsPage } from './pages/GiftCardsSettingsPage';
 import { DiscountsSettingsPage } from './pages/DiscountsSettingsPage';
@@ -446,9 +448,11 @@ export default function App() {
             <Route path="payments" element={<PaymentsSettingsPage />} />
             <Route path="hardware" element={<HardwareSettingsPage />} />
             <Route path="integrations" element={<IntegrationsSettingsPage />} />
+            <Route path="accounting" element={<QuickBooksSettingsPage />} />
             <Route path="floor-plan" element={<FloorPlanEditorPage />} />
             <Route path="qr-codes" element={<QrCodesSettingsPage />} />
             <Route path="online-ordering" element={<OnlineOrderingSettingsPage />} />
+            <Route path="delivery" element={<DeliverySettingsPage />} />
             <Route path="loyalty" element={<LoyaltySettingsPage />} />
             <Route path="gift-cards" element={<GiftCardsSettingsPage />} />
             <Route path="discounts" element={<DiscountsSettingsPage />} />

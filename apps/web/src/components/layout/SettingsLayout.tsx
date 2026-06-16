@@ -12,7 +12,7 @@ import { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Package, FolderTree, SlidersHorizontal, Users, Building2,
-  CreditCard, LayoutGrid, ChevronLeft, LayoutDashboard, QrCode, Globe, Star, Gift, Tag, MapPin, Printer, Plug, Network, KeyRound,
+  CreditCard, LayoutGrid, ChevronLeft, LayoutDashboard, QrCode, Globe, Star, Gift, Tag, MapPin, Printer, Plug, Network, KeyRound, Truck, Calculator,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { canAccessSettings } from '../../lib/session';
@@ -36,9 +36,11 @@ const NAV: SettingsNavItem[] = [
   { to: '/settings/floor-plan', label: 'Floor Plan', icon: <LayoutDashboard size={17} /> },
   { to: '/settings/qr-codes',   label: 'QR Codes',   icon: <QrCode size={17} /> },
   { to: '/settings/online-ordering', label: 'Online Ordering', icon: <Globe size={17} /> },
+  { to: '/settings/delivery',   label: 'Delivery',   icon: <Truck size={17} /> },
   { to: '/settings/loyalty',    label: 'Loyalty',    icon: <Star size={17} /> },
   { to: '/settings/gift-cards', label: 'Gift Cards', icon: <Gift size={17} /> },
   { to: '/settings/integrations', label: 'Integrations', icon: <Plug size={17} /> },
+  { to: '/settings/accounting', label: 'Accounting', icon: <Calculator size={17} /> },
   { to: '/settings/discounts',  label: 'Discounts',  icon: <Tag size={17} /> },
   { to: '/settings/franchise',  label: 'Franchise',  icon: <Network size={17} /> },
   { to: '/settings/api',        label: 'API & Webhooks', icon: <KeyRound size={17} /> },
