@@ -38,17 +38,16 @@ jobs:
           cd apps/desktop
           npx @tauri-apps/cli icon ../web/public/icons/icon-512.png
 
+      # Unsigned build: do NOT pass APPLE_* signing env — when those secrets are
+      # unset they resolve to empty strings and Tauri still attempts `security
+      # import`, which fails ("failed to import keychain certificate"). Add the
+      # signing env back once a Developer ID cert is configured (see
+      # docs/DESKTOP_CODE_SIGNING.md). Unsigned .dmg installs with a Gatekeeper
+      # warning — fine for beta/testing.
       - name: Build macOS (unsigned)
         run: |
           cd apps/desktop
           npm run build:universal
-        env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       # Tauri's default DMG name is "Taproot POS_1.0.0_universal.dmg"; the API
       # /download/mac redirect expects "taproot-pos.dmg".
