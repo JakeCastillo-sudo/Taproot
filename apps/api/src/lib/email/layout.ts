@@ -22,7 +22,31 @@ export function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
-export function emailLayout(title: string, body: string): string {
+/**
+ * @param unsubUrl  When provided (marketing/campaign emails), a CAN-SPAM footer is
+ *   rendered: sender identification, one-click unsubscribe, and a physical postal
+ *   address. Omit for transactional email.
+ */
+export function emailLayout(title: string, body: string, unsubUrl?: string): string {
+  const footer = unsubUrl
+    ? `<div style="text-align:center;padding:16px 32px 24px;border-top:1px solid #E5E7EB;">
+        <p style="margin:0 0 6px;font-size:11px;color:#9CA3AF;">You're receiving this because you have a Taproot POS account.</p>
+        <p style="margin:0 0 6px;font-size:11px;color:#9CA3AF;">
+          <a href="${unsubUrl}" style="color:#6B7280;text-decoration:underline;">Unsubscribe from marketing emails</a>
+          &nbsp;·&nbsp;
+          <a href="https://taproot-pos.com/support" style="color:#6B7280;text-decoration:underline;">Support</a>
+          &nbsp;·&nbsp;
+          <a href="https://taproot-pos.com/privacy" style="color:#6B7280;text-decoration:underline;">Privacy Policy</a>
+        </p>
+        <p style="margin:0;font-size:11px;color:#9CA3AF;">Taproot POS · Huntsville, Alabama</p>
+      </div>`
+    : `<div style="padding:16px 32px 24px;border-top:1px solid #f0f0f0;text-align:center;">
+        <p style="margin:0;font-size:11px;color:#aaa;">
+          © ${new Date().getFullYear()} Taproot POS · <a href="https://taproot-pos.com" style="color:#1D9E75;">taproot-pos.com</a><br/>
+          You're receiving this weekly summary because you run a Taproot restaurant.
+          <a href="mailto:support@taproot-pos.com" style="color:#aaa;">support@taproot-pos.com</a>
+        </p>
+      </div>`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -39,13 +63,7 @@ export function emailLayout(title: string, body: string): string {
     <div style="padding:32px;">
       ${body}
     </div>
-    <div style="padding:16px 32px 24px;border-top:1px solid #f0f0f0;text-align:center;">
-      <p style="margin:0;font-size:11px;color:#aaa;">
-        © ${new Date().getFullYear()} Taproot POS · <a href="https://taprootpos.com" style="color:#1D9E75;">taprootpos.com</a><br/>
-        You're receiving this weekly summary because you run a Taproot restaurant.
-        <a href="mailto:support@taprootpos.com" style="color:#aaa;">support@taprootpos.com</a>
-      </p>
-    </div>
+    ${footer}
   </div>
 </body>
 </html>`;

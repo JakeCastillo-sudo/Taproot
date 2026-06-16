@@ -13,6 +13,7 @@ import { MigrationPage } from './pages/MigrationPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { AcceptInvitePage } from './pages/AcceptInvitePage';
 import { SupportPage } from './pages/SupportPage';
+import { UnsubscribePage } from './pages/UnsubscribePage';
 import { BillingPage } from './pages/BillingPage';
 import { UpgradePage } from './pages/UpgradePage';
 import { LandingPage } from './pages/LandingPage';
@@ -250,6 +251,7 @@ export default function App() {
           <Route path="/terms"    element={<TermsPage />} />
           <Route path="/hardware" element={<HardwarePage />} />
           <Route path="/support" element={<SupportPage />} />
+          <Route path="/unsubscribe" element={<UnsubscribePage />} />
           <Route path="/download" element={<DownloadPage />} />
 
           {/* ── Public QR storefront (no auth) ────────────────────────────── */}

@@ -10,6 +10,7 @@ export interface MenuInsightInput {
   ownerName: string;
   restaurantName: string;
   appUrl: string;
+  unsubUrl?: string;
   topItems: MenuInsightItem[];   // up to 3, highest-selling first
 }
 
@@ -55,5 +56,5 @@ ${items.map((it, idx) => `#${idx + 1}: ${it.name} — ${Math.round(it.qty)} sold
 
 Edit menu: ${i.appUrl}/settings/products`;
 
-  return { subject, html: emailLayout(subject, body), text };
+  return { subject, html: emailLayout(subject, body, i.unsubUrl), text };
 }

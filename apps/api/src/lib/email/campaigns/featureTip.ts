@@ -9,6 +9,7 @@ export interface FeatureTipInput {
   ownerName: string;
   restaurantName: string;
   appUrl: string;
+  unsubUrl?: string;
   modifierCount: number;        // product_modifier_groups rows for the org
   onlineOrderingEnabled: boolean;
   loyaltyEnabled: boolean;
@@ -74,5 +75,5 @@ ${tip.body}
 
 ${tip.ctaLabel} ${i.appUrl}${tip.ctaPath}`;
 
-  return { subject, html: emailLayout(subject, body), text };
+  return { subject, html: emailLayout(subject, body, i.unsubUrl), text };
 }

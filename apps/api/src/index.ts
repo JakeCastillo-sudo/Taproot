@@ -15,6 +15,7 @@ import bcrypt from 'bcrypt';
 import { runWeeklyCampaignJob } from './jobs/weeklyCampaign.job';
 import { runEmailSequenceJob } from './jobs/emailSequence.job';
 import inviteRoutes from './routes/invite.routes';
+import unsubscribeRoutes from './routes/unsubscribe.routes';
 import { getPublisher } from './db/redis';
 import { registerValidationHooks } from './middleware/validation';
 import { registerErrorHandler } from './middleware/errorHandler';
@@ -287,6 +288,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(modifierRoutes);
   await fastify.register(employeeRoutes);
   await fastify.register(inviteRoutes);
+  await fastify.register(unsubscribeRoutes);
   await fastify.register(cashDrawerRoutes);
   await fastify.register(tableRoutes);
   await fastify.register(kitchenRoutes);
@@ -427,6 +429,9 @@ async function buildApp(): Promise<any> {
     // Employee invite acceptance — public (invitee has no account yet)
     'GET /api/v1/invite/verify',
     'POST /api/v1/invite/accept',
+    // Email unsubscribe (CAN-SPAM) — public (recipient may have no session)
+    'GET /api/v1/unsubscribe/verify',
+    'POST /api/v1/unsubscribe',
     // Public QR-code storefront
     'GET /public/:orgSlug/menu',
     'POST /public/:orgSlug/order',

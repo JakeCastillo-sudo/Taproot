@@ -1,5 +1,21 @@
 # Taproot POS — Claude Project State
 
+> # ✉️ CAN-SPAM UNSUBSCRIBE (2026-06-16)
+> Unsubscribe system + compliant footers; clears the "add unsubscribe before enabling campaigns" blocker.
+> - HMAC-signed unsubscribe tokens (no DB lookup to verify) in `email.service.ts`:
+>   `generateUnsubToken`/`verifyUnsubToken`/`unsubUrlFor`/`isUnsubscribed`/`recordUnsubscribe`.
+> - CAN-SPAM footer (unsubscribe + support + privacy + physical address) on campaign emails
+>   (`lib/email/layout.ts` + 4 builders thread `unsubUrl`) and onboarding drip (`emailLayout` 3rd arg).
+>   Transactional email (invites/receipts/resets) intentionally NOT gated.
+> - `sendWeeklyCampaign` + `sendOnboardingSequenceEmail` early-return if `isUnsubscribed`;
+>   weekly job also adds a guarded `email_unsubscribes` NOT-EXISTS filter.
+> - Public routes `GET/POST /api/v1/unsubscribe(/verify)` (in PUBLIC_ROUTES) + `UnsubscribePage` at `/unsubscribe`.
+> - Also fixed stale `taprootpos.com` → `taproot-pos.com` in both backend email layouts.
+>
+> ⚠️ **MIGRATION 025 NEEDED** (Railway): `npx node-pg-migrate up --migrations-dir migrations`
+>   → **025_email_unsubscribe** (`email_unsubscribes` table). Then set `CAMPAIGNS_ENABLED=true`
+>   to enable weekly Sunday campaigns (unsubscribed users auto-skipped). tsc 0 both apps.
+
 > # 🏁 v1.6.0 — FINAL STATE (2026-06-13)
 > **Sessions complete:**
 > - ✅ Session A — Email backend (invites + onboarding) — `8bd5600`

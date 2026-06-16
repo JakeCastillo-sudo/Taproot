@@ -67,6 +67,13 @@ export async function runWeeklyCampaignJob(now: Date = new Date()): Promise<void
     platformAvgOrders7d = Math.round(Number(b?.avg ?? 0));
   }
 
+  // Suppress unsubscribed addresses at the query level when the table exists
+  // (sendWeeklyCampaign also re-checks per recipient). Guarded so a pre-migration
+  // env doesn't error on the missing table.
+  const unsubFilter = (await tableExists('email_unsubscribes'))
+    ? 'AND NOT EXISTS (SELECT 1 FROM email_unsubscribes eu WHERE eu.email = e.email)'
+    : '';
+
   const { rows: customers } = await query<CustomerRow>(
     `SELECT o.id, o.name, e.email, e.first_name,
        (SELECT COUNT(*) FROM products p WHERE p.organization_id = o.id AND p.deleted_at IS NULL) AS product_count,
@@ -81,6 +88,7 @@ export async function runWeeklyCampaignJob(now: Date = new Date()): Promise<void
        AND NOT EXISTS (
          SELECT 1 FROM email_logs el WHERE el.organization_id = o.id AND el.template_name = $1
        )
+       ${unsubFilter}
      ORDER BY o.created_at ASC`,
     [campaignSlug],
   );

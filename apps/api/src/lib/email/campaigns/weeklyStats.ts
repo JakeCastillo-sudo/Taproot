@@ -8,6 +8,7 @@ export interface WeeklyStatsInput {
   ownerName: string;
   restaurantName: string;
   appUrl: string;
+  unsubUrl?: string;
   orders7d: number;
   revenue7d: number;   // cents
   productCount: number;
@@ -51,5 +52,5 @@ export function buildWeeklyStats(i: WeeklyStatsInput): RenderedEmail {
 
 Full report: ${i.appUrl}/reports`;
 
-  return { subject, html: emailLayout(subject, body), text };
+  return { subject, html: emailLayout(subject, body, i.unsubUrl), text };
 }

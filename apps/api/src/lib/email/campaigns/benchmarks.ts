@@ -9,6 +9,7 @@ export interface BenchmarksInput {
   ownerName: string;
   restaurantName: string;
   appUrl: string;
+  unsubUrl?: string;
   yourOrders7d: number;
   platformAvgOrders7d: number;   // avg completed orders / active org over last 7d
 }
@@ -47,5 +48,5 @@ Restaurants using QR ordering + loyalty tend to see higher average tickets and m
 
 See your numbers: ${i.appUrl}/reports`;
 
-  return { subject, html: emailLayout(subject, body), text };
+  return { subject, html: emailLayout(subject, body, i.unsubUrl), text };
 }

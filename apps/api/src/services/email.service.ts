@@ -13,6 +13,7 @@
  *                  requires SENDGRID_API_KEY env var
  */
 
+import crypto from 'crypto';
 import { sendEmail } from '../email';
 import { config } from '../config';
 import { query } from '../db/client';
@@ -38,7 +39,9 @@ function escape(str: string): string {
  */
 function emailLayout(title: string, body: string, unsubscribeUrl?: string): string {
   const unsub = unsubscribeUrl
-    ? `<br/><a href="${unsubscribeUrl}" style="color:#bbb;">Unsubscribe from tips &amp; updates</a>`
+    ? `<br/><a href="${unsubscribeUrl}" style="color:#6B7280;text-decoration:underline;">Unsubscribe from marketing emails</a>
+        &nbsp;·&nbsp;<a href="https://taproot-pos.com/privacy" style="color:#6B7280;text-decoration:underline;">Privacy Policy</a>
+        <br/>Taproot POS · Huntsville, Alabama`
     : '';
   return `<!DOCTYPE html>
 <html lang="en">
@@ -61,9 +64,9 @@ function emailLayout(title: string, body: string, unsubscribeUrl?: string): stri
     <!-- Footer -->
     <div style="padding:16px 32px 24px;border-top:1px solid #f0f0f0;text-align:center;">
       <p style="margin:0;font-size:11px;color:#aaa;">
-        © ${new Date().getFullYear()} Taproot POS · <a href="https://taprootpos.com" style="color:#1D9E75;">taprootpos.com</a>
+        © ${new Date().getFullYear()} Taproot POS · <a href="https://taproot-pos.com" style="color:#1D9E75;">taproot-pos.com</a>
         <br/>
-        <a href="mailto:support@taprootpos.com" style="color:#aaa;">support@taprootpos.com</a>
+        <a href="mailto:support@taproot-pos.com" style="color:#aaa;">support@taproot-pos.com</a>
         ${unsub}
       </p>
     </div>
@@ -79,6 +82,53 @@ function fmtUsd(cents: number): string {
 
 function btnPrimary(href: string, label: string): string {
   return `<a href="${href}" style="display:inline-block;margin-top:8px;padding:12px 28px;background:#1D9E75;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">${escape(label)}</a>`;
+}
+
+// ─── Unsubscribe (CAN-SPAM) ────────────────────────────────────────────────────
+
+// HMAC-signed unsubscribe tokens: the signature lets us verify a link with NO DB
+// lookup. Distinct from JWT_SECRET so an unsub token can never act as a session.
+const UNSUB_SECRET = `${config.JWT_SECRET}_unsub`;
+
+function unsubSig(email: string): string {
+  return crypto.createHmac('sha256', UNSUB_SECRET).update(email.toLowerCase()).digest('hex').slice(0, 32);
+}
+
+export function generateUnsubToken(email: string): string {
+  return Buffer.from(JSON.stringify({ e: email.toLowerCase(), s: unsubSig(email) })).toString('base64url');
+}
+
+export function verifyUnsubToken(token: string): string | null {
+  try {
+    const { e, s } = JSON.parse(Buffer.from(token, 'base64url').toString()) as { e: string; s: string };
+    if (typeof e !== 'string' || s !== unsubSig(e)) return null;
+    return e;
+  } catch {
+    return null;
+  }
+}
+
+/** Per-recipient unsubscribe URL for marketing/campaign footers. */
+export function unsubUrlFor(email: string): string {
+  return `${config.APP_URL}/unsubscribe?token=${generateUnsubToken(email)}`;
+}
+
+/** True if the address has opted out. Resilient: false if the table is missing. */
+export async function isUnsubscribed(email: string): Promise<boolean> {
+  try {
+    const result = await query(`SELECT 1 FROM email_unsubscribes WHERE email = $1 LIMIT 1`, [email.toLowerCase()]);
+    return result.rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export async function recordUnsubscribe(email: string, orgId?: string, reason?: string): Promise<void> {
+  await query(
+    `INSERT INTO email_unsubscribes (email, organization_id, reason)
+     VALUES ($1, $2, $3) ON CONFLICT (email) DO NOTHING`,
+    [email.toLowerCase(), orgId ?? null, reason ?? null],
+  );
 }
 
 // ─── welcomeEmail ─────────────────────────────────────────────────────────────
@@ -324,8 +374,13 @@ export interface WeeklyCampaignParams {
  * sends through the shared transport (jsonTransport in dev → logs; SMTP in prod).
  */
 export async function sendWeeklyCampaign(p: WeeklyCampaignParams): Promise<void> {
+  // CAN-SPAM: never send marketing to an opted-out address.
+  if (await isUnsubscribed(p.to)) {
+    console.log(`[Email] Skipping unsubscribed (campaign): ${p.to}`);
+    return;
+  }
   const appUrl = config.APP_URL;
-  const common = { ownerName: p.ownerName, restaurantName: p.restaurantName, appUrl };
+  const common = { ownerName: p.ownerName, restaurantName: p.restaurantName, appUrl, unsubUrl: unsubUrlFor(p.to) };
   const s = p.stats ?? { orders7d: 0, revenue7d: 0, productCount: 0, modifierCount: 0 };
 
   let rendered: ReturnType<typeof buildWeeklyStats>;
@@ -456,6 +511,11 @@ export async function sendOnboardingSequenceEmail(params: {
   hasOrders?: boolean;
   hasEmployees?: boolean;
 }): Promise<void> {
+  // CAN-SPAM / best practice: skip opted-out addresses for the drip sequence.
+  if (await isUnsubscribed(params.to)) {
+    console.log(`[Email] Skipping unsubscribed (sequence): ${params.to}`);
+    return;
+  }
   const appUrl = config.APP_URL;
   const importUrl = `${appUrl}/import`;
   const posUrl = `${appUrl}/`;
@@ -544,6 +604,6 @@ export async function sendOnboardingSequenceEmail(params: {
       return;
   }
 
-  await sendEmail({ to: params.to, subject, html: emailLayout(subject, body), text });
+  await sendEmail({ to: params.to, subject, html: emailLayout(subject, body, unsubUrlFor(params.to)), text });
   await logEmail({ orgId: params.orgId, recipient: params.to, template: String(params.template) });
 }
