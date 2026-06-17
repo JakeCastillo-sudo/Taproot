@@ -2186,6 +2186,17 @@ export const importsApi = {
     });
   },
 
+  /** Fetch a menu from a URL → returns content the caller feeds into upload(). */
+  fetchMenuUrl: (url: string) =>
+    apiFetch<{
+      success:     boolean;
+      contentType: 'pdf' | 'image' | 'html' | 'unsupported';
+      mimeType:    string;
+      content:     string;       // base64 for pdf/image, text for html
+      pageTitle:   string | null;
+      sourceUrl:   string;
+    }>('/imports/fetch-url', { method: 'POST', body: JSON.stringify({ url }) }),
+
   get: (jobId: string) =>
     apiFetch<{ job: ImportJob }>(`/imports/${jobId}`).then((r) => r.job),
 

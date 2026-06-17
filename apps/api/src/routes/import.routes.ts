@@ -19,6 +19,7 @@ import { config } from '../config';
 import * as ImportJobSvc from '../services/importJob.service';
 import type { ImportType } from '../services/importJob.service';
 import { queues } from '../queues';
+import { fetchMenuFromUrl, isUrlFetchError } from '../services/urlFetch.service';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
 
@@ -156,6 +157,44 @@ export default async function importRoutes(fastify: FastifyInstance): Promise<vo
         jobId:  job.id,
         status: job.status,
       });
+    },
+  );
+
+  // ── POST /api/v1/imports/fetch-url ───────────────────────────────────────────
+  //
+  // Fetch a menu from a public URL and return its content so the frontend can
+  // feed it into the EXISTING upload pipeline (as a File). No new parse path.
+
+  fastify.post(
+    '/api/v1/imports/fetch-url',
+    {
+      config:     { rateLimit: { max: 5, timeWindow: 60_000 } }, // 5/min
+      preHandler: requirePermissions(Permission.IMPORT_RUN),
+    },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { url } = (req.body ?? {}) as { url?: string };
+      if (!url?.trim()) {
+        return reply.code(400).send({ error: 'MISSING_URL', code: 'MISSING_URL', message: 'Please provide a URL to import.' });
+      }
+
+      try {
+        const fetched = await fetchMenuFromUrl(url.trim());
+        return reply.send({
+          success:     true,
+          contentType: fetched.contentType,
+          mimeType:    fetched.mimeType,
+          content:     fetched.content, // base64 for pdf/image, text for html
+          pageTitle:   fetched.pageTitle,
+          sourceUrl:   fetched.sourceUrl,
+        });
+      } catch (err: unknown) {
+        if (isUrlFetchError(err)) {
+          // `code` is read by the web ApiError → enables per-type messages.
+          return reply.code(422).send({ error: err.code, code: err.code, message: err.message });
+        }
+        req.log.error({ err }, '[URLFetch] unexpected error');
+        return reply.code(500).send({ error: 'FETCH_FAILED', code: 'FETCH_FAILED', message: 'Something went wrong fetching that URL. Please try again.' });
+      }
     },
   );
 

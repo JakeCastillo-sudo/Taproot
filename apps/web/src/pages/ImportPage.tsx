@@ -8,11 +8,11 @@ import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Upload, FileText, FileSpreadsheet, Image, X, ChevronLeft,
-  CheckCircle2, AlertCircle, Loader2, Clock, File,
+  CheckCircle2, AlertCircle, Loader2, Clock, File, Link2, Globe, ChevronDown, AlertTriangle,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQueryClient } from '@tanstack/react-query';
-import { importsApi, type ImportJob, type ImportStatus } from '../lib/api';
+import { importsApi, ApiError, type ImportJob, type ImportStatus } from '../lib/api';
 import { QK } from '../lib/queryClient';
 import { ImportReview } from '../components/imports/ImportReview';
 import { ImportHistory } from '../components/imports/ImportHistory';
@@ -69,6 +69,47 @@ const ENTRY_STATUS_CONFIG: Record<UploadEntry['status'], {
   done:       { label: 'Complete',    icon: CheckCircle2, cls: 'text-green-600' },
   error:      { label: 'Error',       icon: AlertCircle,  cls: 'text-red-500'   },
 };
+
+// ─── URL import helpers ─────────────────────────────────────────────────────────
+
+const URL_ACCEPT_KEY = 'taproot_url_import_accepted';
+
+/** base64 → File (browser) so URL content re-enters the existing upload path. */
+function base64ToFile(b64: string, mime: string, name: string): File {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  // window.File — the `File` identifier is shadowed by the lucide-react icon import.
+  return new window.File([bytes], name, { type: mime });
+}
+
+function extForMime(mime: string): string {
+  if (mime === 'application/pdf') return 'pdf';
+  if (mime === 'image/png')  return 'png';
+  if (mime === 'image/webp') return 'webp';
+  if (mime === 'image/gif')  return 'gif';
+  if (mime.startsWith('image/')) return 'jpg';
+  return 'txt';
+}
+
+/** Specific, actionable copy per failure code (backend message is the fallback). */
+function urlErrorMessage(code: string, fallback: string): string {
+  switch (code) {
+    case 'TIMEOUT':
+      return '⏱ That page took too long to respond. Try downloading the menu as a PDF and uploading it instead.';
+    case 'FETCH_FAILED':
+      return "❌ We couldn't reach that URL. Make sure the link works in your browser and is publicly accessible.";
+    case 'UNSUPPORTED_TYPE':
+      return '🔄 This page can’t be imported directly (it may require JavaScript).\n\nTry instead:\n→ Download the menu as a PDF from the site\n→ Take a screenshot of the menu\n→ Upload either using the Upload File tab';
+    case 'TOO_LARGE':
+      return '📄 That file is too large to import (max 10MB). Try a different URL or a compressed version.';
+    case 'INVALID_URL':
+    case 'BLOCKED_HOST':
+      return "🔗 That doesn't look like a valid menu URL. Please check the link and try again.";
+    default:
+      return fallback;
+  }
+}
 
 // ─── Drop zone ────────────────────────────────────────────────────────────────
 
@@ -210,6 +251,14 @@ export function ImportPage() {
   const [reviewJob, setReviewJob]     = useState<ImportJob | null>(null);
   const [tab, setTab]                 = useState<'upload' | 'history'>('upload');
 
+  // URL import (additive — file upload is unchanged)
+  const [inputMode, setInputMode]     = useState<'file' | 'url'>('file');
+  const [url, setUrl]                 = useState('');
+  const [urlError, setUrlError]       = useState<{ code: string; message: string } | null>(null);
+  const [urlLoading, setUrlLoading]   = useState(false);
+  const [showLegal, setShowLegal]     = useState(false);
+  const [showHelp, setShowHelp]       = useState(false);
+
   // ── Poll job status ───────────────────────────────────────────────────────
 
   async function pollUntilReady(jobId: string, entryId: string) {
@@ -299,6 +348,49 @@ export function ImportPage() {
     },
     [qc],
   );
+
+  // ── URL import ────────────────────────────────────────────────────────────
+  // Fetch the URL, convert the returned content to a File, then hand off to the
+  // EXISTING upload pipeline (handleFiles) — same job, parse, review, confirm.
+
+  const runUrlImport = useCallback(async () => {
+    const trimmed = url.trim();
+    if (!trimmed) { setUrlError({ code: 'MISSING_URL', message: 'Please enter a menu URL.' }); return; }
+    setUrlError(null);
+    setUrlLoading(true);
+    try {
+      const fetched = await importsApi.fetchMenuUrl(trimmed);
+      let file: File;
+      if (fetched.contentType === 'html') {
+        const body = `Restaurant menu webpage content${fetched.pageTitle ? ` — ${fetched.pageTitle}` : ''}:\n\n${fetched.content}`;
+        file = new window.File([body], 'menu-from-url.txt', { type: 'text/plain' });
+      } else {
+        file = base64ToFile(fetched.content, fetched.mimeType, `menu-from-url.${extForMime(fetched.mimeType)}`);
+      }
+      await handleFiles([file]); // existing pipeline takes over (queue → review)
+      setUrl('');
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : 'FETCH_FAILED';
+      const msg  = err instanceof ApiError ? err.message : 'Something went wrong fetching that URL.';
+      setUrlError({ code, message: urlErrorMessage(code, msg) });
+    } finally {
+      setUrlLoading(false);
+    }
+  }, [url, handleFiles]);
+
+  const handleUrlImportClick = useCallback(() => {
+    if (!url.trim()) { setUrlError({ code: 'MISSING_URL', message: 'Please enter a menu URL.' }); return; }
+    let accepted = false;
+    try { accepted = sessionStorage.getItem(URL_ACCEPT_KEY) === 'true'; } catch { /* ignore */ }
+    if (accepted) void runUrlImport();
+    else setShowLegal(true);
+  }, [url, runUrlImport]);
+
+  const confirmLegal = useCallback(() => {
+    try { sessionStorage.setItem(URL_ACCEPT_KEY, 'true'); } catch { /* ignore */ }
+    setShowLegal(false);
+    void runUrlImport();
+  }, [runUrlImport]);
 
   // ── Review ────────────────────────────────────────────────────────────────
 
@@ -396,7 +488,104 @@ export function ImportPage() {
       <div className="max-w-3xl mx-auto px-4 py-4 space-y-4">
         {tab === 'upload' && (
           <>
-            <DropZone onFiles={handleFiles} />
+            {/* Input mode: file upload (existing) vs URL */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+              <button
+                onClick={() => setInputMode('file')}
+                className={clsx('flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-colors',
+                  inputMode === 'file' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700')}
+              >
+                <Upload size={14} /> Upload File
+              </button>
+              <button
+                onClick={() => setInputMode('url')}
+                className={clsx('flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-colors',
+                  inputMode === 'url' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700')}
+              >
+                <Link2 size={14} /> Paste a URL
+              </button>
+            </div>
+
+            {inputMode === 'file' ? (
+              <DropZone onFiles={handleFiles} />
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="menu-url" className="block text-sm font-semibold text-gray-700 mb-1.5">Menu URL</label>
+                  <input
+                    id="menu-url"
+                    type="url"
+                    autoComplete="off"
+                    value={url}
+                    onChange={(e) => { setUrl(e.target.value); if (urlError) setUrlError(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleUrlImportClick(); }}
+                    placeholder="https://yourrestaurant.com/menu"
+                    disabled={urlLoading}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:bg-gray-50"
+                  />
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Works best with PDF menu links and simple website menus. Some sites may not be importable.
+                  </p>
+                </div>
+
+                {urlError && (
+                  <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-700 whitespace-pre-line">
+                    {urlError.message}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleUrlImportClick}
+                  disabled={urlLoading || !url.trim()}
+                  className="w-full h-11 flex items-center justify-center gap-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+                >
+                  {urlLoading
+                    ? (<><Loader2 size={15} className="animate-spin" /> Fetching menu from URL…</>)
+                    : (<>Import from URL →</>)}
+                </button>
+
+                {/* Collapsible "what works?" guide */}
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setShowHelp((v) => !v)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5"><Globe size={14} /> What URLs work best?</span>
+                    <ChevronDown size={15} className={clsx('transition-transform', showHelp && 'rotate-180')} />
+                  </button>
+                  {showHelp && (
+                    <div className="px-4 pb-3 pt-2 border-t border-gray-100 text-xs text-gray-500 space-y-3">
+                      <div>
+                        <p className="font-semibold text-green-700">✅ Works well</p>
+                        <ul className="mt-1 space-y-0.5 list-disc list-inside">
+                          <li>Direct PDF links (restaurant.com/menu.pdf)</li>
+                          <li>Simple restaurant website menus</li>
+                          <li>Most menu pages with visible text</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-amber-600">⚠️ May not work</p>
+                        <ul className="mt-1 space-y-0.5 list-disc list-inside">
+                          <li>Sites that require JavaScript to load (common with modern restaurant sites)</li>
+                          <li>Menus behind a login wall or paywall</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-red-600">❌ Won’t work</p>
+                        <ul className="mt-1 space-y-0.5 list-disc list-inside">
+                          <li>Google Maps menu pages</li>
+                          <li>DoorDash or Uber Eats menus</li>
+                          <li>Toast or Square customer menus</li>
+                        </ul>
+                      </div>
+                      <p className="text-gray-400">
+                        💡 Tip: if a URL doesn’t work, right-click the menu PDF link on the restaurant’s website and copy the direct PDF URL.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {entries.length > 0 && (
               <div>
@@ -430,6 +619,42 @@ export function ImportPage() {
           <ImportHistory onReview={handleHistoryReview} />
         )}
       </div>
+
+      {/* ── Legal disclaimer modal (URL import — once per session) ──────────── */}
+      {showLegal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={20} className="text-amber-500" />
+              <h2 className="text-base font-bold text-gray-900">Before you import</h2>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">By importing this menu, you confirm that:</p>
+            <ul className="space-y-2 text-sm text-gray-600 mb-4">
+              <li className="flex gap-2"><span className="text-green-600 shrink-0">✓</span> You own or have permission to use this menu content.</li>
+              <li className="flex gap-2"><span className="text-green-600 shrink-0">✓</span> Menu items, names, and descriptions may be protected by intellectual property law.</li>
+              <li className="flex gap-2"><span className="text-green-600 shrink-0">✓</span> You are responsible for ensuring you have the right to use this content in your Taproot POS.</li>
+            </ul>
+            <p className="text-xs text-gray-400 mb-5">
+              Taproot does not verify ownership of imported content and is not responsible for any
+              intellectual property claims arising from menu imports.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowLegal(false)}
+                className="flex-1 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLegal}
+                className="flex-1 h-10 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark transition-colors"
+              >
+                I Understand, Continue Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
