@@ -537,6 +537,9 @@ export function POSLayout({ user }: POSLayoutProps) {
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [modifierProduct, setModifierProduct] = useState<ModifierSheetProduct | null>(null);
+  // Recipe-aware modifier mode (ingredient system). True only when the open product
+  // has recipe_mode=true → drives the /modifiers/pos fetch + 3-section sheet UI.
+  const [recipeModeOpen, setRecipeModeOpen] = useState(false);
   // Cart "edit modifiers" context — set when the cashier taps a cart line's pencil.
   const [editCartItemId, setEditCartItemId] = useState<string | null>(null);
   const [editInit, setEditInit] = useState<{ modifiers: AppliedModifier[]; notes: string; quantity: number } | null>(null);
@@ -690,11 +693,21 @@ export function POSLayout({ user }: POSLayoutProps) {
         })),
       })),
     };
+    setRecipeModeOpen(product.recipe_mode === true);
     setModifierProduct(pSheet);
     setEditCartItemId(null);
     setEditInit(null);
     setModifierSheetOpen(true);
   }, [setModifierSheetOpen]);
+
+  // Recipe-aware POS modifiers — fetched ONLY for recipe_mode products (ingredient
+  // system). recipe_mode=false products never hit this; they use product.modifierGroups.
+  const posModifiersQuery = useQuery({
+    queryKey: ['pos-modifiers', modifierProduct?.id],
+    queryFn:  () => productsApi.posModifiers(modifierProduct!.id),
+    enabled:  recipeModeOpen && !!modifierProduct?.id,
+    staleTime: 60_000,
+  });
 
   // Product IDs (in the current view) that have modifier groups — used to show the
   // cart edit pencil even on lines that don't yet have a modifier selected.
@@ -749,6 +762,7 @@ export function POSLayout({ user }: POSLayoutProps) {
         }] : [],
       };
     }
+    setRecipeModeOpen(product?.recipe_mode === true);
     setModifierProduct(pSheet);
     setEditCartItemId(item.id);
     setEditInit({ modifiers: item.modifiers, notes: item.notes, quantity: item.quantity });
@@ -796,15 +810,16 @@ export function POSLayout({ user }: POSLayoutProps) {
         productName: p.name,
         conflicts,
         proceed: () => {
-          if (groups.length > 0) openModifierSheet(p);
+          if (groups.length > 0 || p.recipe_mode) openModifierSheet(p);
           else addDirectToCart(product, buildAllergenNote(conflicts));
         },
       });
       return;
     }
 
-    if (groups.length > 0) {
-      // Has modifier groups — open sheet before adding to cart
+    if (groups.length > 0 || p.recipe_mode) {
+      // Has modifier groups, or is a recipe-mode product (show recipe sheet +
+      // universal add-ons even if there are no base groups) — open the sheet.
       openModifierSheet(p);
     } else {
       // No modifiers — add directly (fast path)
@@ -1301,7 +1316,9 @@ export function POSLayout({ user }: POSLayoutProps) {
           initialModifiers={editInit?.modifiers}
           initialNotes={editInit?.notes}
           initialQuantity={editInit?.quantity}
-          onClose={() => { setModifierProduct(null); setModifierSheetOpen(false); setEditCartItemId(null); setEditInit(null); }}
+          recipeMode={recipeModeOpen}
+          posModifierData={recipeModeOpen ? posModifiersQuery.data : undefined}
+          onClose={() => { setModifierProduct(null); setModifierSheetOpen(false); setEditCartItemId(null); setEditInit(null); setRecipeModeOpen(false); }}
           onArchive={handleArchiveFromPOS}
         />
       )}
