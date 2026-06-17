@@ -26,6 +26,7 @@ import { ReceiptPage } from './pages/ReceiptPage';
 import { SettingsLayout } from './components/layout/SettingsLayout';
 import { ProductsSettingsPage } from './pages/ProductsSettingsPage';
 import { IngredientsSettingsPage } from './pages/IngredientsSettingsPage';
+import { InventoryDashboardPage } from './pages/InventoryDashboardPage';
 import { CategoriesSettingsPage } from './pages/CategoriesSettingsPage';
 import { ModifiersSettingsPage } from './pages/ModifiersSettingsPage';
 import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
@@ -445,6 +446,7 @@ export default function App() {
             <Route path="categories" element={<CategoriesSettingsPage />} />
             <Route path="modifiers" element={<ModifiersSettingsPage />} />
             <Route path="ingredients" element={<IngredientsSettingsPage />} />
+            <Route path="inventory" element={<InventoryDashboardPage />} />
             <Route path="business" element={<BusinessSettingsPage />} />
             <Route path="locations" element={<LocationsSettingsPage />} />
             <Route path="employees" element={<EmployeesSettingsPage />} />

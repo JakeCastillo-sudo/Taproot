@@ -44,6 +44,7 @@ import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
 import { CategoryTileGrid } from '../pos/CategoryTileGrid';
 import { WaitTimeCard } from '../pos/WaitTimeCard';
+import { InventoryAlertCard } from '../pos/InventoryAlertCard';
 import { DayPartToggle } from '../pos/DayPartToggle';
 import { ModifierSheet, type ModifierSheetProduct } from '../pos/ModifierSheet';
 import { EmployeeSelect } from '../pos/EmployeeSelect';
@@ -1100,6 +1101,7 @@ export function POSLayout({ user }: POSLayoutProps) {
             /* ── OWNER DAILY INTELLIGENCE FEED (S9-04) + WAIT TIME (FEAT-WAIT-001) ── */
             <>
               <WaitTimeCard />
+              <InventoryAlertCard />
               <IntelligenceFeed onStartOrders={dismissFeed} />
             </>
           ) : floorMode === 'table' ? (

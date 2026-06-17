@@ -162,6 +162,35 @@ export async function registerIngredientRoutes(fastify: FastifyInstance): Promis
     return reply.send(status);
   });
 
+  // ── Inventory dashboard (Session 5) ────────────────────────────────────────
+
+  fastify.get('/api/v1/inventory/dashboard', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!requireManager(req, reply)) return;
+    const { user } = req as AuthedRequest;
+    const dashboard = await InvSvc.getInventoryDashboard(user.orgId);
+    return reply.send(dashboard);
+  });
+
+  fastify.get('/api/v1/inventory/alerts', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!requireManager(req, reply)) return;
+    const { user } = req as AuthedRequest;
+    const alerts = await InvSvc.getStockAlerts(user.orgId);
+    return reply.send({
+      criticalCount:   alerts.critical.length,
+      lowCount:        alerts.low.length,
+      outOfStockCount: alerts.outOfStock.length,
+      totalAlerts:     alerts.critical.length + alerts.low.length + alerts.outOfStock.length,
+    });
+  });
+
+  fastify.get('/api/v1/inventory/usage', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!requireManager(req, reply)) return;
+    const { user } = req as AuthedRequest;
+    const days = parseInt((req.query as { days?: string }).days ?? '7', 10);
+    const usage = await InvSvc.getIngredientUsage(user.orgId, Number.isFinite(days) ? days : 7);
+    return reply.send({ usage });
+  });
+
   // ── Universal add-on exclusions ────────────────────────────────────────────
 
   fastify.post('/api/v1/products/:id/ingredient-exclusions', async (req: FastifyRequest, reply: FastifyReply) => {

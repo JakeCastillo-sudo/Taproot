@@ -260,3 +260,210 @@ export async function getInventoryStatus(orgId: string, _locationId?: string): P
     ingredients,
   };
 }
+
+// ── Usage analytics (Session 5) ─────────────────────────────────────────────────
+
+export interface IngredientUsage {
+  ingredientId: string;
+  ingredientName: string;
+  unit: string;
+  totalUsed: number;       // sum of |negative movements| in window
+  totalAdded: number;      // sum of positive movements in window
+  netChange: number;       // totalAdded - totalUsed
+  movementCount: number;
+  avgDailyUsage: number;   // totalUsed / days
+  daysRemaining: number | null; // current_stock / avgDailyUsage (null if no usage)
+}
+
+export async function getIngredientUsage(orgId: string, days = 7): Promise<IngredientUsage[]> {
+  if (!(await ingredientSystemReady())) return [];
+  const safeDays = Math.min(Math.max(Math.floor(days), 1), 90);
+
+  const { rows } = await query<{
+    ingredient_id: string; ingredient_name: string; unit: string; current_stock: number;
+    total_used: string; total_added: string; net_change: string; movement_count: string;
+  }>(
+    `SELECT
+       i.id   AS ingredient_id,
+       i.name AS ingredient_name,
+       i.unit,
+       i.current_stock,
+       COALESCE(SUM(CASE WHEN sm.quantity_change < 0 THEN ABS(sm.quantity_change) ELSE 0 END), 0) AS total_used,
+       COALESCE(SUM(CASE WHEN sm.quantity_change > 0 THEN sm.quantity_change ELSE 0 END), 0)      AS total_added,
+       COALESCE(SUM(sm.quantity_change), 0) AS net_change,
+       COUNT(sm.id) AS movement_count
+     FROM ingredients i
+     LEFT JOIN stock_movements sm
+       ON sm.ingredient_id = i.id
+      AND sm.created_at > NOW() - ($2::int * INTERVAL '1 day')
+     WHERE i.organization_id = $1 AND i.deleted_at IS NULL
+     GROUP BY i.id, i.name, i.unit, i.current_stock
+     ORDER BY total_used DESC`,
+    [orgId, safeDays],
+  );
+
+  return rows.map((r) => {
+    const totalUsed = parseFloat(r.total_used) || 0;
+    const avgDailyUsage = totalUsed / safeDays;
+    const currentStock = Number(r.current_stock) || 0;
+    const daysRemaining = avgDailyUsage > 0 ? Math.floor(currentStock / avgDailyUsage) : null;
+    return {
+      ingredientId: r.ingredient_id,
+      ingredientName: r.ingredient_name,
+      unit: r.unit,
+      totalUsed,
+      totalAdded: parseFloat(r.total_added) || 0,
+      netChange: parseFloat(r.net_change) || 0,
+      movementCount: parseInt(r.movement_count, 10) || 0,
+      avgDailyUsage,
+      daysRemaining,
+    };
+  });
+}
+
+// ── Stock alerts (Session 5) ────────────────────────────────────────────────────
+
+export interface StockAlerts {
+  critical: Array<{
+    id: string; name: string; unit: string;
+    currentStock: number; reorderPoint: number; parLevel: number;
+    daysRemaining: number | null; suggestedOrderQty: number;
+  }>;
+  low: Array<{
+    id: string; name: string; unit: string;
+    currentStock: number; parLevel: number; daysRemaining: number | null;
+  }>;
+  outOfStock: Array<{ id: string; name: string; unit: string }>;
+}
+
+export async function getStockAlerts(orgId: string): Promise<StockAlerts> {
+  const empty: StockAlerts = { critical: [], low: [], outOfStock: [] };
+  if (!(await ingredientSystemReady())) return empty;
+
+  const usage = await getIngredientUsage(orgId, 7);
+  const usageMap = new Map(usage.map((u) => [u.ingredientId, u]));
+
+  const { rows } = await query<{
+    id: string; name: string; unit: string;
+    current_stock: number; par_level: number; reorder_point: number;
+  }>(
+    `SELECT id, name, unit, current_stock, par_level, reorder_point
+       FROM ingredients
+      WHERE organization_id = $1 AND deleted_at IS NULL
+        AND (current_stock = 0 OR current_stock < reorder_point OR current_stock < par_level)
+      ORDER BY CASE WHEN current_stock = 0 THEN 0
+                    WHEN current_stock < reorder_point THEN 1
+                    ELSE 2 END,
+               name ASC`,
+    [orgId],
+  );
+
+  const result: StockAlerts = { critical: [], low: [], outOfStock: [] };
+  for (const r of rows) {
+    const stock = Number(r.current_stock);
+    const reorder = Number(r.reorder_point);
+    const par = Number(r.par_level);
+    const daysRemaining = usageMap.get(r.id)?.daysRemaining ?? null;
+
+    if (stock <= 0) {
+      result.outOfStock.push({ id: r.id, name: r.name, unit: r.unit });
+    } else if (stock < reorder) {
+      result.critical.push({
+        id: r.id, name: r.name, unit: r.unit,
+        currentStock: stock, reorderPoint: reorder, parLevel: par,
+        daysRemaining, suggestedOrderQty: Math.max(0, Math.ceil(par - stock)),
+      });
+    } else if (stock < par) {
+      result.low.push({ id: r.id, name: r.name, unit: r.unit, currentStock: stock, parLevel: par, daysRemaining });
+    }
+  }
+  return result;
+}
+
+// ── Dashboard summary (Session 5) ────────────────────────────────────────────────
+
+export interface InventoryDashboard {
+  summary: {
+    totalIngredients: number;
+    outOfStock: number;
+    critical: number;
+    low: number;
+    ok: number;
+    universalAddons: number;
+    totalStockValue: number; // cents
+  };
+  alerts: StockAlerts;
+  topUsed: Array<{
+    ingredientId: string; ingredientName: string; unit: string;
+    totalUsed: number; avgDailyUsage: number; daysRemaining: number | null;
+  }>;
+  recentMovements: Array<{
+    id: string; ingredientName: string; movementType: string;
+    quantityChange: number; unit: string; createdAt: string; notes: string | null;
+  }>;
+}
+
+export async function getInventoryDashboard(orgId: string): Promise<InventoryDashboard> {
+  const empty: InventoryDashboard = {
+    summary: { totalIngredients: 0, outOfStock: 0, critical: 0, low: 0, ok: 0, universalAddons: 0, totalStockValue: 0 },
+    alerts: { critical: [], low: [], outOfStock: [] },
+    topUsed: [], recentMovements: [],
+  };
+  if (!(await ingredientSystemReady())) return empty;
+
+  const [summaryRes, alerts, usage, movementsRes] = await Promise.all([
+    query<{
+      total: string; out_of_stock: string; critical: string; low: string; ok: string;
+      universal_addons: string; total_stock_value: string;
+    }>(
+      `SELECT
+         COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE current_stock = 0) AS out_of_stock,
+         COUNT(*) FILTER (WHERE current_stock > 0 AND current_stock < reorder_point) AS critical,
+         COUNT(*) FILTER (WHERE current_stock >= reorder_point AND current_stock < par_level) AS low,
+         COUNT(*) FILTER (WHERE current_stock >= par_level) AS ok,
+         COUNT(*) FILTER (WHERE is_universal_addon = true) AS universal_addons,
+         COALESCE(SUM(current_stock * cost_per_unit), 0) AS total_stock_value
+       FROM ingredients
+       WHERE organization_id = $1 AND deleted_at IS NULL`,
+      [orgId],
+    ),
+    getStockAlerts(orgId),
+    getIngredientUsage(orgId, 7),
+    query<{
+      id: string; ingredient_name: string; movement_type: string;
+      quantity_change: number; unit: string; created_at: string; notes: string | null;
+    }>(
+      `SELECT sm.id, i.name AS ingredient_name, sm.movement_type, sm.quantity_change,
+              i.unit, sm.created_at, sm.notes
+         FROM stock_movements sm
+         JOIN ingredients i ON i.id = sm.ingredient_id
+        WHERE sm.organization_id = $1
+        ORDER BY sm.created_at DESC
+        LIMIT 20`,
+      [orgId],
+    ),
+  ]);
+
+  const s = summaryRes.rows[0];
+  return {
+    summary: {
+      totalIngredients: parseInt(s?.total ?? '0', 10) || 0,
+      outOfStock:       parseInt(s?.out_of_stock ?? '0', 10) || 0,
+      critical:         parseInt(s?.critical ?? '0', 10) || 0,
+      low:              parseInt(s?.low ?? '0', 10) || 0,
+      ok:               parseInt(s?.ok ?? '0', 10) || 0,
+      universalAddons:  parseInt(s?.universal_addons ?? '0', 10) || 0,
+      totalStockValue:  Math.round(parseFloat(s?.total_stock_value ?? '0') || 0),
+    },
+    alerts,
+    topUsed: usage.slice(0, 10).map((u) => ({
+      ingredientId: u.ingredientId, ingredientName: u.ingredientName, unit: u.unit,
+      totalUsed: u.totalUsed, avgDailyUsage: u.avgDailyUsage, daysRemaining: u.daysRemaining,
+    })),
+    recentMovements: movementsRes.rows.map((r) => ({
+      id: r.id, ingredientName: r.ingredient_name, movementType: r.movement_type,
+      quantityChange: Number(r.quantity_change), unit: r.unit, createdAt: r.created_at, notes: r.notes,
+    })),
+  };
+}

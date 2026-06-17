@@ -2612,7 +2612,68 @@ export const ingredientsApi = {
 
   listUniversal: () =>
     apiFetch<{ addons: Ingredient[] }>('/ingredients/universal/list').then((r) => r.addons),
+
+  // ── Inventory dashboard (Session 5) — added here because `inventoryApi` already
+  //    exists for the legacy inventory_levels system. ──────────────────────────
+  dashboard: () => apiFetch<InventoryDashboard>('/inventory/dashboard'),
+  alerts:    () => apiFetch<InventoryAlertCounts>('/inventory/alerts'),
+  usage:     (days = 7) => apiFetch<{ usage: IngredientUsageRow[] }>(`/inventory/usage?days=${days}`).then((r) => r.usage),
 };
+
+// ─── Inventory dashboard types (Session 5) ──────────────────────────────────────
+
+export interface IngredientUsageRow {
+  ingredientId: string;
+  ingredientName: string;
+  unit: string;
+  totalUsed: number;
+  totalAdded: number;
+  netChange: number;
+  movementCount: number;
+  avgDailyUsage: number;
+  daysRemaining: number | null;
+}
+
+export interface InventoryAlertCounts {
+  criticalCount: number;
+  lowCount: number;
+  outOfStockCount: number;
+  totalAlerts: number;
+}
+
+export interface InventoryStockAlerts {
+  critical: Array<{
+    id: string; name: string; unit: string;
+    currentStock: number; reorderPoint: number; parLevel: number;
+    daysRemaining: number | null; suggestedOrderQty: number;
+  }>;
+  low: Array<{
+    id: string; name: string; unit: string;
+    currentStock: number; parLevel: number; daysRemaining: number | null;
+  }>;
+  outOfStock: Array<{ id: string; name: string; unit: string }>;
+}
+
+export interface InventoryDashboard {
+  summary: {
+    totalIngredients: number;
+    outOfStock: number;
+    critical: number;
+    low: number;
+    ok: number;
+    universalAddons: number;
+    totalStockValue: number; // cents
+  };
+  alerts: InventoryStockAlerts;
+  topUsed: Array<{
+    ingredientId: string; ingredientName: string; unit: string;
+    totalUsed: number; avgDailyUsage: number; daysRemaining: number | null;
+  }>;
+  recentMovements: Array<{
+    id: string; ingredientName: string; movementType: string;
+    quantityChange: number; unit: string; createdAt: string; notes: string | null;
+  }>;
+}
 
 export const ingredientRecipeApi = {
   getRecipe: (productId: string) =>
