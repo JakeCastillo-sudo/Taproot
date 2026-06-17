@@ -8,6 +8,7 @@
 
 import { query } from '../db/client';
 import { askClaudeJSON, askClaudeText, aiAvailable, cacheGet, cacheSet } from './ai.service';
+import { getIngredientBriefData } from './ingredientAnalytics.service';
 import { getForecast } from './aiForecast.service';
 
 const DOW_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -595,9 +596,29 @@ export async function getDailyIntelligence(
     ? `Yesterday ran ${Math.abs(revenueVsLastWeek)}% ${revenueVsLastWeek > 0 ? 'ahead of' : 'behind'} the same day last week — keep an eye on the trend.`
     : 'Steady as she goes — yesterday matched the same day last week.';
   if (aiAvailable()) {
+    // Ingredient-system context (Session 6) — additive; never crashes the brief.
+    let ingredients: Awaited<ReturnType<typeof getIngredientBriefData>> | null = null;
+    try { ingredients = await getIngredientBriefData(orgId); } catch { ingredients = null; }
+
+    const hasIngredientData = !!ingredients && (
+      ingredients.criticalIngredients.length > 0 ||
+      ingredients.foodCostPercent !== null ||
+      (!!ingredients.topOmission && ingredients.topOmission.rate >= 30) ||
+      (!!ingredients.topAttachRate && ingredients.topAttachRate.rate >= 30)
+    );
+
+    const system =
+      'You are a restaurant analytics advisor. Given this performance summary, state the SINGLE most important insight the owner should know today. One sentence. Specific and actionable. No preamble.'
+      + (hasIngredientData
+        ? ' The input may include an "ingredients" object — weigh it: a critical inventory shortage (ingredients below reorder) usually outranks everything, then a high/critical food cost, then a strong menu signal (high omission or add-on attach rate), but only surface one if it is the most important thing today.'
+        : '');
+
     const ai = await askClaudeText(
-      'You are a restaurant analytics advisor. Given this performance summary, state the SINGLE most important insight the owner should know today. One sentence. Specific and actionable. No preamble.',
-      JSON.stringify({ yesterday: result.yesterday, today: result.today, alerts: result.alerts, reorderNeeded }),
+      system,
+      JSON.stringify({
+        yesterday: result.yesterday, today: result.today, alerts: result.alerts, reorderNeeded,
+        ...(hasIngredientData ? { ingredients } : {}),
+      }),
       150,
     );
     if (ai) { result.aiInsight = ai; result.aiUsed = true; }

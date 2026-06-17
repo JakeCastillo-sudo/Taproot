@@ -2618,7 +2618,49 @@ export const ingredientsApi = {
   dashboard: () => apiFetch<InventoryDashboard>('/inventory/dashboard'),
   alerts:    () => apiFetch<InventoryAlertCounts>('/inventory/alerts'),
   usage:     (days = 7) => apiFetch<{ usage: IngredientUsageRow[] }>(`/inventory/usage?days=${days}`).then((r) => r.usage),
+
+  // ── Ingredient analytics (Session 6) — namespaced under /inventory/* because
+  //    /analytics/food-cost is already taken by the legacy foodCost service. ────
+  foodCost:       (days = 7)  => apiFetch<FoodCostSummary>(`/inventory/food-cost?days=${days}`),
+  modifierAttach: (days = 30) => apiFetch<{ attachRates: ModifierAttachRate[] }>(`/inventory/modifier-attach?days=${days}`).then((r) => r.attachRates),
+  omissions:      (days = 30) => apiFetch<{ omissions: OmissionInsight[] }>(`/inventory/omissions?days=${days}`).then((r) => r.omissions),
 };
+
+// ─── Ingredient analytics types (Session 6) ─────────────────────────────────────
+
+export interface FoodCostSummary {
+  periodDays: number;
+  grossRevenue: number;
+  totalCOGS: number;
+  grossMargin: number;
+  foodCostPercent: number;
+  recipeOrderCount: number;
+  totalOrderCount: number;
+  recipeCoverage: number;
+  byDay: Array<{ date: string; revenue: number; cogs: number; margin: number; foodCostPercent: number }>;
+  benchmark: { industryAvg: number; status: 'excellent' | 'good' | 'high' | 'critical' };
+}
+
+export interface ModifierAttachRate {
+  ingredientId: string;
+  ingredientName: string;
+  modifierType: 'extra' | 'add_on' | 'omission';
+  totalOrdersWithProduct: number;
+  timesSelected: number;
+  attachRate: number;
+  revenueFromModifier: number;
+  avgPriceDelta: number;
+}
+
+export interface OmissionInsight {
+  ingredientName: string;
+  omissionRate: number;
+  productName: string;
+  totalOrders: number;
+  timesOmitted: number;
+  wasteValueSaved: number;
+  insight: string;
+}
 
 // ─── Inventory dashboard types (Session 5) ──────────────────────────────────────
 

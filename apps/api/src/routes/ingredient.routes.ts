@@ -13,8 +13,14 @@ import type { AccessTokenPayload } from '../auth/jwt';
 import * as IngredientSvc from '../services/ingredient.service';
 import * as RecipeSvc from '../services/ingredientRecipe.service';
 import * as InvSvc from '../services/ingredientInventory.service';
+import * as AnalyticsSvc from '../services/ingredientAnalytics.service';
 
 type AuthedRequest = FastifyRequest & { user: AccessTokenPayload };
+
+function clampDays(raw: string | undefined, fallback: number): number {
+  const n = parseInt(raw ?? String(fallback), 10);
+  return Math.min(Math.max(Number.isFinite(n) ? n : fallback, 1), 90);
+}
 
 function requireManager(req: FastifyRequest, reply: FastifyReply): boolean {
   const { user } = req as AuthedRequest;
@@ -189,6 +195,31 @@ export async function registerIngredientRoutes(fastify: FastifyInstance): Promis
     const days = parseInt((req.query as { days?: string }).days ?? '7', 10);
     const usage = await InvSvc.getIngredientUsage(user.orgId, Number.isFinite(days) ? days : 7);
     return reply.send({ usage });
+  });
+
+  // ── Ingredient analytics (Session 6) ───────────────────────────────────────
+  // Namespaced under /inventory/* (the legacy /analytics/food-cost is already
+  // taken by foodCost.service / S9-05, which uses a different COGS source).
+
+  fastify.get('/api/v1/inventory/food-cost', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!requireManager(req, reply)) return;
+    const { user } = req as AuthedRequest;
+    const days = clampDays((req.query as { days?: string }).days, 7);
+    return reply.send(await AnalyticsSvc.getFoodCostSummary(user.orgId, days));
+  });
+
+  fastify.get('/api/v1/inventory/modifier-attach', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!requireManager(req, reply)) return;
+    const { user } = req as AuthedRequest;
+    const days = clampDays((req.query as { days?: string }).days, 30);
+    return reply.send({ attachRates: await AnalyticsSvc.getModifierAttachRates(user.orgId, days) });
+  });
+
+  fastify.get('/api/v1/inventory/omissions', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!requireManager(req, reply)) return;
+    const { user } = req as AuthedRequest;
+    const days = clampDays((req.query as { days?: string }).days, 30);
+    return reply.send({ omissions: await AnalyticsSvc.getOmissionInsights(user.orgId, days) });
   });
 
   // ── Universal add-on exclusions ────────────────────────────────────────────

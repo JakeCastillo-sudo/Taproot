@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart3, ArrowLeft, LayoutDashboard, ShoppingBag,
-  Package, Users, UserCheck, Calendar, ChevronDown, Coins, CalendarDays, Grid3x3, MapPin,
+  Package, Users, UserCheck, Calendar, ChevronDown, Coins, CalendarDays, Grid3x3, MapPin, Utensils,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { USER_KEY } from '../lib/api';
@@ -27,6 +27,7 @@ import { CustomersTab }   from '../components/reports/CustomersTab';
 import { StaffTab }       from '../components/reports/StaffTab';
 import { TipsTab }        from '../components/reports/TipsTab';
 import { HeatmapTab }     from '../components/reports/HeatmapTab';
+import { FoodCostTab }    from '../components/reports/FoodCostTab';
 import { ToastContainer } from '../components/ui/Toast';
 import { ScrollablePage } from '../components/layout/ScrollablePage';
 import { ForecastWidget } from '../components/ai/ForecastWidget';
@@ -35,7 +36,7 @@ import { locations as locationsApi } from '../lib/api';
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
-type TabId = 'dashboard' | 'sales' | 'products' | 'customers' | 'staff' | 'tips' | 'heatmap';
+type TabId = 'dashboard' | 'sales' | 'products' | 'customers' | 'staff' | 'tips' | 'heatmap' | 'foodcost';
 
 const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ size?: number; className?: string }> }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -45,6 +46,7 @@ const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ size?: number; cl
   { id: 'staff',     label: 'Staff',     icon: UserCheck       },
   { id: 'tips',      label: 'Tips',      icon: Coins           },
   { id: 'heatmap',   label: 'Heatmap',   icon: Grid3x3         },
+  { id: 'foodcost',  label: 'Food Cost', icon: Utensils        },
 ];
 
 // ─── Location helper ──────────────────────────────────────────────────────────
@@ -237,6 +239,7 @@ export function ReportsPage() {
         {activeTab === 'staff'      && <StaffTab      params={apiParams} />}
         {activeTab === 'tips'       && <TipsTab       params={apiParams} />}
         {activeTab === 'heatmap'    && <HeatmapTab    params={apiParams} />}
+        {activeTab === 'foodcost'   && <FoodCostTab />}
         </div>
       </ScrollablePage>
 
