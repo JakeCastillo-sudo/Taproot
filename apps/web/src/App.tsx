@@ -25,6 +25,7 @@ import { OnboardingPage } from './pages/OnboardingPage';
 import { ReceiptPage } from './pages/ReceiptPage';
 import { SettingsLayout } from './components/layout/SettingsLayout';
 import { ProductsSettingsPage } from './pages/ProductsSettingsPage';
+import { IngredientsSettingsPage } from './pages/IngredientsSettingsPage';
 import { CategoriesSettingsPage } from './pages/CategoriesSettingsPage';
 import { ModifiersSettingsPage } from './pages/ModifiersSettingsPage';
 import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
@@ -443,6 +444,7 @@ export default function App() {
             <Route path="products" element={<ProductsSettingsPage />} />
             <Route path="categories" element={<CategoriesSettingsPage />} />
             <Route path="modifiers" element={<ModifiersSettingsPage />} />
+            <Route path="ingredients" element={<IngredientsSettingsPage />} />
             <Route path="business" element={<BusinessSettingsPage />} />
             <Route path="locations" element={<LocationsSettingsPage />} />
             <Route path="employees" element={<EmployeesSettingsPage />} />

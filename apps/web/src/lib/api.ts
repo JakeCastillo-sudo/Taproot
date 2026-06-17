@@ -1049,6 +1049,12 @@ export const modifiers = {
     apiFetch<{ success: boolean }>(`/modifier-groups/${groupId}/products`, {
       method: 'POST', body: JSON.stringify({ productIds }),
     }),
+
+  /** Replace ALL modifier-group assignments for a product (product-centric — fixes BUG-MOD-001). */
+  setProductGroups: (productId: string, groupIds: string[]) =>
+    apiFetch<{ success: boolean }>(`/products/${productId}/modifier-groups`, {
+      method: 'POST', body: JSON.stringify({ groupIds }),
+    }),
 };
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
@@ -2473,5 +2479,152 @@ export const onboardingApi = {
     apiFetch<{ jobId: string; status: string }>('/onboarding/menu-from-url', {
       method: 'POST',
       body:   JSON.stringify({ url }),
+    }),
+};
+
+// ─── Ingredients & recipes (FEAT ingredients — Session 1 backend, migration 028) ─
+//
+// NOTE: distinct from `recipesApi` (legacy recipe_lines at /products/:id/recipe).
+// These hit the ingredient system at /ingredients + /products/:id/ingredient-recipe.
+// POS preview reuses products.posModifiers().
+
+/** Units supported by ingredients/recipes — mirrors api SUPPORTED_UNITS. */
+export const SUPPORTED_UNITS = [
+  { value: 'oz', label: 'oz', type: 'weight' }, { value: 'g', label: 'g', type: 'weight' },
+  { value: 'lb', label: 'lb', type: 'weight' }, { value: 'kg', label: 'kg', type: 'weight' },
+  { value: 'ml', label: 'ml', type: 'volume' }, { value: 'l', label: 'l', type: 'volume' },
+  { value: 'tsp', label: 'tsp', type: 'volume' }, { value: 'tbsp', label: 'tbsp', type: 'volume' },
+  { value: 'fl_oz', label: 'fl oz', type: 'volume' }, { value: 'cup', label: 'cup', type: 'volume' },
+  { value: 'qty', label: 'qty', type: 'count' }, { value: 'slice', label: 'slice', type: 'count' },
+  { value: 'piece', label: 'piece', type: 'count' }, { value: 'scoop', label: 'scoop', type: 'count' },
+  { value: 'shot', label: 'shot', type: 'count' }, { value: 'pinch', label: 'pinch', type: 'count' },
+  { value: 'dash', label: 'dash', type: 'count' }, { value: 'custom', label: 'custom', type: 'custom' },
+] as const;
+
+export interface Ingredient {
+  id: string;
+  organization_id: string;
+  name: string;
+  unit: string;
+  unit_label: string | null;
+  cost_per_unit: number;          // cents
+  current_stock: number;
+  par_level: number;
+  reorder_point: number;
+  is_universal_addon: boolean;
+  universal_addon_price: number;  // cents
+  universal_addon_label: string | null;
+  category: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IngredientInput {
+  name: string;
+  unit?: string;
+  unitLabel?: string | null;
+  costPerUnit?: number;           // cents
+  currentStock?: number;
+  parLevel?: number;
+  reorderPoint?: number;
+  isUniversalAddon?: boolean;
+  universalAddonPrice?: number;   // cents
+  universalAddonLabel?: string | null;
+  category?: string | null;
+}
+
+export interface StockMovement {
+  id: string;
+  ingredient_id: string;
+  movement_type: string;
+  quantity_change: number;
+  quantity_before: number;
+  quantity_after: number;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface RecipeIngredientRow {
+  id: string;
+  product_id: string;
+  ingredient_id: string;
+  quantity: number;
+  unit: string;
+  is_optional: boolean;
+  omission_price_delta: number;   // cents
+  extra_price_delta: number;      // cents
+  extra_quantity: number;
+  display_order: number;
+  ingredient_name: string;
+  ingredient_unit: string;
+}
+
+export interface RecipeIngredientInput {
+  ingredientId: string;
+  quantity: number;
+  unit: string;
+  isOptional: boolean;
+  omissionPriceDelta: number;     // cents
+  extraPriceDelta: number;        // cents
+  extraQuantity: number;
+  displayOrder: number;
+}
+
+export const ingredientsApi = {
+  list: (params?: { category?: string; universalOnly?: boolean; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.category) q.set('category', params.category);
+    if (params?.universalOnly) q.set('universalOnly', 'true');
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString();
+    return apiFetch<{ ingredients: Ingredient[] }>(`/ingredients${qs ? `?${qs}` : ''}`).then((r) => r.ingredients);
+  },
+
+  get: (id: string) => apiFetch<Ingredient>(`/ingredients/${id}`),
+
+  create: (data: IngredientInput) =>
+    apiFetch<Ingredient>('/ingredients', { method: 'POST', body: JSON.stringify(data) }),
+
+  update: (id: string, data: Partial<IngredientInput>) =>
+    apiFetch<Ingredient>(`/ingredients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  remove: (id: string) =>
+    apiFetch<{ success: boolean }>(`/ingredients/${id}`, { method: 'DELETE' }),
+
+  adjustStock: (id: string, data: { quantityChange: number; movementType: string; notes?: string }) =>
+    apiFetch<{ newStock: number; movement: StockMovement }>(`/ingredients/${id}/stock/adjust`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+
+  stockMovements: (id: string, limit = 50) =>
+    apiFetch<{ movements: StockMovement[] }>(`/ingredients/${id}/stock/movements?limit=${limit}`).then((r) => r.movements),
+
+  listUniversal: () =>
+    apiFetch<{ addons: Ingredient[] }>('/ingredients/universal/list').then((r) => r.addons),
+};
+
+export const ingredientRecipeApi = {
+  getRecipe: (productId: string) =>
+    apiFetch<{ recipe: RecipeIngredientRow[] }>(`/products/${productId}/ingredient-recipe`).then((r) => r.recipe),
+
+  setRecipe: (productId: string, ingredients: RecipeIngredientInput[]) =>
+    apiFetch<{ recipe: RecipeIngredientRow[] }>(`/products/${productId}/ingredient-recipe`, {
+      method: 'PUT', body: JSON.stringify({ ingredients }),
+    }).then((r) => r.recipe),
+
+  enableRecipeMode: (productId: string) =>
+    apiFetch<{ success: boolean }>(`/products/${productId}/recipe-mode/enable`, { method: 'POST' }),
+
+  disableRecipeMode: (productId: string) =>
+    apiFetch<{ success: boolean }>(`/products/${productId}/recipe-mode/disable`, { method: 'POST' }),
+
+  addExclusion: (productId: string, ingredientId: string) =>
+    apiFetch<{ success: boolean }>(`/products/${productId}/ingredient-exclusions`, {
+      method: 'POST', body: JSON.stringify({ ingredientId }),
+    }),
+
+  removeExclusion: (productId: string, ingredientId: string) =>
+    apiFetch<{ success: boolean }>(`/products/${productId}/ingredient-exclusions/${ingredientId}`, {
+      method: 'DELETE',
     }),
 };
