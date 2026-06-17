@@ -43,6 +43,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '../../lib/queryClient';
 import { CustomerSearch } from '../pos/CustomerSearch';
 import { CategoryTileGrid } from '../pos/CategoryTileGrid';
+import { WaitTimeCard } from '../pos/WaitTimeCard';
 import { DayPartToggle } from '../pos/DayPartToggle';
 import { ModifierSheet, type ModifierSheetProduct } from '../pos/ModifierSheet';
 import { EmployeeSelect } from '../pos/EmployeeSelect';
@@ -1081,8 +1082,11 @@ export function POSLayout({ user }: POSLayoutProps) {
         {/* Content area */}
         <div className="flex-1 overflow-y-auto min-h-0">
           {showFeed && floorMode === 'grid' && !searchQuery && posViewMode === 'categories' ? (
-            /* ── OWNER DAILY INTELLIGENCE FEED (S9-04) ─────────────────── */
-            <IntelligenceFeed onStartOrders={dismissFeed} />
+            /* ── OWNER DAILY INTELLIGENCE FEED (S9-04) + WAIT TIME (FEAT-WAIT-001) ── */
+            <>
+              <WaitTimeCard />
+              <IntelligenceFeed onStartOrders={dismissFeed} />
+            </>
           ) : floorMode === 'table' ? (
             <TableView onStartOrder={() => setFloorMode('grid')} />
           ) : posViewMode === 'categories' && !searchQuery ? (

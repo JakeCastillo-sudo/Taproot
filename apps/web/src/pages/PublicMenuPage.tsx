@@ -21,6 +21,13 @@ import { OnlinePaymentSheet } from '../components/public/OnlinePaymentSheet';
 
 function fmt(c: number): string { return `$${(c / 100).toFixed(2)}`; }
 
+/** Subtle banner color by wait length — never alarming. */
+function waitBanner(mins: number): string {
+  if (mins > 30) return 'bg-gray-100 text-gray-600';
+  if (mins >= 15) return 'bg-amber-50 text-amber-700';
+  return 'bg-green-50 text-green-700';
+}
+
 /** Best-effort one-line address from the org's free-form address JSON. */
 function formatAddress(a: Record<string, unknown> | null | undefined): string {
   if (!a) return '';
@@ -47,6 +54,15 @@ export function PublicMenuPage() {
   const { data: menu, isLoading, error } = useQuery({
     queryKey: ['public-menu', orgSlug],
     queryFn:  () => publicApi.menu(orgSlug),
+    retry: false,
+  });
+
+  // Live queue-aware wait time (FEAT-WAIT-001) — best-effort; banner hides if unavailable.
+  const { data: waitTime } = useQuery({
+    queryKey: ['public-wait', orgSlug],
+    queryFn:  () => publicApi.waitTime(orgSlug),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
     retry: false,
   });
 
@@ -125,6 +141,15 @@ export function PublicMenuPage() {
               : addr && <p className="text-xs text-gray-400 flex items-center gap-1 truncate"><MapPin size={11} className="shrink-0" /> {addr}</p>}
           </div>
         </header>
+
+        {waitTime?.available && waitTime.estimatedMinutes != null && (
+          <div className="max-w-3xl mx-auto px-4 pb-2">
+            <div className={clsx('flex items-center gap-1.5 text-xs font-medium rounded-md px-2.5 py-1.5', waitBanner(waitTime.estimatedMinutes))}>
+              <Clock size={12} className="shrink-0" />
+              {waitTime.rushMode ? 'Busy right now · ' : ''}Current wait: {waitTime.displayText}
+            </div>
+          </div>
+        )}
 
         {categories.length > 1 && (
           <div className="max-w-3xl mx-auto px-2 pb-2 flex gap-1.5 overflow-x-auto no-scrollbar">
@@ -301,11 +326,15 @@ function OrderConfirmation({ slug, placed, orgName, tableId, onOrderMore }: {
           <p className="text-2xl font-extrabold text-gray-900">{data?.orderNumber ?? placed.orderNumber}</p>
         </div>
 
-        {!ready && (
-          <p className="text-sm text-gray-500 mt-3 flex items-center justify-center gap-1.5">
-            <Clock size={14} /> Estimated ~{data?.estimatedMinutes ?? placed.estimatedMinutes} min
-          </p>
-        )}
+        {!ready && (() => {
+          const mins = data?.estimatedMinutes ?? placed.estimatedMinutes;
+          const readyBy = new Date(Date.now() + mins * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          return (
+            <p className="text-sm text-gray-500 mt-3 flex items-center justify-center gap-1.5">
+              <Clock size={14} /> Ready in ~{mins} min · est. {readyBy}
+            </p>
+          );
+        })()}
 
         {/* Status tracker */}
         <div className="mt-5 text-left space-y-3">

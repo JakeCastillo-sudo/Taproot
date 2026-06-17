@@ -10,15 +10,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, ArrowLeft, Type, ChefHat } from 'lucide-react';
+import { Check, ArrowLeft, Type, ChefHat, Flame } from 'lucide-react';
 import { clsx } from 'clsx';
-import { kitchen as kitchenApi, type KitchenTicket } from '../lib/api';
-import { getLocationId } from '../lib/session';
+import { kitchen as kitchenApi, waitTime as waitTimeApi, type KitchenTicket } from '../lib/api';
+import { getLocationId, canAccessSettings } from '../lib/session';
 
 function timeColor(mins: number): string {
   if (mins > 10) return 'text-red-600';
   if (mins >= 5) return 'text-amber-600';
   return 'text-green-600';
+}
+
+function waitPill(mins: number): string {
+  if (mins > 30) return 'bg-red-600';
+  if (mins >= 15) return 'bg-amber-600';
+  return 'bg-green-600';
 }
 
 export function KitchenDisplayPage() {
@@ -38,6 +44,34 @@ export function KitchenDisplayPage() {
   const itemReady = useMutation({ mutationFn: (id: string) => kitchenApi.itemReady(id), onSuccess: refresh });
   const bump = useMutation({ mutationFn: (id: string) => kitchenApi.bump(id), onSuccess: refresh });
 
+  // Wait-time widget (FEAT-WAIT-001) — live estimate + rush toggle.
+  const { data: waitCfg } = useQuery({
+    queryKey: ['waitTime', 'config', locationId],
+    queryFn:  () => waitTimeApi.getConfig(locationId),
+    staleTime: 60_000,
+    enabled: !!locationId,
+  });
+  const { data: wait } = useQuery({
+    queryKey: ['waitTime', locationId],
+    queryFn:  () => waitTimeApi.get(locationId),
+    refetchInterval: 30_000,
+    enabled: !!locationId,
+  });
+  const rush = useMutation({
+    mutationFn: (enabled: boolean) =>
+      waitTimeApi.setRush(locationId, { enabled, extraMinutes: waitCfg?.rushExtraMinutes ?? 15, durationMinutes: 60 }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['waitTime'] }),
+  });
+  const canRush = canAccessSettings();
+  const toggleRush = () => {
+    if (!wait) return;
+    if (!wait.rushMode) {
+      if (window.confirm(`Enable Rush Mode? Adds +${waitCfg?.rushExtraMinutes ?? 15} min to estimates and auto-expires in 60 min.`)) rush.mutate(true);
+    } else if (window.confirm('End Rush Mode now?')) {
+      rush.mutate(false);
+    }
+  };
+
   const now = new Date();
   const tickets = orders ?? [];
 
@@ -47,6 +81,27 @@ export function KitchenDisplayPage() {
         <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white"><ArrowLeft size={15} /> Exit</button>
         <ChefHat size={20} className="text-primary ml-2" />
         <h1 className="text-lg font-bold">Kitchen</h1>
+
+        {/* Wait-time widget (FEAT-WAIT-001) */}
+        {waitCfg?.enabled !== false && wait && (
+          <div className="ml-3 flex items-center gap-2">
+            <span className={clsx('px-3 py-1 rounded-full font-bold text-white whitespace-nowrap', waitPill(wait.estimatedMinutes))}>
+              {wait.rushMode ? '🔴 RUSH — ' : ''}{wait.displayText} wait
+            </span>
+            <span className="text-xs text-gray-400 whitespace-nowrap">Queue: {wait.queueItemCount} items</span>
+            {canRush && (
+              <button
+                onClick={toggleRush}
+                disabled={rush.isPending}
+                className={clsx('px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 disabled:opacity-50',
+                  wait.rushMode ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-700 text-gray-200 hover:bg-gray-600')}
+              >
+                <Flame size={13} /> {wait.rushMode ? 'Rush Active — tap to end' : 'Rush Mode'}
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="flex-1" />
         <span className="text-2xl font-bold tabular-nums">{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         <span className="ml-3 px-2 py-1 rounded bg-gray-700 text-sm font-semibold">{tickets.length} active</span>

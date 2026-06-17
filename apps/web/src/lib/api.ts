@@ -568,6 +568,50 @@ export const kitchen = {
     apiFetch<{ success: boolean }>(`/kitchen/orders/${orderId}/bump`, { method: 'PATCH' }),
 };
 
+// ─── Wait time (FEAT-WAIT-001) ──────────────────────────────────────────────────
+
+export interface WaitTimeResult {
+  estimatedMinutes: number;
+  estimatedMinutesRaw: number;
+  confidence: 'high' | 'medium' | 'low';
+  queueDepth: number;
+  queueItemCount: number;
+  avgItemMinutes: number;
+  rushMode: boolean;
+  rushExtraMinutes: number;
+  dataPoints: number;
+  displayText: string;
+  lastUpdated: string;
+}
+
+export interface WaitTimeConfig {
+  enabled: boolean;
+  basePrepMinutes: number;
+  minutesPerItem: number;
+  rushMode: boolean;
+  rushExtraMinutes: number;
+  rushModeExpiresAt: string | null;
+  maxWaitMinutes: number;
+  showOnPublicMenu: boolean;
+  autoPauseEnabled: boolean;
+  autoPauseThreshold: number;
+}
+
+export interface WaitAccuracyDay { date: string; actualAvgMinutes: number; orders: number }
+
+export const waitTime = {
+  get: (locationId: string) =>
+    apiFetch<WaitTimeResult>(`/locations/${locationId}/wait-time`),
+  getConfig: (locationId: string) =>
+    apiFetch<WaitTimeConfig>(`/locations/${locationId}/wait-time/config`),
+  saveConfig: (locationId: string, cfg: Partial<WaitTimeConfig>) =>
+    apiFetch<{ success: boolean }>(`/locations/${locationId}/wait-time/config`, { method: 'PUT', body: JSON.stringify(cfg) }),
+  setRush: (locationId: string, body: { enabled: boolean; extraMinutes?: number; durationMinutes?: number }) =>
+    apiFetch<{ success: boolean; rushMode: boolean }>(`/locations/${locationId}/wait-time/rush`, { method: 'POST', body: JSON.stringify(body) }),
+  accuracy: (locationId: string) =>
+    apiFetch<{ history: WaitAccuracyDay[] }>(`/locations/${locationId}/wait-time/accuracy`).then((r) => r.history),
+};
+
 export interface TableStatus extends TableRow {
   currentOrder: {
     id: string; orderNumber: string; status: string;
@@ -2300,6 +2344,9 @@ export const publicApi = {
     }),
   orderStatus: (slug: string, orderId: string) =>
     publicFetch<{ status: string; orderNumber: string; estimatedMinutes: number }>(`/${encodeURIComponent(slug)}/order/${orderId}/status`),
+  waitTime: (slug: string) =>
+    publicFetch<{ available: boolean; estimatedMinutes: number | null; displayText: string | null; confidence?: 'high' | 'medium' | 'low'; rushMode?: boolean; lastUpdated?: string }>(
+      `/${encodeURIComponent(slug)}/wait-time`),
 };
 
 // ─── Registration ─────────────────────────────────────────────────────────────

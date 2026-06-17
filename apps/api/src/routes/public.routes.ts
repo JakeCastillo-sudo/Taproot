@@ -69,4 +69,17 @@ export default async function publicRoutes(fastify: FastifyInstance): Promise<vo
         throw err;
       }
     });
+
+  // GET /public/:orgSlug/wait-time — live queue-aware estimate for the storefront.
+  fastify.get('/public/:orgSlug/wait-time', { config: { rateLimit: { max: 60, timeWindow: 60_000 } } },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { orgSlug } = req.params as { orgSlug: string };
+      try {
+        const wait = await PublicSvc.getPublicWaitTime(orgSlug);
+        return reply.send(wait);
+      } catch (err) {
+        if (err instanceof AppError) return reply.code(err.statusCode).send({ code: err.code, message: err.message });
+        throw err;
+      }
+    });
 }

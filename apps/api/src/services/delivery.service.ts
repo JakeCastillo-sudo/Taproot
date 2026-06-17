@@ -12,6 +12,7 @@
  */
 import crypto from 'crypto';
 import { query, withTransaction } from '../db/client';
+import { calculateWaitTime } from './waitTime.service';
 
 export type DeliveryProvider = 'doordash' | 'ubereats';
 
@@ -106,6 +107,18 @@ export async function processDeliveryOrder(
     .filter(Boolean)
     .join('\n');
 
+  // Pickup ETA: trust the platform's estimate when present; otherwise compute our
+  // own from the current kitchen queue (FEAT-WAIT-001). Never blocks order creation.
+  let pickupTime = payload.estimatedPickupTime ?? null;
+  if (!pickupTime) {
+    try {
+      const wait = await calculateWaitTime(orgId, locationId);
+      pickupTime = new Date(Date.now() + wait.estimatedMinutes * 60 * 1000).toISOString();
+    } catch {
+      pickupTime = null;
+    }
+  }
+
   return withTransaction(async (client) => {
     const { rows: [order] } = await client.query<{ id: string; order_number: string }>(
       `INSERT INTO orders (
@@ -127,7 +140,7 @@ export async function processDeliveryOrder(
         employeeId,
         payload.provider,
         payload.externalOrderId,
-        payload.estimatedPickupTime ?? null,
+        pickupTime,
         payload.customer.name ?? null,
         payload.customer.phone ?? null,
         payload.deliveryAddress ? JSON.stringify(payload.deliveryAddress) : null,

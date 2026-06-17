@@ -11,6 +11,7 @@ import { NotFoundError, ValidationError } from '../errors';
 import * as OrderSvc from './order.service';
 import { publishOrderEvent, buildEvent } from './realtime.service';
 import { getMerchantStripeClient, TAPROOT_APPLICATION_FEE_RATE } from '../payments/stripe.config';
+import { calculateWaitTime, getWaitTimeConfig } from './waitTime.service';
 
 interface PublicOrg { id: string; name: string; slug: string; settings: { businessProfile?: { logoUrl?: string } } }
 
@@ -176,11 +177,53 @@ export async function createPublicOrder(slug: string, input: PublicOrderInput): 
 
   void publishOrderEvent(buildEvent('order:created', loc.id, order.id, { source: 'online' }));
 
+  // Dynamic, queue-aware estimate (FEAT-WAIT-001). Falls back to the static prep
+  // time if the engine is unavailable — never blocks the order.
+  let estimatedMinutes = cfg.pickupPrepMinutes ?? 15;
+  try {
+    const wait = await calculateWaitTime(org.id, loc.id);
+    estimatedMinutes = wait.estimatedMinutes;
+  } catch {
+    estimatedMinutes = cfg.pickupPrepMinutes ?? 15;
+  }
+
   return {
     orderId: order.id,
     orderNumber: order.order_number ?? order.id.slice(-6).toUpperCase(),
-    estimatedMinutes: cfg.pickupPrepMinutes ?? 15,
+    estimatedMinutes,
     total: Math.round(Number(order.total ?? 0)),
+  };
+}
+
+// ─── Public wait-time (storefront banner) ─────────────────────────────────────
+
+export interface PublicWaitTime {
+  available: boolean;
+  estimatedMinutes: number | null;
+  displayText: string | null;
+  confidence?: 'high' | 'medium' | 'low';
+  rushMode?: boolean;
+  lastUpdated?: string;
+}
+
+export async function getPublicWaitTime(slug: string): Promise<PublicWaitTime> {
+  const org = await resolveOrg(slug);
+  const loc = await firstLocation(org.id);
+  if (!loc) return { available: false, estimatedMinutes: null, displayText: null };
+
+  const cfg = await getWaitTimeConfig(loc.id);
+  if (!cfg.enabled || !cfg.showOnPublicMenu) {
+    return { available: false, estimatedMinutes: null, displayText: null };
+  }
+
+  const result = await calculateWaitTime(org.id, loc.id);
+  return {
+    available: true,
+    estimatedMinutes: result.estimatedMinutes,
+    displayText: result.displayText,
+    confidence: result.confidence,
+    rushMode: result.rushMode,
+    lastUpdated: result.lastUpdated,
   };
 }
 
@@ -255,11 +298,20 @@ export async function confirmOnlinePayment(slug: string, orderId: string, paymen
 
 export async function getPublicOrderStatus(slug: string, orderId: string): Promise<{ status: string; orderNumber: string; estimatedMinutes: number }> {
   const org = await resolveOrg(slug);
-  const { rows: [order] } = await query<{ status: string; order_number: string; created_at: string }>(
-    `SELECT status, order_number, created_at FROM orders WHERE id = $1 AND organization_id = $2`,
+  const { rows: [order] } = await query<{ status: string; order_number: string; created_at: string; location_id: string }>(
+    `SELECT status, order_number, created_at, location_id FROM orders WHERE id = $1 AND organization_id = $2`,
     [orderId, org.id],
   );
   if (!order) throw new NotFoundError('Order not found');
-  const mins = Math.max(0, 15 - Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000));
+
+  // Count down from the current queue-aware estimate as the order ages.
+  const elapsed = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000);
+  let base = 15;
+  try {
+    base = (await calculateWaitTime(org.id, order.location_id)).estimatedMinutes;
+  } catch {
+    base = 15;
+  }
+  const mins = Math.max(0, base - elapsed);
   return { status: order.status, orderNumber: order.order_number, estimatedMinutes: mins };
 }

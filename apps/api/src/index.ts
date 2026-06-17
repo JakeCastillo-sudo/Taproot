@@ -53,6 +53,7 @@ import apiKeysRoutes from './routes/apiKeys.routes';
 import webhooksRoutes from './routes/webhooks.routes';
 import schedulingRoutes from './routes/scheduling.routes';
 import quickbooksRoutes from './routes/quickbooks.routes';
+import { registerWaitTimeRoutes } from './routes/waitTime.routes';
 import { registerAdminRoutes } from './routes/admin.routes';
 import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
@@ -307,6 +308,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(schedulingRoutes);
   await fastify.register(smsRoutes);
   await fastify.register(quickbooksRoutes);
+  await registerWaitTimeRoutes(fastify);
 
   // ─── Admin / Executive portal (separate admin JWT — see middleware/adminAuth) ──
   await registerAdminRoutes(fastify);
@@ -448,6 +450,7 @@ async function buildApp(): Promise<any> {
     'POST /public/:orgSlug/payment-intent',
     'POST /public/:orgSlug/order/:orderId/confirm',
     'GET /public/:orgSlug/order/:orderId/status',
+    'GET /public/:orgSlug/wait-time',
     // Twilio inbound SMS — verified via Twilio signature, not JWT
     'POST /webhook/sms/:orgSlug',
     // Dev-only — this route is not registered in production so this entry is harmless
