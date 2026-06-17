@@ -54,6 +54,7 @@ import webhooksRoutes from './routes/webhooks.routes';
 import schedulingRoutes from './routes/scheduling.routes';
 import quickbooksRoutes from './routes/quickbooks.routes';
 import { registerWaitTimeRoutes } from './routes/waitTime.routes';
+import { registerIngredientRoutes } from './routes/ingredient.routes';
 import { registerAdminRoutes } from './routes/admin.routes';
 import { registerMonitoring } from './monitoring/health';
 import { initSentry, registerSentryHooks } from './monitoring/sentry';
@@ -309,6 +310,7 @@ async function buildApp(): Promise<any> {
   await fastify.register(smsRoutes);
   await fastify.register(quickbooksRoutes);
   await registerWaitTimeRoutes(fastify);
+  await registerIngredientRoutes(fastify);
 
   // ─── Admin / Executive portal (separate admin JWT — see middleware/adminAuth) ──
   await registerAdminRoutes(fastify);

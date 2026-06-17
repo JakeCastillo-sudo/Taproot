@@ -7,6 +7,7 @@ import { getStripeClient } from '../payments/stripe.config';
 import * as LoyaltySvc from './loyalty.service';
 import { deliverWebhook } from './webhook.service';
 import { invalidateOrgCache } from '../lib/cache';
+import { deductOrderIngredients, reverseOrderIngredients } from './ingredientInventory.service';
 
 // ─── Input types ──────────────────────────────────────────────────────────────
 
@@ -177,6 +178,7 @@ export async function processPayment(
 
   // ── Write to DB ───────────────────────────────────────────────────────────
   let payment: Payment;
+  let orderCompleted = false; // set inside the txn when this payment completes the order
   try {
     payment = await withTransaction(async (client) => {
       const { rows: [p] } = await client.query<Payment>(
@@ -265,6 +267,8 @@ export async function processPayment(
 
       const fullyPaid = amountOnly >= Number(totals.total);
       const justCompleted = fullyPaid && totals.customer_id;
+      orderCompleted = fullyPaid; // processPayment throws earlier if already completed
+
       await client.query(
         `UPDATE orders
          SET amount_paid = $1, tip_total = $2, change_due = $3,
@@ -314,6 +318,13 @@ export async function processPayment(
       });
     }
     throw err;
+  }
+
+  // Ingredient inventory deduction (Session 1) — fire-and-forget, NEVER blocks payment.
+  // Only acts on recipe_mode products; no-ops otherwise. Self-logs on failure.
+  if (orderCompleted) {
+    void deductOrderIngredients(orgId, orderId).catch((err) =>
+      console.error('[Inventory] Deduction failed:', err instanceof Error ? err.message : String(err)));
   }
 
   void createAuditLog({
@@ -395,6 +406,13 @@ export async function refundPayment(
      WHERE id = $3`,
     [newStatus, input.amount, payment.order_id],
   );
+
+  // Ingredient inventory reversal (Session 1) — when the order is fully refunded
+  // (the path a void travels through). Fire-and-forget, idempotent, NEVER throws.
+  if (newStatus === 'refunded') {
+    void reverseOrderIngredients(orgId, payment.order_id).catch((err) =>
+      console.error('[Inventory] Reversal failed:', err instanceof Error ? err.message : String(err)));
+  }
 
   void createAuditLog({
     organizationId: orgId, actorId: employeeId,
