@@ -113,12 +113,28 @@ export interface ParsedMenuModifierGroup {
   options:   ParsedMenuModifierOption[];
 }
 
+/** AI-inferred ingredient for recipe mode (Session 2 — menu import upgrade). */
+export interface SuggestedIngredient {
+  name:               string;
+  quantity:           number;
+  unit:               string;  // one of ingredient.service SUPPORTED_UNITS
+  isOptional:         boolean;
+  omissionPriceDelta: number;  // cents
+  extraPriceDelta:    number;  // cents
+  extraQuantity:      number;
+  displayOrder:       number;
+}
+
 export interface ParsedMenuItem {
   name:        string;
   description?: string;
   price:       number;   // cents
   category?:   string;
   modifiers?:  ParsedMenuModifierGroup[];
+  /** AI-inferred ingredients (optional; powers opt-in recipe mode on import). */
+  suggestedIngredients?: SuggestedIngredient[];
+  /** Set only on the confirm/synthetic path when the owner opted into recipe mode. */
+  enableRecipeMode?: boolean;
 }
 
 export interface ParsedMenu {
@@ -242,6 +258,35 @@ function normalizeMenuPrice(v: unknown): number {
   return Number.isInteger(n) ? Math.round(n) : Math.round(n * 100);
 }
 
+const INGREDIENT_UNITS = new Set([
+  'oz', 'g', 'lb', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'fl_oz', 'cup',
+  'qty', 'slice', 'piece', 'scoop', 'shot', 'pinch', 'dash',
+]);
+
+/** Validate + clamp AI-suggested ingredients (≤8, known units, integer-cent deltas). */
+function sanitizeIngredients(raw: unknown): SuggestedIngredient[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .slice(0, 8)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((r: any, i: number): SuggestedIngredient => {
+      const qty = Number(r?.quantity);
+      const extraQty = Number(r?.extraQuantity);
+      const order = Number(r?.displayOrder);
+      return {
+        name:               String(r?.name ?? '').trim().slice(0, 80),
+        quantity:           Number.isFinite(qty) && qty > 0 ? qty : 1,
+        unit:               typeof r?.unit === 'string' && INGREDIENT_UNITS.has(r.unit) ? r.unit : 'qty',
+        isOptional:         Boolean(r?.isOptional),
+        omissionPriceDelta: normalizeMenuPrice(r?.omissionPriceDelta ?? 0),
+        extraPriceDelta:    normalizeMenuPrice(r?.extraPriceDelta ?? 0),
+        extraQuantity:      Number.isFinite(extraQty) && extraQty >= 0 ? extraQty : 1,
+        displayOrder:       Number.isFinite(order) ? order : i + 1,
+      };
+    })
+    .filter((s) => s.name.length > 0);
+}
+
 export async function parseMenu(content: string): Promise<ParsedMenu> {
   const system = `You are a menu parser for a POS system. Extract all menu items
 with their prices, categories, and modifiers from the provided menu text.
@@ -254,11 +299,28 @@ CRITICAL PRICE INSTRUCTIONS:
 - If a priced item has no visible price, make a reasonable estimate from context.
 - Never return 0 for an item that clearly has a price.
 - Double-check every price before returning.
+
+INGREDIENT INFERENCE (suggestedIngredients):
+For each menu item, ALSO infer the likely ingredients a kitchen would actually track.
+- Only ingredients a kitchen tracks — NEVER water, salt, pepper, generic seasoning.
+- isOptional=true if customers commonly remove it (cheese, onion, pickles, mayo, lettuce).
+- isOptional=false if core to the item (bun, patty, base spirit in cocktails, greens in a salad).
+- extraPriceDelta: integer cents for "Extra X" (0 if not typically charged; e.g. extra cheese 75).
+- omissionPriceDelta: usually 0 (rarely a discount for removing).
+- Drinks/smoothies → components (espresso shot, milk, syrup, ice). Salads → greens (required),
+  toppings + dressing (optional). Sandwiches → bread + protein (required), toppings (optional).
+- unit must be one of: oz, g, lb, kg, ml, l, tsp, tbsp, fl_oz, cup, qty, slice, piece, scoop, shot, pinch, dash.
+- NEVER more than 8 ingredients per item. If the item type is unclear, give 3-4 obvious ones.
+- displayOrder: 1-based order to show them in.
+
 Respond with JSON only matching this schema:
 {
   "items": [{ "name": string, "description"?: string, "price": integer,
     "category"?: string, "modifiers"?: [{ "groupName": string,
-    "options": [{ "name": string, "priceDelta": integer }] }] }],
+    "options": [{ "name": string, "priceDelta": integer }] }],
+    "suggestedIngredients"?: [{ "name": string, "quantity": number, "unit": string,
+      "isOptional": boolean, "omissionPriceDelta": integer, "extraPriceDelta": integer,
+      "extraQuantity": number, "displayOrder": number }] }],
   "categories": [string],
   "confidence": number
 }`;
@@ -272,6 +334,7 @@ Respond with JSON only matching this schema:
   const normalizedItems = rawItems.map((item: any) => ({
     ...item,
     price:     normalizeMenuPrice(item.price),
+    suggestedIngredients: sanitizeIngredients(item.suggestedIngredients),
     modifiers: Array.isArray(item.modifiers)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ? item.modifiers.map((mg: any) => ({

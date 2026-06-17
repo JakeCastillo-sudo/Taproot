@@ -32,11 +32,15 @@ import {
   type ParsedGoodsReceipt,
   type ParsedInventoryList,
   type ParsedRecipeSheet,
+  type SuggestedIngredient,
 } from './documentParser.service';
 import * as ProductSvc from './product.service';
 import * as InventorySvc from './inventory.service';
 import * as RecipeSvc from './recipe.service';
 import * as POSvc from './purchaseOrder.service';
+import { ingredientSystemReady, listIngredients, createIngredient } from './ingredient.service';
+import { setProductRecipe, enableRecipeMode, type RecipeIngredientInput } from './ingredientRecipe.service';
+import { logger } from '../lib/logger';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -102,6 +106,55 @@ export interface ConfirmedItem {
   category?:    string;
   description?: string;
   include:      boolean; // false = skip this item entirely
+  /** Opt-in: create ingredients + recipe + enable recipe mode for this product. */
+  enableRecipeMode?: boolean;
+  /** Owner-confirmed/edited ingredient list (used only when enableRecipeMode). */
+  ingredients?: SuggestedIngredient[];
+}
+
+/**
+ * Find-or-create ingredients, save the recipe, and enable recipe mode for a
+ * product. FIRE-AND-FORGET by contract: callers must swallow errors so a recipe
+ * failure never fails the import. No-ops if the ingredient system migration
+ * hasn't been applied.
+ */
+async function applyRecipeFromSuggestions(
+  orgId: string,
+  productId: string,
+  suggestions: SuggestedIngredient[],
+): Promise<void> {
+  if (!suggestions.length) return;
+  if (!(await ingredientSystemReady())) return;
+
+  // Case-insensitive dedup against existing ingredients.
+  const existing = await listIngredients(orgId);
+  const byName = new Map(existing.map((i) => [i.name.trim().toLowerCase(), i.id]));
+
+  const recipe: RecipeIngredientInput[] = [];
+  for (const s of suggestions.slice(0, 8)) {
+    const key = s.name.trim().toLowerCase();
+    if (!key) continue;
+    let ingredientId = byName.get(key);
+    if (!ingredientId) {
+      const created = await createIngredient(orgId, { name: s.name.trim(), unit: s.unit });
+      ingredientId = created.id;
+      byName.set(key, ingredientId);
+    }
+    recipe.push({
+      ingredientId,
+      quantity:           s.quantity,
+      unit:               s.unit,
+      isOptional:         s.isOptional,
+      omissionPriceDelta: s.omissionPriceDelta,
+      extraPriceDelta:    s.extraPriceDelta,
+      extraQuantity:      s.extraQuantity,
+      displayOrder:       s.displayOrder,
+    });
+  }
+  if (!recipe.length) return;
+
+  await setProductRecipe(orgId, productId, recipe);
+  await enableRecipeMode(orgId, productId); // regenerates omission/extra auto-modifiers
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -421,6 +474,9 @@ export async function confirmImportJob(
           price:       ci.price,
           category:    ci.category || undefined,
           description: ci.description || undefined,
+          // EDIT CHAIN: carry the owner's recipe opt-in + edited ingredients through.
+          enableRecipeMode:     ci.enableRecipeMode,
+          suggestedIngredients: ci.ingredients,
         })),
         categories: [...new Set(
           includedItems.flatMap((ci) => (ci.category ? [ci.category] : [])),
@@ -584,6 +640,21 @@ export async function applyMenuImport(
             );
           }
         }
+
+        // Recipe mode (Session 2) — opt-in per item, FIRE-AND-FORGET. A recipe
+        // failure must NEVER fail the import: the product is already created, so
+        // we log and move on (owner can add the recipe manually later).
+        if (item.enableRecipeMode && item.suggestedIngredients?.length) {
+          try {
+            await applyRecipeFromSuggestions(orgId, product.id, item.suggestedIngredients);
+          } catch (recipeErr: unknown) {
+            logger.warn('[import] recipe setup failed (product still created)', {
+              product: item.name,
+              error: recipeErr instanceof Error ? recipeErr.message : String(recipeErr),
+            });
+          }
+        }
+
         result.created++;
       }
     } catch (err: unknown) {

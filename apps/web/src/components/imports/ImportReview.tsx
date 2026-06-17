@@ -10,7 +10,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronRight, CheckCircle2, X, AlertTriangle, MapPin,
   Search, Pencil, CheckCircle, AlertCircle, Loader2,
-  Package, ArrowRight, RotateCcw,
+  Package, ArrowRight, RotateCcw, Plus, Trash2, Sparkles, ChevronLeft,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import {
@@ -19,6 +19,7 @@ import {
   type ImportType,
   type ColumnMapping,
   type ConfirmedMenuItem,
+  type SuggestedIngredient,
   USER_KEY,
 } from '../../lib/api';
 import { QK } from '../../lib/queryClient';
@@ -51,11 +52,22 @@ interface MenuMappingConfig {
       price:        number;
       category?:    string;
       description?: string;
+      suggestedIngredients?: SuggestedIngredient[];
     }>;
     categories: string[];
     confidence: number;
   };
 }
+
+// Web copy of the backend SUPPORTED_UNITS (ingredient.service) for the unit dropdown.
+const INGREDIENT_UNITS = [
+  'oz', 'g', 'lb', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'fl_oz', 'cup',
+  'qty', 'slice', 'piece', 'scoop', 'shot', 'pinch', 'dash',
+];
+
+interface EditableIngredient extends SuggestedIngredient { _include: boolean }
+
+interface RecipeChoice { enabled: boolean; ingredients: EditableIngredient[] }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -298,6 +310,157 @@ function ImportSuccessScreen({
 
 // ─── Editable menu review table ───────────────────────────────────────────────
 
+// ─── Ingredient review step (optional — opt-in recipe mode) ───────────────────
+
+interface IngredientItem { id: string; name: string; price: number; choice: RecipeChoice }
+
+function fmtDelta(cents: number): string {
+  if (!cents) return '';
+  const sign = cents > 0 ? '+' : '−';
+  return `${sign}$${(Math.abs(cents) / 100).toFixed(2)}`;
+}
+
+function IngredientReviewStep({
+  items, setChoice, onEnableAll, onSkipAll, onContinue, onBack, isPending,
+}: {
+  items:       IngredientItem[];
+  setChoice:   (id: string, choice: RecipeChoice) => void;
+  onEnableAll: () => void;
+  onSkipAll:   () => void;
+  onContinue:  () => void;
+  onBack:      () => void;
+  isPending:   boolean;
+}) {
+  const enabledCount = items.filter((it) => it.choice.enabled).length;
+
+  const patchIngredient = (id: string, idx: number, patch: Partial<EditableIngredient>) => {
+    const it = items.find((x) => x.id === id);
+    if (!it) return;
+    const ingredients = it.choice.ingredients.map((ing, i) => i === idx ? { ...ing, ...patch } : ing);
+    setChoice(id, { ...it.choice, ingredients });
+  };
+  const removeIngredient = (id: string, idx: number) => {
+    const it = items.find((x) => x.id === id);
+    if (!it) return;
+    setChoice(id, { ...it.choice, ingredients: it.choice.ingredients.filter((_, i) => i !== idx) });
+  };
+  const addIngredient = (id: string) => {
+    const it = items.find((x) => x.id === id);
+    if (!it) return;
+    const next: EditableIngredient = {
+      name: '', quantity: 1, unit: 'qty', isOptional: true,
+      omissionPriceDelta: 0, extraPriceDelta: 0, extraQuantity: 1,
+      displayOrder: it.choice.ingredients.length + 1, _include: true,
+    };
+    setChoice(id, { ...it.choice, ingredients: [...it.choice.ingredients, next] });
+  };
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      {/* Header */}
+      <div className="px-4 pt-4 pb-3 border-b border-gray-200 shrink-0">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-1.5">
+              <Sparkles size={15} className="text-primary" /> Review suggested ingredients
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5 max-w-lg">
+              We detected these ingredients for each item. Confirm to enable smart modifiers,
+              omissions, and inventory tracking. This is optional.
+            </p>
+          </div>
+          <button onClick={onSkipAll} disabled={isPending} className="text-xs text-gray-500 hover:text-gray-700 underline whitespace-nowrap shrink-0">
+            Skip ingredient setup →
+          </button>
+        </div>
+        <div className="flex items-center gap-2 mt-3">
+          <button onClick={onEnableAll} disabled={isPending}
+            className="px-2.5 py-1 text-xs font-semibold rounded-md bg-primary/10 text-primary hover:bg-primary/20">
+            Enable for all
+          </button>
+          <button onClick={onSkipAll} disabled={isPending}
+            className="px-2.5 py-1 text-xs font-medium rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50">
+            Skip all
+          </button>
+          <span className="text-xs text-gray-400 ml-auto">{enabledCount} of {items.length} using recipe mode</span>
+        </div>
+      </div>
+
+      {/* Items */}
+      <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-3">
+        {items.map((it) => {
+          const optional = it.choice.ingredients.filter((g) => g._include && g.isOptional);
+          const extras   = it.choice.ingredients.filter((g) => g._include && g.extraPriceDelta > 0);
+          return (
+            <div key={it.id} className={clsx('rounded-xl border p-3', it.choice.enabled ? 'border-primary/40 bg-primary/[0.03]' : 'border-gray-200')}>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-sm font-bold text-gray-900">{it.name} <span className="text-gray-400 font-normal">— {fmtPrice(it.price)}</span></p>
+                <button
+                  onClick={() => setChoice(it.id, { ...it.choice, enabled: !it.choice.enabled })}
+                  className={clsx('px-2.5 py-1 text-xs font-semibold rounded-md shrink-0',
+                    it.choice.enabled ? 'bg-primary text-white hover:bg-primary/90' : 'border border-gray-300 text-gray-600 hover:bg-gray-50')}
+                >
+                  {it.choice.enabled ? '✓ Recipe Mode' : 'Skip this item'}
+                </button>
+              </div>
+
+              {it.choice.enabled && (
+                <>
+                  <div className="space-y-1.5">
+                    {it.choice.ingredients.map((ing, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5">
+                        <input type="checkbox" checked={ing._include} onChange={(e) => patchIngredient(it.id, idx, { _include: e.target.checked })}
+                          className="rounded border-gray-300 text-primary focus:ring-primary/30 shrink-0" />
+                        <input value={ing.name} onChange={(e) => patchIngredient(it.id, idx, { name: e.target.value })}
+                          placeholder="Ingredient" className="flex-1 min-w-0 px-2 py-1 text-sm border border-gray-200 rounded" />
+                        <input type="number" min="0" step="0.1" value={ing.quantity}
+                          onChange={(e) => patchIngredient(it.id, idx, { quantity: parseFloat(e.target.value) || 0 })}
+                          className="w-14 px-1.5 py-1 text-sm border border-gray-200 rounded tabular-nums" />
+                        <select value={ing.unit} onChange={(e) => patchIngredient(it.id, idx, { unit: e.target.value })}
+                          className="w-20 px-1 py-1 text-xs border border-gray-200 rounded bg-white">
+                          {INGREDIENT_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                        <button onClick={() => patchIngredient(it.id, idx, { isOptional: !ing.isOptional })}
+                          className={clsx('px-1.5 py-1 text-[10px] font-semibold rounded shrink-0 w-16',
+                            ing.isOptional ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600')}>
+                          {ing.isOptional ? 'optional' : 'required'}
+                        </button>
+                        {ing.extraPriceDelta > 0 && <span className="text-[10px] text-green-600 w-12 text-right shrink-0">{fmtDelta(ing.extraPriceDelta)}</span>}
+                        <button onClick={() => removeIngredient(it.id, idx)} className="p-1 text-gray-300 hover:text-red-500 shrink-0"><Trash2 size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => addIngredient(it.id)} className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline"><Plus size={12} /> Add ingredient</button>
+
+                  {(optional.length > 0 || extras.length > 0) && (
+                    <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
+                      This will auto-create:{' '}
+                      {optional.length > 0 && <>Omissions: {optional.map((g) => `No ${g.name}`).join(', ')}. </>}
+                      {extras.length > 0 && <>Extras: {extras.map((g) => `Extra ${g.name} ${fmtDelta(g.extraPriceDelta)}`).join(', ')}.</>}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-3 border-t border-gray-200 bg-white shrink-0 flex items-center justify-between gap-3">
+        <button onClick={onBack} disabled={isPending} className="flex items-center gap-1 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+          <ChevronLeft size={14} /> Back
+        </button>
+        <button onClick={onContinue} disabled={isPending}
+          className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90 disabled:opacity-50">
+          {isPending && <Loader2 size={13} className="animate-spin" />}
+          {isPending ? 'Importing…' : 'Continue →'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MenuImportReview({ job, onDone, onCancel }: ImportReviewProps) {
   const qc = useQueryClient();
   const [locationId, setLocationId] = useState(getLocationId);
@@ -329,6 +492,19 @@ function MenuImportReview({ job, onDone, onCancel }: ImportReviewProps) {
   const [selected,    setSelected]    = useState<Set<string>>(new Set());
   const [showWarning, setShowWarning] = useState(false);
   const [importResult, setImportResult] = useState<{ job: ImportJob; skipped: number } | null>(null);
+
+  // Opt-in recipe mode (Session 2) — per-item ingredient choices, default disabled.
+  const [recipeChoices, setRecipeChoices] = useState<Record<string, RecipeChoice>>(() => {
+    const out: Record<string, RecipeChoice> = {};
+    parsedItems.forEach((item, i) => {
+      const sugg = item.suggestedIngredients ?? [];
+      if (sugg.length > 0) {
+        out[String(i)] = { enabled: false, ingredients: sugg.map((s) => ({ ...s, _include: true })) };
+      }
+    });
+    return out;
+  });
+  const [showIngredients, setShowIngredients] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
@@ -439,16 +615,37 @@ function MenuImportReview({ job, onDone, onCancel }: ImportReviewProps) {
   const skippedAtConfirm = useRef(0);
 
   const confirm = useMutation({
-    mutationFn: () => {
+    mutationFn: (opts?: { skipAllRecipe?: boolean }) => {
       skippedAtConfirm.current = editedItems.filter((i) => !i.include).length;
       // EDIT CHAIN: confirmedItems carries user-edited data to the backend
-      const confirmedItems: ConfirmedMenuItem[] = editedItems.map((item) => ({
-        name:        item.name,
-        price:       item.price,
-        category:    item.category || undefined,
-        description: item.description || undefined,
-        include:     item.include,
-      }));
+      const confirmedItems: ConfirmedMenuItem[] = editedItems.map((item) => {
+        const choice = recipeChoices[item._id];
+        const useRecipe = !opts?.skipAllRecipe && item.include && Boolean(choice?.enabled);
+        const ingredients: SuggestedIngredient[] = useRecipe
+          ? choice!.ingredients
+              .filter((g) => g._include && g.name.trim())
+              // strip the UI-only _include flag → clean SuggestedIngredient
+              .map((g) => ({
+                name:               g.name.trim(),
+                quantity:           g.quantity,
+                unit:               g.unit,
+                isOptional:         g.isOptional,
+                omissionPriceDelta: g.omissionPriceDelta,
+                extraPriceDelta:    g.extraPriceDelta,
+                extraQuantity:      g.extraQuantity,
+                displayOrder:       g.displayOrder,
+              }))
+          : [];
+        return {
+          name:        item.name,
+          price:       item.price,
+          category:    item.category || undefined,
+          description: item.description || undefined,
+          include:     item.include,
+          enableRecipeMode: ingredients.length > 0 ? true : undefined,
+          ingredients:      ingredients.length > 0 ? ingredients : undefined,
+        };
+      });
       return importsApi.confirm(job.id, { locationId, confirmedItems });
     },
     onSuccess: (updatedJob) => {
@@ -468,6 +665,17 @@ function MenuImportReview({ job, onDone, onCancel }: ImportReviewProps) {
     },
   });
 
+  // Included items that have AI-suggested ingredients → eligible for the recipe step.
+  const itemsWithIngredients = useMemo(
+    () => editedItems.filter((it) => it.include && (recipeChoices[it._id]?.ingredients?.length ?? 0) > 0),
+    [editedItems, recipeChoices],
+  );
+
+  const proceedToRecipeOrConfirm = useCallback(() => {
+    if (itemsWithIngredients.length > 0) setShowIngredients(true);
+    else confirm.mutate(undefined);
+  }, [itemsWithIngredients, confirm]);
+
   const handleImportClick = useCallback(() => {
     if (includedCount === 0) {
       showToast.error('Please include at least one item before importing.');
@@ -476,9 +684,9 @@ function MenuImportReview({ job, onDone, onCancel }: ImportReviewProps) {
     if (zeroPriceCount > 0) {
       setShowWarning(true);
     } else {
-      confirm.mutate();
+      proceedToRecipeOrConfirm();
     }
-  }, [includedCount, zeroPriceCount, confirm]);
+  }, [includedCount, zeroPriceCount, proceedToRecipeOrConfirm]);
 
   // ── Success screen ─────────────────────────────────────────────────────────
 
@@ -489,6 +697,28 @@ function MenuImportReview({ job, onDone, onCancel }: ImportReviewProps) {
         skippedCount={importResult.skipped}
         onGoToPOS={() => { onDone(); }}
         onImportAnother={() => { onDone(); }}
+      />
+    );
+  }
+
+  // ── Optional ingredient review step ──────────────────────────────────────────
+  if (showIngredients) {
+    const stepItems: IngredientItem[] = itemsWithIngredients.map((it) => ({
+      id: it._id, name: it.name, price: it.price, choice: recipeChoices[it._id],
+    }));
+    return (
+      <IngredientReviewStep
+        items={stepItems}
+        isPending={confirm.isPending}
+        setChoice={(id, choice) => setRecipeChoices((prev) => ({ ...prev, [id]: choice }))}
+        onEnableAll={() => setRecipeChoices((prev) => {
+          const next = { ...prev };
+          for (const it of itemsWithIngredients) if (next[it._id]) next[it._id] = { ...next[it._id], enabled: true };
+          return next;
+        })}
+        onSkipAll={() => confirm.mutate({ skipAllRecipe: true })}
+        onContinue={() => confirm.mutate(undefined)}
+        onBack={() => setShowIngredients(false)}
       />
     );
   }
@@ -814,7 +1044,7 @@ function MenuImportReview({ job, onDone, onCancel }: ImportReviewProps) {
                 Go back and review
               </button>
               <button
-                onClick={() => confirm.mutate()}
+                onClick={() => { setShowWarning(false); proceedToRecipeOrConfirm(); }}
                 disabled={confirm.isPending}
                 className="flex-1 px-3 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
