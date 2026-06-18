@@ -158,9 +158,18 @@ export function registerErrorHandler(fastify: FastifyInstance): void {
         'Unhandled error',
       );
 
+      // TEMPORARY (BUG-ING-001 diagnosis): surface the real DB error fields so we
+      // can find the root cause of the ingredient 500s. REMOVE after the fix.
+      const _pg = err as PgError & { where?: string; routine?: string; schema?: string; column?: string };
       return reply.code(500).send(withReqId({
         code:    'INTERNAL_ERROR',
         message: isProd ? 'An internal error occurred' : (err.message ?? 'Unknown error'),
+        _debug: {
+          name: err.name, message: err.message,
+          pgCode: _pg.code, detail: _pg.detail, constraint: _pg.constraint,
+          table: _pg.table, column: _pg.column, schema: _pg.schema,
+          where: _pg.where, routine: _pg.routine,
+        },
         ...(!isProd && err.stack ? { stack: err.stack } : {}),
       }));
     },

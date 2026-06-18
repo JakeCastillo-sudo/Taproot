@@ -97,28 +97,21 @@ export async function getFoodCostSummary(orgId: string, days = 7): Promise<FoodC
       [orgId, safeDays],
     ),
     query<{ date: string; revenue: string; cogs: string }>(
-      // revenue-by-day FULL JOIN cogs-by-day (avoids a correlated subquery that
-      // referenced the ungrouped o.created_at → Postgres 42803).
-      `SELECT COALESCE(rev.date, cog.date) AS date,
-              COALESCE(rev.revenue, 0)     AS revenue,
-              COALESCE(cog.cogs, 0)        AS cogs
-         FROM (
-           SELECT to_char(DATE(o.created_at), 'YYYY-MM-DD') AS date, COALESCE(SUM(o.total), 0) AS revenue
-             FROM orders o
-            WHERE o.organization_id = $1 AND o.status = 'completed'
-              AND o.created_at > NOW() - ($2::int * INTERVAL '1 day')
-            GROUP BY DATE(o.created_at)
-         ) rev
-         FULL OUTER JOIN (
-           SELECT to_char(DATE(sm.created_at), 'YYYY-MM-DD') AS date,
-                  COALESCE(SUM(ABS(sm.quantity_change) * i.cost_per_unit), 0) AS cogs
-             FROM stock_movements sm
-             JOIN ingredients i ON i.id = sm.ingredient_id
-            WHERE sm.organization_id = $1 AND sm.movement_type = 'sale'
-              AND sm.created_at > NOW() - ($2::int * INTERVAL '1 day')
-            GROUP BY DATE(sm.created_at)
-         ) cog ON cog.date = rev.date
-        ORDER BY 1 ASC`,
+      `SELECT
+         to_char(DATE(o.created_at), 'YYYY-MM-DD') AS date,
+         COALESCE(SUM(o.total), 0) AS revenue,
+         COALESCE((
+           SELECT SUM(ABS(sm2.quantity_change) * i2.cost_per_unit)
+             FROM stock_movements sm2
+             JOIN ingredients i2 ON i2.id = sm2.ingredient_id
+            WHERE sm2.organization_id = $1 AND sm2.movement_type = 'sale'
+              AND DATE(sm2.created_at) = DATE(o.created_at)
+         ), 0) AS cogs
+       FROM orders o
+       WHERE o.organization_id = $1 AND o.status = 'completed'
+         AND o.created_at > NOW() - ($2::int * INTERVAL '1 day')
+       GROUP BY DATE(o.created_at)
+       ORDER BY DATE(o.created_at) ASC`,
       [orgId, safeDays],
     ),
   ]);
