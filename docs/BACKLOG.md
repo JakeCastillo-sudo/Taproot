@@ -1,5 +1,19 @@
 # Taproot POS — Bug Backlog
 
+> ## BUG-ING-001 (2026-06-17) — ✅ RESOLVED
+> **Symptom:** `DELETE /api/v1/ingredients/:id` and `POST /api/v1/products/:id/recipe-mode/disable`
+> (and `/enable`) returned **500**.
+> **Root cause (NOT a DB bug):** Fastify's default `application/json` parser rejects an **empty body**
+> (`FST_ERR_CTP_EMPTY_JSON_BODY`). The web `apiFetch` always sends `Content-Type: application/json`,
+> so every body-less DELETE/POST failed *before the route handler ran* — an **app-wide latent bug**
+> (also affected e.g. `DELETE /categories/:id`; the same request with no Content-Type returned 204).
+> **Fix:** in `index.ts`, `removeContentTypeParser('application/json')` then register a tolerant one
+> (empty body → `undefined`; valid JSON parsed; malformed → 400). NOTE: a first attempt that only
+> *added* the parser crashed boot with `FST_ERR_CTP_ALREADY_PRESENT` (reverted, then fixed forward).
+> The ingredient route/service code was already correct. Verified live: delete + recipe-mode → 200.
+> **Also fixed:** `GET /api/v1/inventory/food-cost` 500'd with Postgres `42803` (correlated subquery
+> referenced ungrouped `o.created_at`) — rewrote the by-day query as a FULL OUTER JOIN.
+
 > ## Hour 4 re-verification (2026-06-10) — BUG-IMP-001/002/003 confirmed already fixed
 > A scheduled "fix import bugs" pass re-verified these against the live code + a real
 > end-to-end CSV import. **All three were already RESOLVED** (see entries below) and the
