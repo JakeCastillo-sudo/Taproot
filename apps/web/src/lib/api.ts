@@ -91,7 +91,10 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
-    'Content-Type':      'application/json',
+    // Only send Content-Type when there's a body. Fastify's JSON parser rejects an
+    // empty body when Content-Type is application/json (FST_ERR_CTP_EMPTY_JSON_BODY),
+    // which broke body-less DELETE/POST requests. BUG-ING-001.
+    ...(init.body != null ? { 'Content-Type': 'application/json' } : {}),
     'X-Taproot-Client':  'web',  // CSRF indicator — signals request originated from the SPA
     ...(init.headers as Record<string, string> | undefined),
   };
