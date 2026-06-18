@@ -121,6 +121,24 @@ async function buildApp(): Promise<any> {
     }
   });
 
+  // Tolerant application/json parser (BUG-ING-001). Fastify's default JSON parser
+  // rejects an EMPTY body with FST_ERR_CTP_EMPTY_JSON_BODY when Content-Type is
+  // application/json. The web client (apiFetch) always sets that header, so every
+  // body-less DELETE/POST (e.g. DELETE /ingredients/:id, recipe-mode toggle, and
+  // many existing routes) 500'd. Treat an empty body as undefined; parse real JSON
+  // normally; still 400 on malformed JSON.
+  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    const raw = (body as string) ?? '';
+    if (raw.trim() === '') { done(null, undefined); return; }
+    try {
+      done(null, JSON.parse(raw));
+    } catch {
+      const err = new Error('Invalid JSON body') as Error & { statusCode?: number };
+      err.statusCode = 400;
+      done(err, undefined);
+    }
+  });
+
   // ─── Security headers ─────────────────────────────────────────────────────────
 
   await fastify.register(helmet, {
