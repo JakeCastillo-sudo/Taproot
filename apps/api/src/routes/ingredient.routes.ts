@@ -22,21 +22,6 @@ function clampDays(raw: string | undefined, fallback: number): number {
   return Math.min(Math.max(Number.isFinite(n) ? n : fallback, 1), 90);
 }
 
-// TEMPORARY (BUG-ING-001 diagnosis): surface the real DB error so we can see the
-// root cause of the DELETE / recipe-mode 500s. Domain errors (with statusCode) are
-// re-thrown to the global handler unchanged. REMOVE after the fix.
-function debugPgError(reply: FastifyReply, err: unknown): FastifyReply {
-  const e = err as { statusCode?: number; message?: string; code?: string; detail?: string;
-    constraint?: string; table?: string; column?: string; schema?: string; where?: string; routine?: string };
-  if (e && typeof e.statusCode === 'number') throw err; // AppError → let global handler map it
-  return reply.code(500).send({
-    code: 'INTERNAL_ERROR',
-    message: e?.message ?? 'unknown',
-    pgCode: e?.code, detail: e?.detail, constraint: e?.constraint,
-    table: e?.table, column: e?.column, schema: e?.schema, where: e?.where, routine: e?.routine,
-  });
-}
-
 function requireManager(req: FastifyRequest, reply: FastifyReply): boolean {
   const { user } = req as AuthedRequest;
   if (user.role !== 'owner' && user.role !== 'manager') {
@@ -97,10 +82,8 @@ export async function registerIngredientRoutes(fastify: FastifyInstance): Promis
     if (!requireManager(req, reply)) return;
     const { user } = req as AuthedRequest;
     const { id } = req.params as { id: string };
-    try {
-      const result = await IngredientSvc.deleteIngredient(user.orgId, id);
-      return reply.send(result);
-    } catch (err) { return debugPgError(reply, err); }
+    const result = await IngredientSvc.deleteIngredient(user.orgId, id);
+    return reply.send(result);
   });
 
   // ── Stock management ───────────────────────────────────────────────────────
@@ -154,20 +137,16 @@ export async function registerIngredientRoutes(fastify: FastifyInstance): Promis
     if (!requireManager(req, reply)) return;
     const { user } = req as AuthedRequest;
     const { id } = req.params as { id: string };
-    try {
-      const result = await RecipeSvc.enableRecipeMode(user.orgId, id);
-      return reply.send(result);
-    } catch (err) { return debugPgError(reply, err); }
+    const result = await RecipeSvc.enableRecipeMode(user.orgId, id);
+    return reply.send(result);
   });
 
   fastify.post('/api/v1/products/:id/recipe-mode/disable', async (req: FastifyRequest, reply: FastifyReply) => {
     if (!requireManager(req, reply)) return;
     const { user } = req as AuthedRequest;
     const { id } = req.params as { id: string };
-    try {
-      const result = await RecipeSvc.disableRecipeMode(user.orgId, id);
-      return reply.send(result);
-    } catch (err) { return debugPgError(reply, err); }
+    const result = await RecipeSvc.disableRecipeMode(user.orgId, id);
+    return reply.send(result);
   });
 
   // POS — recipe-aware modifier data (falls back to existing groups when recipe_mode=false)
