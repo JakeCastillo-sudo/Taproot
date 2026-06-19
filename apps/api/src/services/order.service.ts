@@ -110,21 +110,138 @@ async function resolveLineItems(
 
   const resolved: ResolvedLineItem[] = [];
 
+  // WG-015: batch-fetch products / variants / prices / modifiers up front with
+  // one `= ANY($ids)` query each, then resolve every line item in memory. This
+  // replaces the old per-item serial queries (2-4 round-trips per line) so the
+  // order transaction holds open for far less time with less lock contention.
+  // Behavior, validation, error messages, the WG-004 override guards, and the
+  // WG-008 `archived_at IS NULL` filter are all preserved exactly — the loop
+  // below is the original logic in the original order, only reading from maps.
+  const productIds = [...new Set(inputs.map((i) => i.productId))];
+  const explicitVariantIds = [...new Set(
+    inputs.filter((i) => i.variantId).map((i) => i.variantId as string),
+  )];
+  const defaultVariantProductIds = [...new Set(
+    inputs.filter((i) => !i.variantId).map((i) => i.productId),
+  )];
+  const modifierIds = [...new Set(
+    inputs.flatMap((i) => (i.modifiers ?? []).map((m) => m.modifierId)),
+  )];
+
+  // Products — WG-008: `archived_at IS NULL` preserved (archived → absent from
+  // map → "not available"); deleted_at / is_active still checked in JS.
+  const productMap = new Map<string, {
+    id: string; category_id: string | null; name: string; sku: string | null;
+    cost_price: number; is_active: boolean; deleted_at: string | null;
+  }>();
+  if (productIds.length > 0) {
+    const { rows } = await client.query<{
+      id: string; category_id: string | null; name: string; sku: string | null;
+      cost_price: number; is_active: boolean; deleted_at: string | null;
+    }>(
+      `SELECT id, category_id, name, sku, cost_price, is_active, deleted_at
+       FROM products
+       WHERE id = ANY($1) AND organization_id = $2 AND archived_at IS NULL`,
+      [productIds, orgId],
+    );
+    for (const r of rows) productMap.set(r.id, r);
+  }
+
+  // Explicitly-requested variants. The original per-item query enforced
+  // `AND product_id = $2`; that match is re-checked in JS below.
+  const variantMap = new Map<string, {
+    id: string; product_id: string; name: string; sku: string | null;
+    cost_price: number; is_active: boolean; deleted_at: string | null;
+  }>();
+  if (explicitVariantIds.length > 0) {
+    const { rows } = await client.query<{
+      id: string; product_id: string; name: string; sku: string | null;
+      cost_price: number; is_active: boolean; deleted_at: string | null;
+    }>(
+      `SELECT id, product_id, name, sku, cost_price, is_active, deleted_at
+       FROM product_variants
+       WHERE id = ANY($1) AND organization_id = $2`,
+      [explicitVariantIds, orgId],
+    );
+    for (const r of rows) variantMap.set(r.id, r);
+  }
+
+  // Default variant per product (first active by sort_order) for items with no
+  // explicit variantId — mirrors the per-item `ORDER BY sort_order ASC LIMIT 1`.
+  const defaultVariantByProduct = new Map<string, {
+    id: string; name: string; sku: string | null; cost_price: number;
+  }>();
+  if (defaultVariantProductIds.length > 0) {
+    const { rows } = await client.query<{
+      product_id: string; id: string; name: string; sku: string | null; cost_price: number;
+    }>(
+      `SELECT product_id, id, name, sku, cost_price
+       FROM product_variants
+       WHERE product_id = ANY($1) AND organization_id = $2
+         AND is_active = true AND deleted_at IS NULL
+       ORDER BY product_id, sort_order ASC`,
+      [defaultVariantProductIds, orgId],
+    );
+    for (const r of rows) {
+      if (!defaultVariantByProduct.has(r.product_id)) defaultVariantByProduct.set(r.product_id, r);
+    }
+  }
+
+  // Prices for every variant we might price (explicit + resolved defaults).
+  // Replicate the per-variant SQL ordering exactly in JS:
+  //   ORDER BY (location_id = $loc) DESC NULLS LAST, effective_from DESC LIMIT 1
+  // → rank 0 = price for this location, 1 = price for a different location,
+  //   2 = org-wide (location_id NULL, ranked LAST); tie-break effective_from DESC.
+  const priceVariantIds = [...new Set<string>([
+    ...explicitVariantIds,
+    ...[...defaultVariantByProduct.values()].map((v) => v.id),
+  ])];
+  const priceByVariant = new Map<string, number>();
+  if (priceVariantIds.length > 0) {
+    const { rows } = await client.query<{
+      variant_id: string; price: number; location_id: string | null; effective_from: string;
+    }>(
+      `SELECT variant_id, price, location_id, effective_from
+       FROM product_prices
+       WHERE variant_id = ANY($1)
+         AND is_active = true
+         AND effective_from <= now()
+         AND (effective_until IS NULL OR effective_until >= now())`,
+      [priceVariantIds],
+    );
+    const loc = locationId.toLowerCase();
+    const rank = (l: string | null): number =>
+      l === null ? 2 : (l.toLowerCase() === loc ? 0 : 1);
+    const best = new Map<string, { rank: number; from: number; price: number }>();
+    for (const r of rows) {
+      const cand = { rank: rank(r.location_id), from: new Date(r.effective_from).getTime(), price: r.price };
+      const cur = best.get(r.variant_id);
+      if (!cur || cand.rank < cur.rank || (cand.rank === cur.rank && cand.from > cur.from)) {
+        best.set(r.variant_id, cand);
+      }
+    }
+    for (const [vid, b] of best) priceByVariant.set(vid, b.price);
+  }
+
+  // Modifiers — tenancy semantics unchanged from the original per-item lookup
+  // (WG-018 org-scoping is a separate, out-of-scope finding).
+  const modifierMap = new Map<string, { id: string; name: string; price_delta: number }>();
+  if (modifierIds.length > 0) {
+    const { rows } = await client.query<{ id: string; name: string; price_delta: number }>(
+      `SELECT id, name, price_delta FROM modifiers
+       WHERE id = ANY($1) AND is_active = true AND deleted_at IS NULL`,
+      [modifierIds],
+    );
+    for (const r of rows) modifierMap.set(r.id, r);
+  }
+
   for (const item of inputs) {
     if (item.quantity <= 0) {
       throw new ValidationError('Line item quantity must be greater than 0');
     }
 
     // Load product
-    const { rows: [product] } = await client.query<{
-      id: string; category_id: string | null; name: string; sku: string | null;
-      cost_price: number; is_active: boolean; deleted_at: string | null;
-    }>(
-      `SELECT id, category_id, name, sku, cost_price, is_active, deleted_at
-       FROM products
-       WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL`,
-      [item.productId, orgId],
-    );
+    const product = productMap.get(item.productId);
     if (!product || product.deleted_at || !product.is_active) {
       throw new ValidationError(`Product ${item.productId} is not available`);
     }
@@ -135,16 +252,8 @@ async function resolveLineItems(
     let costPrice = product.cost_price;
 
     if (item.variantId) {
-      const { rows: [v] } = await client.query<{
-        id: string; name: string; sku: string | null; cost_price: number;
-        is_active: boolean; deleted_at: string | null;
-      }>(
-        `SELECT id, name, sku, cost_price, is_active, deleted_at
-         FROM product_variants
-         WHERE id = $1 AND product_id = $2 AND organization_id = $3`,
-        [item.variantId, item.productId, orgId],
-      );
-      if (!v || v.deleted_at || !v.is_active) {
+      const v = variantMap.get(item.variantId);
+      if (!v || v.product_id !== item.productId || v.deleted_at || !v.is_active) {
         throw new ValidationError(`Variant ${item.variantId} is not available`);
       }
       variantId = v.id;
@@ -153,16 +262,7 @@ async function resolveLineItems(
       costPrice = v.cost_price;
     } else {
       // Default: first active variant
-      const { rows: [dv] } = await client.query<{
-        id: string; name: string; sku: string | null; cost_price: number;
-      }>(
-        `SELECT id, name, sku, cost_price
-         FROM product_variants
-         WHERE product_id = $1 AND organization_id = $2
-           AND is_active = true AND deleted_at IS NULL
-         ORDER BY sort_order ASC LIMIT 1`,
-        [item.productId, orgId],
-      );
+      const dv = defaultVariantByProduct.get(item.productId);
       if (dv) {
         variantId = dv.id;
         variantLabel = dv.name;
@@ -185,18 +285,9 @@ async function resolveLineItems(
       unitPrice = item.unitPriceOverride;
     } else if (variantId) {
       // Prefer location-specific price; fall back to org-wide (location_id IS NULL)
-      const { rows: [priceRow] } = await client.query<{ price: number }>(
-        `SELECT price FROM product_prices
-         WHERE variant_id = $1
-           AND is_active = true
-           AND effective_from <= now()
-           AND (effective_until IS NULL OR effective_until >= now())
-         ORDER BY (location_id = $2::uuid) DESC NULLS LAST, effective_from DESC
-         LIMIT 1`,
-        [variantId, locationId],
-      );
-      if (!priceRow) throw new PricingError(variantId, locationId);
-      unitPrice = priceRow.price;
+      const price = priceByVariant.get(variantId);
+      if (price === undefined) throw new PricingError(variantId, locationId);
+      unitPrice = price;
     } else {
       throw new PricingError(item.productId, locationId);
     }
@@ -204,13 +295,7 @@ async function resolveLineItems(
     // Validate modifiers and accumulate price deltas
     const resolvedMods: Array<{ modifierId: string; name: string; priceDelta: number }> = [];
     for (const mod of (item.modifiers ?? [])) {
-      const { rows: [m] } = await client.query<{
-        id: string; name: string; price_delta: number;
-      }>(
-        `SELECT id, name, price_delta FROM modifiers
-         WHERE id = $1 AND is_active = true AND deleted_at IS NULL`,
-        [mod.modifierId],
-      );
+      const m = modifierMap.get(mod.modifierId);
       if (!m) throw new ValidationError(`Modifier ${mod.modifierId} not found or inactive`);
       resolvedMods.push({ modifierId: m.id, name: m.name, priceDelta: m.price_delta });
       unitPrice += m.price_delta;

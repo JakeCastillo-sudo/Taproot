@@ -600,7 +600,146 @@ export async function listProducts(
       [...params, limit, offset]),
   ]);
 
-  const products = await Promise.all(productRows.map(prod => buildProductWithRelations(prod.id)));
+  // WG-014: bulk-fetch every relation with one `= ANY($ids)` query each, then
+  // assemble each ProductWithModifiers in memory. This replaces the old
+  // `Promise.all(rows.map(buildProductWithRelations))` (~6 queries per product).
+  // The assembled output is byte-for-byte identical to running
+  // buildProductWithRelations(prod.id) per row: same fields, same per-product
+  // ordering, same price-effective filtering, same modifier JSON aggregation.
+  // The single-product getter (buildProductWithRelations) is intentionally left
+  // unchanged for getProduct/createProduct/updateProduct/searchByBarcode.
+  if (productRows.length === 0) {
+    return { products: [], total: parseInt(countRows[0]?.count ?? '0', 10), page };
+  }
+
+  const productIds = productRows.map((prod) => prod.id);
+
+  const [
+    { rows: allVariants },
+    { rows: allPrices },
+    { rows: allRecipes },
+    { rows: allLines },
+    { rows: allModGroups },
+  ] = await Promise.all([
+    query<ProductVariant & { product_id: string }>(
+      `SELECT * FROM product_variants
+        WHERE product_id = ANY($1) AND deleted_at IS NULL
+        ORDER BY product_id, sort_order`,
+      [productIds],
+    ),
+    query<ProductPrice & { __pid: string }>(
+      `SELECT pp.*, pv.product_id AS __pid FROM product_prices pp
+         JOIN product_variants pv ON pv.id = pp.variant_id
+        WHERE pv.product_id = ANY($1) AND pp.is_active = true
+          AND (pp.effective_until IS NULL OR pp.effective_until > now())
+        ORDER BY pv.product_id, pp.effective_from DESC`,
+      [productIds],
+    ),
+    query<Recipe & { product_id: string }>(
+      `SELECT * FROM recipes
+        WHERE product_id = ANY($1) AND is_active = true AND deleted_at IS NULL`,
+      [productIds],
+    ),
+    query<RecipeLine & { __pid: string }>(
+      `SELECT rl.*, r.product_id AS __pid FROM recipe_lines rl
+         JOIN recipes r ON r.id = rl.recipe_id
+        WHERE r.product_id = ANY($1) AND r.is_active = true AND r.deleted_at IS NULL`,
+      [productIds],
+    ),
+    // Modifier groups with their options, aggregated per (product, group).
+    // pmg.product_id MUST be in SELECT + GROUP BY so a modifier group shared
+    // across products does not collapse into a single row.
+    query<{
+      product_id: string;
+      id: string; name: string; selection_type: string;
+      min_selections: number; max_selections: number | null;
+      sort_order: number;
+      modifiers: ModifierOptionData[] | null;
+    }>(`
+      SELECT
+        pmg.product_id,
+        mg.id, mg.name, mg.selection_type, mg.min_selections, mg.max_selections,
+        pmg.sort_order,
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id',         mo.id,
+              'name',       mo.name,
+              'priceDelta', mo.price_delta,
+              'isDefault',  mo.is_default,
+              'sortOrder',  mo.sort_order
+            ) ORDER BY mo.sort_order ASC
+          ) FILTER (WHERE mo.id IS NOT NULL),
+          '[]'::json
+        ) AS modifiers
+      FROM product_modifier_groups pmg
+      JOIN modifier_groups mg ON mg.id = pmg.modifier_group_id
+        AND mg.deleted_at IS NULL AND mg.is_active = true
+      LEFT JOIN modifiers mo ON mo.group_id = mg.id
+        AND mo.deleted_at IS NULL AND mo.is_active = true
+      WHERE pmg.product_id = ANY($1)
+      GROUP BY pmg.product_id, mg.id, mg.name, mg.selection_type, mg.min_selections, mg.max_selections, pmg.sort_order
+      ORDER BY pmg.product_id, pmg.sort_order ASC, mg.sort_order ASC`,
+    [productIds]),
+  ]);
+
+  const variantsByProduct = new Map<string, ProductVariant[]>();
+  for (const v of allVariants) {
+    const arr = variantsByProduct.get(v.product_id) ?? [];
+    arr.push(v);
+    variantsByProduct.set(v.product_id, arr);
+  }
+
+  const pricesByProduct = new Map<string, ProductPrice[]>();
+  for (const row of allPrices) {
+    const { __pid, ...price } = row;
+    const arr = pricesByProduct.get(__pid) ?? [];
+    arr.push(price as ProductPrice);
+    pricesByProduct.set(__pid, arr);
+  }
+
+  // First active recipe per product (mirrors the per-product `LIMIT 1`).
+  const recipeByProduct = new Map<string, Recipe>();
+  for (const r of allRecipes) {
+    if (!recipeByProduct.has(r.product_id)) recipeByProduct.set(r.product_id, r);
+  }
+
+  const linesByProduct = new Map<string, RecipeLine[]>();
+  for (const row of allLines) {
+    const { __pid, ...line } = row;
+    const arr = linesByProduct.get(__pid) ?? [];
+    arr.push(line as RecipeLine);
+    linesByProduct.set(__pid, arr);
+  }
+
+  const modGroupsByProduct = new Map<string, ModifierGroupData[]>();
+  for (const g of allModGroups) {
+    const arr = modGroupsByProduct.get(g.product_id) ?? [];
+    arr.push({
+      id:            g.id,
+      name:          g.name,
+      selectionType: g.selection_type as ModifierGroupData['selectionType'],
+      minSelections: g.min_selections,
+      maxSelections: g.max_selections,
+      sortOrder:     g.sort_order,
+      modifiers:     g.modifiers ?? [],
+    });
+    modGroupsByProduct.set(g.product_id, arr);
+  }
+
+  const products: ProductWithModifiers[] = productRows.map((product) => {
+    const recipeRow = recipeByProduct.get(product.id);
+    const recipe = recipeRow
+      ? { ...recipeRow, lines: linesByProduct.get(product.id) ?? [] }
+      : null;
+    return {
+      ...product,
+      variants:       variantsByProduct.get(product.id) ?? [],
+      prices:         pricesByProduct.get(product.id) ?? [],
+      recipe,
+      modifierGroups: modGroupsByProduct.get(product.id) ?? [],
+    };
+  });
 
   return { products, total: parseInt(countRows[0]?.count ?? '0', 10), page };
 }
