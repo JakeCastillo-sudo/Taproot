@@ -102,6 +102,7 @@ async function resolveLineItems(
   orgId: string,
   locationId: string,
   inputs: CreateLineItemInput[],
+  canOverridePrice = false,
 ): Promise<ResolvedLineItem[]> {
   if (inputs.length === 0) {
     throw new ValidationError('Order must have at least one line item');
@@ -174,6 +175,13 @@ async function resolveLineItems(
     let unitPrice: number;
 
     if (item.unitPriceOverride !== undefined) {
+      // WG-004: price override is privileged and must be a sane, non-negative cents value.
+      if (!canOverridePrice) {
+        throw new ForbiddenError('Price override requires the order:price:override permission');
+      }
+      if (item.unitPriceOverride < 0 || item.unitPriceOverride > 100_000_000) {
+        throw new ValidationError('Price override must be between 0 and 100000000 cents');
+      }
       unitPrice = item.unitPriceOverride;
     } else if (variantId) {
       // Prefer location-specific price; fall back to org-wide (location_id IS NULL)
@@ -506,6 +514,7 @@ export async function createOrder(
   locationId: string,
   employeeId: string,
   input: CreateOrderInput,
+  canOverridePrice = false,
 ): Promise<OrderWithRelations> {
   const txResult = await withTransaction(async (client) => {
     // Verify location
@@ -541,7 +550,7 @@ export async function createOrder(
     }
 
     // Resolve items → prices + modifiers
-    const items = await resolveLineItems(client, orgId, locationId, input.lineItems);
+    const items = await resolveLineItems(client, orgId, locationId, input.lineItems, canOverridePrice);
     const subtotal = items.reduce((s, li) => s + li.unitPrice * li.quantity, 0);
 
     // Discounts
@@ -792,6 +801,7 @@ export async function updateOrder(
   orderId: string,
   employeeId: string,
   input: UpdateOrderInput,
+  canOverridePrice = false,
 ): Promise<OrderWithRelations> {
   await withTransaction(async (client) => {
     const { rows: [order] } = await client.query<Order>(
@@ -833,7 +843,7 @@ export async function updateOrder(
 
     // Add new line items (no discount/tax yet — recalculated below)
     if (input.lineItemsToAdd?.length) {
-      const newItems = await resolveLineItems(client, orgId, locationId, input.lineItemsToAdd);
+      const newItems = await resolveLineItems(client, orgId, locationId, input.lineItemsToAdd, canOverridePrice);
       for (const li of newItems) {
         await client.query(
           `INSERT INTO order_line_items

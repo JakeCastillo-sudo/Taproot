@@ -140,7 +140,9 @@ export default async function orderRoutes(fastify: FastifyInstance): Promise<voi
       const { user } = req as AuthedRequest;
       const { locationId } = req.params as { locationId: string };
       const input = req.body as OrderSvc.CreateOrderInput;
-      const order = await OrderSvc.createOrder(user.orgId, locationId, user.sub, input);
+      // WG-004: only pass through price overrides if the actor holds the permission.
+      const canOverridePrice = user.permissions.includes(Permission.ORDER_PRICE_OVERRIDE);
+      const order = await OrderSvc.createOrder(user.orgId, locationId, user.sub, input, canOverridePrice);
       return reply.code(201).send(order);
     },
   );
@@ -168,7 +170,9 @@ export default async function orderRoutes(fastify: FastifyInstance): Promise<voi
       const { user } = req as AuthedRequest;
       const { locationId, orderId } = req.params as { locationId: string; orderId: string };
       const input = req.body as OrderSvc.UpdateOrderInput;
-      const order = await OrderSvc.updateOrder(user.orgId, locationId, orderId, user.sub, input);
+      // WG-004: only pass through price overrides if the actor holds the permission.
+      const canOverridePrice = user.permissions.includes(Permission.ORDER_PRICE_OVERRIDE);
+      const order = await OrderSvc.updateOrder(user.orgId, locationId, orderId, user.sub, input, canOverridePrice);
       return reply.send(order);
     },
   );
@@ -179,10 +183,12 @@ export default async function orderRoutes(fastify: FastifyInstance): Promise<voi
     { preHandler: [requirePermissions(Permission.ORDER_VOID)] },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { user } = req as AuthedRequest;
-      const { locationId, orderId } = req.params as { locationId: string; orderId: string };
+      const { orderId } = req.params as { locationId: string; orderId: string };
       const { reason } = req.body as { reason: string };
-      const order = await OrderSvc.voidOrder(user.orgId, locationId, orderId, user.sub, reason);
-      return reply.send(order);
+      // WG-003: use the refunding void path (reverses captured payments) instead of
+      // OrderSvc.voidOrder, which did not refund. Matches the org-level void route above.
+      const result = await TransactionSvc.voidOrder(user.orgId, user.sub, orderId, reason);
+      return reply.send(result);
     },
   );
 

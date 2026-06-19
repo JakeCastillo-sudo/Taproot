@@ -65,6 +65,10 @@ export async function processPayment(
   if (!order) throw new NotFoundError('Order');
   if (order.status === 'voided') throw new ValidationError('Cannot process payment for a voided order');
   if (order.status === 'completed') throw new ValidationError('Order is already completed');
+  // WG-005: a refunded order must not accept a new payment.
+  if (order.status === 'refunded' || order.status === 'partially_refunded') {
+    throw new ValidationError('Cannot process payment for a refunded order');
+  }
 
   const tipAmount = input.tipAmount ?? 0;
   let processorPaymentId: string | null = null;
@@ -146,6 +150,10 @@ export async function processPayment(
         confirm: true,
         metadata: { orderId, orgId, employeeId },
         automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+      }, {
+        // WG-002: deterministic idempotency key — same order + charged amount +
+        // payment method = same key, so Stripe dedupes a concurrent retry / double-tap.
+        idempotencyKey: `order_${orderId}_${input.amount + tipAmount}_${input.stripePaymentMethodId ?? 'nopm'}`,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -478,6 +486,10 @@ export async function syncOfflinePayment(
       confirm: true,
       metadata: { paymentId, offlineSync: 'true' },
       automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+    }, {
+      // WG-002: deterministic idempotency key — re-syncing the same offline payment
+      // with the same payment method dedupes at Stripe instead of double-charging.
+      idempotencyKey: `offline_${paymentId}_${Number(payment.amount) + Number(payment.tip_amount)}_${stripePaymentMethodId}`,
     });
     if (pi.status !== 'succeeded') throw new Error(`Unexpected status: ${pi.status}`);
     piId = pi.id;
