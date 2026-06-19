@@ -8,6 +8,7 @@ import * as LoyaltySvc from './loyalty.service';
 import { deliverWebhook } from './webhook.service';
 import { invalidateOrgCache } from '../lib/cache';
 import { deductOrderIngredients, reverseOrderIngredients } from './ingredientInventory.service';
+import * as Sentry from '@sentry/node';
 
 // ─── Input types ──────────────────────────────────────────────────────────────
 
@@ -30,20 +31,207 @@ export interface RefundPaymentInput {
   reason?: string;
 }
 
-// ─── Dead-letter queue helper ─────────────────────────────────────────────────
-// Used when Stripe charge succeeds but the DB write fails.
+// ─── Dead-letter recovery (WG-001) ────────────────────────────────────────────
+// When a Stripe charge SUCCEEDS but the order/payment DB write fails, we record
+// a durable payment_dead_letters row (+ alert) so the opportunistic reconciler
+// can replay the write idempotently. Card payments only — the only dead-lettered
+// path.
 
-async function logDeadLetter(context: Record<string, unknown>): Promise<void> {
+interface DeadLetterContext {
+  orgId: string;
+  orderId: string;
+  employeeId: string;
+  paymentMethod: PaymentMethod;
+  amount: number;
+  tipAmount: number;
+  processorPaymentId: string;
+  cardLast4: string | null;
+  cardBrand: string | null;
+  error: string;
+}
+
+interface DeadLetterRow {
+  id: string;
+  organization_id: string;
+  order_id: string;
+  employee_id: string | null;
+  payment_method: PaymentMethod;
+  amount: number;
+  tip_amount: number;
+  processor_payment_id: string;
+  card_last4: string | null;
+  card_brand: string | null;
+}
+
+// Caches only the positive result: re-checks while the table is absent so the
+// reconciler starts working as soon as migration 029 runs (no restart needed).
+let _deadLetterReady = false;
+async function deadLetterTableReady(): Promise<boolean> {
+  if (_deadLetterReady) return true;
+  try {
+    const { rows } = await query<{ ready: boolean }>(
+      `SELECT to_regclass('public.payment_dead_letters') IS NOT NULL AS ready`,
+    );
+    _deadLetterReady = Boolean(rows[0]?.ready);
+  } catch {
+    _deadLetterReady = false;
+  }
+  return _deadLetterReady;
+}
+
+async function logDeadLetter(ctx: DeadLetterContext): Promise<void> {
+  // Alert immediately. No-op when SENTRY_DSN is unset (Sentry SDK stays inert).
+  try {
+    Sentry.captureMessage(
+      `[payment] charge-without-order dead letter: order ${ctx.orderId} PI ${ctx.processorPaymentId}`,
+      'error',
+    );
+  } catch { /* alerting must never throw */ }
+
   try {
     await query(
-      `INSERT INTO audit_logs
-         (organization_id, actor_type, action, metadata)
-       VALUES ($1, 'system', 'payment.dead_letter', $2)`,
-      [context.orgId ?? null, JSON.stringify(context)],
+      `INSERT INTO payment_dead_letters
+         (organization_id, order_id, employee_id, payment_method, amount,
+          tip_amount, processor, processor_payment_id, card_last4, card_brand,
+          error, status)
+       VALUES ($1,$2,$3,$4,$5,$6,'stripe',$7,$8,$9,$10,'pending')
+       ON CONFLICT (processor_payment_id) DO NOTHING`,
+      [
+        ctx.orgId, ctx.orderId, ctx.employeeId, ctx.paymentMethod, ctx.amount,
+        ctx.tipAmount, ctx.processorPaymentId, ctx.cardLast4, ctx.cardBrand,
+        ctx.error,
+      ],
     );
   } catch {
-    // Last-resort: log to stderr
-    console.error('[payment] Dead letter log failed:', JSON.stringify(context));
+    // Last resort if the durable table isn't available (e.g. pre-migration):
+    // keep the audit_logs record so nothing is silently lost.
+    try {
+      await query(
+        `INSERT INTO audit_logs (organization_id, actor_type, action, metadata)
+         VALUES ($1, 'system', 'payment.dead_letter', $2)`,
+        [ctx.orgId, JSON.stringify(ctx)],
+      );
+    } catch {
+      console.error('[payment] Dead letter persist failed:', JSON.stringify(ctx));
+    }
+  }
+}
+
+// Replay a single dead-letter's DB write. Idempotent: locks the order, then
+// re-checks for an existing payment by PaymentIntent id UNDER the lock so two
+// concurrent passes can never double-insert. Never resurrects a voided/refunded
+// order to 'completed'.
+async function reconcileOne(dl: DeadLetterRow): Promise<void> {
+  await withTransaction(async (client) => {
+    const { rows: [order] } = await client.query<{ id: string; status: string; total: number }>(
+      `SELECT id, status, total FROM orders WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
+      [dl.order_id, dl.organization_id],
+    );
+
+    const { rows: [existing] } = await client.query<{ id: string }>(
+      `SELECT id FROM payments WHERE processor_payment_id = $1`,
+      [dl.processor_payment_id],
+    );
+
+    if (!existing) {
+      if (!order) throw new Error(`order ${dl.order_id} not found`);
+
+      // Re-insert the payment row the original transaction failed to write.
+      await client.query(
+        `INSERT INTO payments
+           (order_id, payment_method, amount, tip_amount, status,
+            processor, processor_payment_id, processor_response,
+            card_last4, card_brand, refunded_amount)
+         VALUES ($1,$2,$3,$4,'completed','stripe',$5,$6,$7,$8,0)`,
+        [
+          dl.order_id, dl.payment_method, dl.amount, dl.tip_amount,
+          dl.processor_payment_id, { reconciledFrom: 'dead_letter' },
+          dl.card_last4, dl.card_brand,
+        ],
+      );
+
+      // Recalc totals (mirror processPayment) — but never resurrect a voided /
+      // refunded order to 'completed'.
+      const { rows: [totals] } = await client.query<{
+        amount_paid: number; amount_only: number; tip_total: number; total: number;
+      }>(
+        `SELECT
+           (SELECT COALESCE(SUM(amount + tip_amount), 0) FROM payments
+              WHERE order_id = $1 AND status IN ('completed','offline_queued')) AS amount_paid,
+           (SELECT COALESCE(SUM(amount), 0) FROM payments
+              WHERE order_id = $1 AND status IN ('completed','offline_queued')) AS amount_only,
+           (SELECT COALESCE(SUM(tip_amount), 0) FROM payments
+              WHERE order_id = $1 AND status IN ('completed','offline_queued')) AS tip_total,
+           total
+         FROM orders WHERE id = $1`,
+        [dl.order_id],
+      );
+      const amountOnly = Number(totals.amount_only);
+      const fullyPaid = amountOnly >= Number(totals.total);
+      const changeDue = Math.max(0, amountOnly - Number(totals.total));
+
+      await client.query(
+        `UPDATE orders
+           SET amount_paid = $1, tip_total = $2, change_due = $3,
+               status = CASE WHEN $4 AND status NOT IN ('voided','refunded','partially_refunded')
+                             THEN 'completed' ELSE status END,
+               fulfilled_at = CASE WHEN $4 AND status NOT IN ('voided','refunded','partially_refunded')
+                                   THEN now() ELSE fulfilled_at END,
+               updated_at = now()
+         WHERE id = $5`,
+        [Number(totals.amount_paid), Number(totals.tip_total), changeDue, fullyPaid, dl.order_id],
+      );
+    }
+
+    // Close out the dead letter (whether we inserted now or a prior pass did).
+    await client.query(
+      `UPDATE payment_dead_letters
+          SET status = 'reconciled', reconciled_at = now(),
+              reconcile_attempts = reconcile_attempts + 1, last_attempt_at = now()
+        WHERE id = $1`,
+      [dl.id],
+    );
+  });
+}
+
+// Opportunistic reconciler. Drains the oldest few unreconciled dead-letters by
+// replaying the order DB write using the known Stripe PaymentIntent id. NEVER
+// throws — failures bump the attempt counter and are left for a later pass.
+export async function reconcilePending(limit = 5): Promise<void> {
+  if (!(await deadLetterTableReady())) return;
+
+  let pending: DeadLetterRow[];
+  try {
+    const { rows } = await query<DeadLetterRow>(
+      `SELECT id, organization_id, order_id, employee_id, payment_method, amount,
+              tip_amount, processor_payment_id, card_last4, card_brand
+         FROM payment_dead_letters
+        WHERE reconciled_at IS NULL
+        ORDER BY created_at ASC
+        LIMIT $1`,
+      [limit],
+    );
+    pending = rows;
+  } catch (err) {
+    console.error('[Reconcile] fetch failed:', err instanceof Error ? err.message : String(err));
+    return;
+  }
+
+  for (const dl of pending) {
+    try {
+      await reconcileOne(dl);
+    } catch (err) {
+      try {
+        await query(
+          `UPDATE payment_dead_letters
+              SET reconcile_attempts = reconcile_attempts + 1, last_attempt_at = now()
+            WHERE id = $1`,
+          [dl.id],
+        );
+      } catch { /* ignore */ }
+      console.error('[Reconcile] order', dl.order_id, 'failed:',
+        err instanceof Error ? err.message : String(err));
+    }
   }
 }
 
@@ -320,8 +508,12 @@ export async function processPayment(
     )) {
       await logDeadLetter({
         orgId, orderId, employeeId,
-        stripePaymentIntentId: processorPaymentId,
+        paymentMethod: input.paymentMethod,
         amount: input.amount,
+        tipAmount,
+        processorPaymentId,
+        cardLast4: card_last4,
+        cardBrand: card_brand,
         error: err instanceof Error ? err.message : String(err),
       });
     }
@@ -340,6 +532,11 @@ export async function processPayment(
     action: 'payment.processed', resourceType: 'payment', resourceId: payment.id,
     afterState: { orderId, amount: input.amount, method: input.paymentMethod, status },
   });
+
+  // WG-001: opportunistic dead-letter recovery — bounded, fire-and-forget,
+  // never blocks or affects this charge/response.
+  void reconcilePending().catch((err) =>
+    console.error('[Reconcile]', err instanceof Error ? err.message : String(err)));
 
   return payment;
 }
