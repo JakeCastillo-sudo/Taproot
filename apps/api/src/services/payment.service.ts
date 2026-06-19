@@ -394,11 +394,20 @@ export async function processPayment(
 
       // Gift card: deduct balance + record transaction
       if (input.paymentMethod === 'gift_card' && input.giftCardCode) {
-        await client.query(
+        // WG-006: conditional atomic deduction. The `AND current_balance >= $1`
+        // guard means a concurrent payment can never drive the balance negative —
+        // Postgres locks the row for the UPDATE, and 0 rows updated == insufficient
+        // funds (rolls back the whole transaction). The pre-check above is just a
+        // fast-fail with a nicer error; THIS is the real concurrency guard.
+        const { rows: gcDeducted } = await client.query<{ current_balance: number }>(
           `UPDATE gift_cards SET current_balance = current_balance - $1, updated_at = now()
-           WHERE code = $2 AND organization_id = $3`,
+           WHERE code = $2 AND organization_id = $3 AND current_balance >= $1
+           RETURNING current_balance`,
           [input.amount, input.giftCardCode, orgId],
         );
+        if (gcDeducted.length === 0) {
+          throw new ValidationError('Insufficient gift card balance');
+        }
         await client.query(
           `INSERT INTO gift_card_transactions
              (gift_card_id, transaction_type, amount, order_id, employee_id)
@@ -410,12 +419,21 @@ export async function processPayment(
 
       // Account credit: deduct from customer
       if (input.paymentMethod === 'account_credit') {
-        await client.query(
+        // WG-006: conditional atomic deduction (same guard as gift cards above).
+        // `AND account_credit >= $1` prevents two concurrent payments from both
+        // passing the pre-check and driving the balance negative; 0 rows updated
+        // == insufficient funds and rolls back the transaction.
+        const { rows: acDeducted } = await client.query<{ account_credit: number }>(
           `UPDATE customers
            SET account_credit = account_credit - $1, updated_at = now()
-           WHERE id = (SELECT customer_id FROM orders WHERE id = $2)`,
+           WHERE id = (SELECT customer_id FROM orders WHERE id = $2)
+             AND account_credit >= $1
+           RETURNING account_credit`,
           [input.amount, orderId],
         );
+        if (acDeducted.length === 0) {
+          throw new ValidationError('Insufficient account credit');
+        }
       }
 
       // Offline queue: push to Redis queue
@@ -541,6 +559,40 @@ export async function processPayment(
   return payment;
 }
 
+// ─── Refund dead-letter (WG-013) ──────────────────────────────────────────────
+// When a Stripe refund SUCCEEDS but the DB transaction that records it fails, the
+// customer is refunded at Stripe while our books still believe the order is paid.
+// We mirror WG-001's spirit — durable record + alert — but deliberately do NOT use
+// `payment_dead_letters`/`reconcileOne`: that path is charge-specific (it re-inserts
+// a 'completed' payment keyed on the charge PI) and would misreconcile a refund.
+// Here we alert loudly and persist to audit_logs with the refund context so the
+// divergence is recoverable by hand.
+async function logRefundDeadLetter(ctx: {
+  orgId: string;
+  paymentId: string;
+  orderId: string;
+  processorPaymentId: string | null;
+  amount: number;
+  error: string;
+}): Promise<void> {
+  try {
+    Sentry.captureMessage(
+      `[payment] refund-without-db-write dead letter: payment ${ctx.paymentId} order ${ctx.orderId} PI ${ctx.processorPaymentId ?? 'none'} amount ${ctx.amount}`,
+      'error',
+    );
+  } catch { /* alerting must never throw */ }
+
+  try {
+    await query(
+      `INSERT INTO audit_logs (organization_id, actor_type, action, metadata)
+       VALUES ($1, 'system', 'payment.refund_dead_letter', $2)`,
+      [ctx.orgId, JSON.stringify(ctx)],
+    );
+  } catch {
+    console.error('[payment] Refund dead letter persist failed:', JSON.stringify(ctx));
+  }
+}
+
 // ─── refundPayment ────────────────────────────────────────────────────────────
 
 export async function refundPayment(
@@ -558,20 +610,26 @@ export async function refundPayment(
   if (!payment) throw new NotFoundError('Payment');
   if (payment.status === 'refunded') throw new ValidationError('Payment is already fully refunded');
 
-  const maxRefundable = Number(payment.amount) - Number(payment.refunded_amount);
-  if (input.amount > maxRefundable) {
+  // Fast-fail pre-check (re-validated authoritatively under FOR UPDATE below).
+  const maxRefundablePre = Number(payment.amount) - Number(payment.refunded_amount);
+  if (input.amount > maxRefundablePre) {
     throw new ValidationError(
-      `Refund amount ${input.amount} exceeds refundable amount ${maxRefundable}`,
+      `Refund amount ${input.amount} exceeds refundable amount ${maxRefundablePre}`,
     );
   }
 
-  // Stripe refund
+  // WG-013 ordering policy (mirrors WG-001): do the Stripe refund FIRST, then the
+  // DB transaction. The idempotencyKey makes a retried refund a no-op at Stripe
+  // (instead of refunding twice). If the DB transaction below fails AFTER this
+  // succeeds, we log a durable refund dead-letter + alert rather than swallowing.
   if (payment.processor === 'stripe' && payment.processor_payment_id) {
     try {
       await getStripeClient().refunds.create({
         payment_intent: payment.processor_payment_id,
         amount: input.amount,
         reason: 'requested_by_customer',
+      }, {
+        idempotencyKey: `refund_${input.paymentId}_${input.amount}`,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -579,38 +637,80 @@ export async function refundPayment(
     }
   }
 
-  // Gift card refund: restore balance
-  if (payment.payment_method === 'gift_card' && payment.processor_payment_id) {
-    await query(
-      `UPDATE gift_cards SET current_balance = current_balance + $1, updated_at = now()
-       WHERE id = $2`,
-      [input.amount, payment.processor_payment_id],
-    );
+  // WG-013: all three DB writes (gift-card balance, payment row, order row) now run
+  // in ONE transaction. The payment row is loaded FOR UPDATE and the refundable
+  // amount re-checked under the lock, so two concurrent refunds can't both pass.
+  let updated: Payment;
+  let newStatus: PaymentStatus;
+  try {
+    const result = await withTransaction(async (client) => {
+      const { rows: [locked] } = await client.query<Payment>(
+        `SELECT * FROM payments WHERE id = $1 FOR UPDATE`,
+        [input.paymentId],
+      );
+      if (!locked) throw new NotFoundError('Payment');
+      if (locked.status === 'refunded') throw new ValidationError('Payment is already fully refunded');
+
+      // Re-check refundable amount under the lock (prevents concurrent double-refund).
+      const maxRefundable = Number(locked.amount) - Number(locked.refunded_amount);
+      if (input.amount > maxRefundable) {
+        throw new ValidationError(
+          `Refund amount ${input.amount} exceeds refundable amount ${maxRefundable}`,
+        );
+      }
+
+      // Gift card refund: restore balance (DB-only — no external system to order against).
+      if (locked.payment_method === 'gift_card' && locked.processor_payment_id) {
+        await client.query(
+          `UPDATE gift_cards SET current_balance = current_balance + $1, updated_at = now()
+           WHERE id = $2`,
+          [input.amount, locked.processor_payment_id],
+        );
+      }
+
+      const newRefunded = Number(locked.refunded_amount) + input.amount;
+      const status: PaymentStatus = newRefunded >= Number(locked.amount) ? 'refunded' : 'partially_refunded';
+
+      const { rows: [u] } = await client.query<Payment>(
+        `UPDATE payments
+         SET refunded_amount = $1, status = $2, updated_at = now()
+         WHERE id = $3 RETURNING *`,
+        [newRefunded, status, locked.id],
+      );
+
+      await client.query(
+        `UPDATE orders
+         SET status = CASE
+               WHEN $1 = 'refunded' THEN 'refunded'
+               WHEN $1 = 'partially_refunded' THEN 'partially_refunded'
+               ELSE status
+             END,
+             amount_paid = amount_paid - $2,
+             updated_at  = now()
+         WHERE id = $3`,
+        [status, input.amount, locked.order_id],
+      );
+
+      return { updated: u, status };
+    });
+    updated = result.updated;
+    newStatus = result.status;
+  } catch (err) {
+    // DB transaction failed. If Stripe already refunded, this is a real Stripe↔DB
+    // divergence (money refunded, books unchanged) — record durably + alert so it
+    // can be reconciled. Gift-card refunds have no external leg, so nothing diverges.
+    if (payment.processor === 'stripe' && payment.processor_payment_id) {
+      await logRefundDeadLetter({
+        orgId,
+        paymentId: payment.id,
+        orderId: payment.order_id,
+        processorPaymentId: payment.processor_payment_id,
+        amount: input.amount,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    throw err;
   }
-
-  const newRefunded = Number(payment.refunded_amount) + input.amount;
-  const newStatus: PaymentStatus = newRefunded >= Number(payment.amount) ? 'refunded' : 'partially_refunded';
-
-  const { rows: [updated] } = await query<Payment>(
-    `UPDATE payments
-     SET refunded_amount = $1, status = $2, updated_at = now()
-     WHERE id = $3 RETURNING *`,
-    [newRefunded, newStatus, payment.id],
-  );
-
-  // Update order status
-  await query(
-    `UPDATE orders
-     SET status = CASE
-           WHEN $1 = 'refunded' THEN 'refunded'
-           WHEN $1 = 'partially_refunded' THEN 'partially_refunded'
-           ELSE status
-         END,
-         amount_paid = amount_paid - $2,
-         updated_at  = now()
-     WHERE id = $3`,
-    [newStatus, input.amount, payment.order_id],
-  );
 
   // Ingredient inventory reversal (Session 1) — when the order is fully refunded
   // (the path a void travels through). Fire-and-forget, idempotent, NEVER throws.
