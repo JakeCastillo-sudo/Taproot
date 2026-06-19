@@ -7,7 +7,7 @@ import { getStripeClient } from '../payments/stripe.config';
 import * as LoyaltySvc from './loyalty.service';
 import { deliverWebhook } from './webhook.service';
 import { invalidateOrgCache } from '../lib/cache';
-import { deductOrderIngredients, reverseOrderIngredients } from './ingredientInventory.service';
+import { deductOrderIngredients, reverseOrderIngredients, reconcilePendingDeductions } from './ingredientInventory.service';
 import * as Sentry from '@sentry/node';
 
 // ─── Input types ──────────────────────────────────────────────────────────────
@@ -555,6 +555,11 @@ export async function processPayment(
   // never blocks or affects this charge/response.
   void reconcilePending().catch((err) =>
     console.error('[Reconcile]', err instanceof Error ? err.message : String(err)));
+
+  // WG-011: opportunistic inventory-deduction recovery — same shape as WG-001,
+  // bounded, fire-and-forget, never blocks the charge/response.
+  void reconcilePendingDeductions().catch((err) =>
+    console.error('[Inventory reconcile]', err instanceof Error ? err.message : String(err)));
 
   return payment;
 }

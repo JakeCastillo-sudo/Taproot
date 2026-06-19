@@ -10,6 +10,7 @@
 
 import { query, withTransaction } from '../db/client';
 import { ingredientSystemReady } from './ingredient.service';
+import * as Sentry from '@sentry/node';
 
 interface LineModifierSnapshot { modifierId?: string; name?: string; priceDelta?: number }
 
@@ -162,7 +163,125 @@ export async function deductOrderIngredients(orgId: string, orderId: string): Pr
       }
     });
   } catch (err) {
-    console.error('[Inventory] Deduction failed:', err instanceof Error ? err.message : String(err));
+    // WG-011: never block payment, but no longer let the failure vanish into stderr
+    // (→ silent stock drift). Record a durable, alerted, retryable failure instead.
+    await recordDeductionFailure(orgId, orderId, err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ── WG-011: durable deduction-failure recording + opportunistic reconciler ─────────
+// Mirrors the WG-001 payment dead-letter pattern. deductOrderIngredients still never
+// throws (inventory must never block payment); on failure it now writes a durable
+// inventory_deduction_failures row + a Sentry alert, and the opportunistic reconciler
+// replays it. Safe to replay because the WG-012 idempotency guard skips orders whose
+// 'sale' movements already exist. NOT a setInterval worker — drained on payment activity.
+
+// Caches only the positive result so the reconciler starts working as soon as
+// migration 031 runs, with no restart (same as deadLetterTableReady in payment.service).
+let _deductionFailureReady = false;
+async function deductionFailureTableReady(): Promise<boolean> {
+  if (_deductionFailureReady) return true;
+  try {
+    const { rows } = await query<{ ready: boolean }>(
+      `SELECT to_regclass('public.inventory_deduction_failures') IS NOT NULL AS ready`,
+    );
+    _deductionFailureReady = Boolean(rows[0]?.ready);
+  } catch {
+    _deductionFailureReady = false;
+  }
+  return _deductionFailureReady;
+}
+
+async function recordDeductionFailure(orgId: string, orderId: string, error: string): Promise<void> {
+  if (!(await deductionFailureTableReady())) {
+    // Pre-migration: keep a log line so nothing is silently lost.
+    console.error('[Inventory] Deduction failed (no failures table yet):', orderId, error);
+    return;
+  }
+
+  let inserted = false;
+  try {
+    // One failure row per order. ON CONFLICT DO NOTHING → rowCount 0 on a repeat,
+    // which we use to alert only on the FIRST failure (no per-retry Sentry noise).
+    const res = await query(
+      `INSERT INTO inventory_deduction_failures (organization_id, order_id, error)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (order_id) DO NOTHING`,
+      [orgId, orderId, error],
+    );
+    inserted = (res.rowCount ?? 0) > 0;
+  } catch (err) {
+    console.error('[Inventory] Failure persist failed:', orderId,
+      err instanceof Error ? err.message : String(err));
+    return;
+  }
+
+  if (inserted) {
+    // Alert. No-op when SENTRY_DSN is unset (Sentry SDK stays inert).
+    try {
+      Sentry.captureMessage(
+        `[inventory] deduction failure: order ${orderId} org ${orgId}`,
+        'error',
+      );
+    } catch { /* alerting must never throw */ }
+  }
+}
+
+/**
+ * Opportunistic reconciler. Replays the oldest few unreconciled deduction failures
+ * by re-running deductOrderIngredients (safe — WG-012 guard prevents double-deduct).
+ * Success is detected by the WG-012 side-effect: a successful deduction writes
+ * 'sale' stock_movements for the order. NEVER throws; no-ops if the table is absent.
+ */
+export async function reconcilePendingDeductions(limit = 5): Promise<void> {
+  if (!(await deductionFailureTableReady())) return;
+
+  let pending: Array<{ id: string; organization_id: string; order_id: string }>;
+  try {
+    const { rows } = await query<{ id: string; organization_id: string; order_id: string }>(
+      `SELECT id, organization_id, order_id
+         FROM inventory_deduction_failures
+        WHERE reconciled_at IS NULL
+        ORDER BY created_at ASC
+        LIMIT $1`,
+      [limit],
+    );
+    pending = rows;
+  } catch (err) {
+    console.error('[Inventory reconcile] fetch failed:', err instanceof Error ? err.message : String(err));
+    return;
+  }
+
+  for (const f of pending) {
+    try {
+      await deductOrderIngredients(f.organization_id, f.order_id); // safe retry (WG-012 idempotent)
+
+      // Did the deduction land? A successful run writes 'sale' movements for the order.
+      const { rows: done } = await query(
+        `SELECT 1 FROM stock_movements
+          WHERE order_id = $1 AND organization_id = $2 AND movement_type = 'sale' LIMIT 1`,
+        [f.order_id, f.organization_id],
+      );
+
+      if (done.length) {
+        await query(
+          `UPDATE inventory_deduction_failures
+              SET reconciled_at = now(), attempts = attempts + 1, last_attempt_at = now()
+            WHERE id = $1`,
+          [f.id],
+        );
+      } else {
+        await query(
+          `UPDATE inventory_deduction_failures
+              SET attempts = attempts + 1, last_attempt_at = now()
+            WHERE id = $1`,
+          [f.id],
+        );
+      }
+    } catch (err) {
+      console.error('[Inventory reconcile] order', f.order_id, 'failed:',
+        err instanceof Error ? err.message : String(err));
+    }
   }
 }
 
