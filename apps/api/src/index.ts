@@ -489,8 +489,9 @@ process.on('uncaughtException', (err) => {
 /**
  * Seed the first admin/executive-portal user on startup (idempotent).
  * Resilient: if migration 022 (admin_users) hasn't run yet, it logs and skips
- * rather than crashing boot. Creates admin@taproot-pos.com / TaprootAdmin2026!
- * (super_admin) only when no admin users exist. bcrypt cost 12 matches adminLogin.
+ * rather than crashing boot. Creates admin@taproot-pos.com (super_admin) only when
+ * no admin users exist AND INITIAL_ADMIN_PASSWORD is set (no hardcoded default —
+ * WG-024); skips with a warning otherwise. bcrypt cost 12 matches adminLogin.
  */
 async function seedFirstAdminUser(): Promise<void> {
   try {
