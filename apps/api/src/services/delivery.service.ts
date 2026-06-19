@@ -75,6 +75,23 @@ async function systemEmployeeId(orgId: string): Promise<string | null> {
   return e?.id ?? null;
 }
 
+// ── Dedup-index presence (WG-010) ────────────────────────────────────────────
+//
+// The ON CONFLICT atomic dedup needs the partial unique index from migration 030
+// (uq_orders_delivery_dedup). The code deploys on push but the migration runs
+// later, so before it exists we MUST fall back to the plain SELECT-then-INSERT
+// path — otherwise ON CONFLICT errors ("no matching unique/exclusion constraint").
+async function deliveryDedupIndexExists(): Promise<boolean> {
+  try {
+    const { rows: [r] } = await query<{ present: boolean }>(
+      `SELECT to_regclass('public.uq_orders_delivery_dedup') IS NOT NULL AS present`,
+    );
+    return r?.present === true;
+  } catch {
+    return false;
+  }
+}
+
 // ── Process incoming delivery order ─────────────────────────────────────────────
 
 export async function processDeliveryOrder(
@@ -119,6 +136,16 @@ export async function processDeliveryOrder(
     }
   }
 
+  // WG-010: atomic dedup via the partial unique index when it exists. A losing
+  // concurrent webhook gets 0 rows back (ON CONFLICT DO NOTHING) → idempotent
+  // success, no duplicate order and no double-inserted line items.
+  const hasDedupIndex = await deliveryDedupIndexExists();
+  const conflictClause = hasDedupIndex
+    ? `ON CONFLICT (organization_id, delivery_provider, delivery_order_id)
+         WHERE delivery_order_id IS NOT NULL
+       DO NOTHING`
+    : '';
+
   return withTransaction(async (client) => {
     const { rows: [order] } = await client.query<{ id: string; order_number: string }>(
       `INSERT INTO orders (
@@ -133,7 +160,9 @@ export async function processDeliveryOrder(
          $4, $5, 'pending', $6,
          $7, $8, $9,
          $10, $11, 0, $11, $12
-       ) RETURNING id, order_number`,
+       )
+       ${conflictClause}
+       RETURNING id, order_number`,
       [
         orgId,
         locationId,
@@ -149,6 +178,19 @@ export async function processDeliveryOrder(
         JSON.stringify({ delivery: { fee: payload.deliveryFee ?? 0, tip: payload.tip ?? 0 } }),
       ],
     );
+
+    // ON CONFLICT fired → another concurrent webhook already created this order.
+    // Treat as idempotent success; do NOT insert line items again.
+    if (!order) {
+      const { rows: [dup] } = await client.query<{ id: string; order_number: string }>(
+        `SELECT id, order_number FROM orders
+          WHERE delivery_order_id = $1 AND delivery_provider = $2 AND organization_id = $3
+          LIMIT 1`,
+        [payload.externalOrderId, payload.provider, orgId],
+      );
+      if (dup) return { orderId: dup.id, orderNumber: dup.order_number, duplicate: true };
+      throw new Error(`Delivery order conflict but no existing row for ${payload.provider}:${payload.externalOrderId}`);
+    }
 
     for (const item of payload.items) {
       const modifiers = (item.modifiers ?? []).map((m) => ({ name: m.name, priceDelta: m.price }));

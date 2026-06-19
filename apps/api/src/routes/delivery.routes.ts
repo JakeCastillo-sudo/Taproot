@@ -91,12 +91,16 @@ export default async function deliveryRoutes(fastify: FastifyInstance): Promise<
     }
 
     const payload = normalize(body);
-    // Create the order off the request path; ack fast (idempotent on retry).
-    void Delivery.processDeliveryOrder(store.orgId, store.locationId, payload).catch((err) =>
-      req.log.error({ err }, `[Delivery] ${provider} order creation failed`),
-    );
-
-    return reply.code(200).send({ received: true });
+    // WG-009: await creation BEFORE acking. On failure return 5xx so the provider
+    // retries — safe now that creation is idempotent (WG-010 ON CONFLICT dedup),
+    // so a retry never duplicates the order.
+    try {
+      await Delivery.processDeliveryOrder(store.orgId, store.locationId, payload);
+      return reply.code(200).send({ received: true });
+    } catch (err) {
+      req.log.error({ err }, `[Delivery] ${provider} order creation failed`);
+      return reply.code(500).send({ error: 'processing_failed' });
+    }
   }
 
   // ── POST /webhooks/doordash (PUBLIC) ───────────────────────────────────────
