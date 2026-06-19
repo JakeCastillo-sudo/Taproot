@@ -376,7 +376,8 @@ export interface WeeklyCampaignParams {
 export async function sendWeeklyCampaign(p: WeeklyCampaignParams): Promise<void> {
   // CAN-SPAM: never send marketing to an opted-out address.
   if (await isUnsubscribed(p.to)) {
-    console.log(`[Email] Skipping unsubscribed (campaign): ${p.to}`);
+    // WG-016: do not log recipient PII to stdout.
+    console.log('[Email] Skipping unsubscribed recipient (campaign)');
     return;
   }
   const appUrl = config.APP_URL;
@@ -513,7 +514,8 @@ export async function sendOnboardingSequenceEmail(params: {
 }): Promise<void> {
   // CAN-SPAM / best practice: skip opted-out addresses for the drip sequence.
   if (await isUnsubscribed(params.to)) {
-    console.log(`[Email] Skipping unsubscribed (sequence): ${params.to}`);
+    // WG-016: do not log recipient PII to stdout.
+    console.log('[Email] Skipping unsubscribed recipient (sequence)');
     return;
   }
   const appUrl = config.APP_URL;

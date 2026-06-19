@@ -30,13 +30,10 @@ async function sendMail(to: string, subject: string, text: string, html: string)
     });
 
     if (config.NODE_ENV !== 'production') {
+      // WG-016: dev-only, and no recipient/body PII — log subject + messageId only.
       console.log('[email] Dev transport captured message:', {
-        to,
         subject,
-        // When using jsonTransport, info.message contains the full email JSON
-        message: (info as unknown as { message?: string }).message
-          ? JSON.parse((info as unknown as { message: string }).message)
-          : info.messageId,
+        messageId: info.messageId,
       });
     }
   } catch (err) {

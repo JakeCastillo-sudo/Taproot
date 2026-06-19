@@ -122,7 +122,7 @@ async function resolveLineItems(
     }>(
       `SELECT id, category_id, name, sku, cost_price, is_active, deleted_at
        FROM products
-       WHERE id = $1 AND organization_id = $2`,
+       WHERE id = $1 AND organization_id = $2 AND archived_at IS NULL`,
       [item.productId, orgId],
     );
     if (!product || product.deleted_at || !product.is_active) {

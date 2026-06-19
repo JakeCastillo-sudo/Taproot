@@ -246,12 +246,16 @@ export async function calculateDepletionForSale(
 
   if (!rows.length) return [];
 
-  const yieldFactor = parseFloat(rows[0].yield_factor);
+  // WG-007: guard against NULL/0/negative yield_factor (NaN/Infinity divisor) and
+  // NULL waste_factor (NaN). A yield of 0/null is meaningless → treat as 1 (no loss).
+  const parsedYield = parseFloat(rows[0].yield_factor);
+  const yieldFactor = (!isFinite(parsedYield) || parsedYield <= 0) ? 1 : parsedYield;
   const results: DepletionResult[] = [];
 
   for (const row of rows) {
     let lineQty = parseFloat(row.line_qty);
-    const wasteFactor = parseFloat(row.waste_factor);
+    const parsedWaste = parseFloat(row.waste_factor);
+    const wasteFactor = isFinite(parsedWaste) ? parsedWaste : 0;
 
     // Apply modifier ingredient overrides
     for (const mod of modifiers) {

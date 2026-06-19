@@ -27,6 +27,15 @@ export async function deductOrderIngredients(orgId: string, orderId: string): Pr
   try {
     if (!(await ingredientSystemReady())) return;
 
+    // WG-012: idempotency — skip if this order's sale deductions already exist.
+    // Mirrors the sale_void guard in reverseOrderIngredients; makes retries safe.
+    const { rows: alreadyDeducted } = await query(
+      `SELECT 1 FROM stock_movements
+        WHERE order_id = $1 AND organization_id = $2 AND movement_type = 'sale' LIMIT 1`,
+      [orderId, orgId],
+    );
+    if (alreadyDeducted.length) return;
+
     const { rows: lineItems } = await query<{
       id: string; product_id: string | null; quantity: number; modifiers: unknown;
     }>(
