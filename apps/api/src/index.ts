@@ -503,7 +503,12 @@ async function seedFirstAdminUser(): Promise<void> {
     }
     const { rows: [{ count }] } = await pool.query<{ count: string }>(`SELECT COUNT(*)::int AS count FROM admin_users`);
     if (Number(count) > 0) return;
-    const hash = await bcrypt.hash('TaprootAdmin2026!', 12);
+    const seedPw = config.INITIAL_ADMIN_PASSWORD;
+    if (!seedPw) {
+      logger.warn('[admin seed] no admin users and INITIAL_ADMIN_PASSWORD unset — skipping seed');
+      return;
+    }
+    const hash = await bcrypt.hash(seedPw, 12);
     await pool.query(
       `INSERT INTO admin_users (email, password_hash, first_name, last_name, role)
        VALUES ($1, $2, 'Taproot', 'Admin', 'super_admin')

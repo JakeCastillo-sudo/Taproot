@@ -37,7 +37,8 @@ CAN-SPAM unsubscribe shipped; domain + CORS live.
 **🔴 BLOCKING before first paying customer:**
 - [ ] Confirm Stripe `STRIPE_SECRET_KEY=sk_live_` in Railway.
 - [ ] Rotate Postgres password; set `ADMIN_JWT_SECRET` explicitly (`openssl rand -hex 32`).
-- [ ] Change default admin password (`admin@taproot-pos.com`).
+- [ ] Set the first super-admin password via `INITIAL_ADMIN_PASSWORD` env var in Railway
+  (hardcoded default removed — WG-024; admin email `admin@taproot-pos.com`).
 - [ ] Run `docs/PSR_CLEANUP.sql` + `docs/HOUR5_CLEANUP.sql`; confirm no test data in prod.
 
 **🟡 Within first week:** QuickBooks dev app (`QB_CLIENT_ID`/`QB_CLIENT_SECRET` + verify `APP_URL`);

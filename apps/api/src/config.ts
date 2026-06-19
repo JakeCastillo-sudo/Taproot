@@ -45,6 +45,12 @@ export const config = {
   ADMIN_JWT_SECRET: process.env.ADMIN_JWT_SECRET ?? `${process.env.JWT_SECRET ?? ''}_admin`,
 
   /**
+   * One-time password for the first super-admin seeded on boot (WG-024).
+   * If unset, NO default admin is seeded (was hardcoded 'TaprootAdmin2026!').
+   */
+  INITIAL_ADMIN_PASSWORD: process.env.INITIAL_ADMIN_PASSWORD,
+
+  /**
    * RSA private key for RS256 JWT signing (optional — overrides HS256 when set).
    * Format: PEM-encoded RSA private key.
    * Both RSA keys must be set together or not at all.
