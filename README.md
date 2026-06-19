@@ -127,7 +127,8 @@ See `.env.example` for the full list. Required:
 - [`docs/API.md`](docs/API.md) — API endpoint reference
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — new-customer setup guide
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — product state machine, auth, multi-tenancy, AI caching
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — sprint history
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — v2.x multi-vertical platform roadmap
+- [`docs/ROADMAP_v1_sprints.md`](docs/ROADMAP_v1_sprints.md) — v1 sprint history
 - [`docs/BACKLOG.md`](docs/BACKLOG.md) — bug backlog
 
 ## Build Stats (June 2026)

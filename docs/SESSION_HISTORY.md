@@ -1090,7 +1090,7 @@ gracefully).
   in production; cash splits work everywhere.
 
 ## Sprint 1 Queue — Beta 1.1: Settings & Admin
-See full roadmap at docs/ROADMAP.md
+See full roadmap at docs/ROADMAP_v1_sprints.md
 
 ### Prompt 31 (S1-01) — Product Management UI ✅ COMPLETE
 Full product create/edit/delete at /settings/products.
