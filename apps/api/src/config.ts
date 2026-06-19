@@ -46,7 +46,7 @@ export const config = {
 
   /**
    * One-time password for the first super-admin seeded on boot (WG-024).
-   * If unset, NO default admin is seeded (was hardcoded 'TaprootAdmin2026!').
+   * If unset, NO default admin is seeded (the prior hardcoded default was removed).
    */
   INITIAL_ADMIN_PASSWORD: process.env.INITIAL_ADMIN_PASSWORD,
 
