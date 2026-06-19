@@ -9,17 +9,18 @@
 
 ---
 
-## 🌿 Current State (v1.6.0 — last updated 2026-06-16)
+## 🌿 Current State (v1.9.0 — last updated 2026-06-19)
 
-Production certified and launch-ready. Sprints 1–11 + V1.0–V1.6 complete.
+Production certified and launch-ready. Sprints 1–11 + V1.0–V1.9 complete.
 - **Web** https://taproot-pos.com (Vercel) · **API** Railway · tsc 0 errors both apps.
-- Latest tags: `v1.6.0` (final state, 2026-06-13), `psr-2026-06-12` (security certified;
+- Latest tags: `v1.9.0` (WG P0/P1 fixes + WG-024), `psr-2026-06-12` (security certified;
   OWASP Top 10 + PCI DSS 4.0, 0 crit / 0 high — `docs/SECURITY_AUDIT_2026.md`).
 - Apps: web (`apps/web`), api (`apps/api`), mobile (`apps/mobile`, Expo/React Native),
   desktop (`apps/desktop`, Tauri v2 — `desktop-v1.0.0` draft release), print-server
   (`apps/print-server`).
-- Latest feature: **CAN-SPAM unsubscribe** (HMAC tokens, compliant footers) — clears the
-  "add unsubscribe before enabling campaigns" blocker. Full 2026-06-16 entry in SESSION_HISTORY.
+- Latest work: **White Glove Audit fixes** — WG-001–016 P0/P1 payment safety + reliability;
+  WG-024 removed hardcoded admin password. v2.x roadmap drafted (`docs/ROADMAP.md`).
+  Full history in `docs/SESSION_HISTORY.md`.
 
 ---
 
@@ -150,6 +151,77 @@ cd apps/api && npx tsc --noEmit   # → 0 errors
 | BUG-QA-012 | "+" in CustomerSearch doesn't open create modal | ✅ RESOLVED (S4-06) |
 | BUG-QA-013 | No UI to set tax rate (tax_config JSONB exists but no settings page) | ✅ RESOLVED (S1-04) |
 | BUG-QA-014 | Top customers report empty (seed orders have customer_id = NULL) | OPEN |
+
+---
+
+## 📂 Project Documents — Recall Map
+
+> Read these when the task calls for it. Don't read all of them every session.
+
+### Always available (loaded at session start)
+- `CLAUDE.md` — active project state, open bugs, pre-prod checklist. You're reading it.
+- `docs/QUICK_REFERENCE.md` — schema ground-truth, API patterns, env vars, migrations, test cmds.
+- `docs/BACKLOG.md` — full pre-prod checklist + all open bugs (priority-ordered).
+- `docs/SESSION_HISTORY.md` — full session archive. Read when asked "what happened in session X"
+  or "why did we decide Y".
+
+### Strategy / roadmap
+- `docs/ROADMAP.md` — v2.x multi-vertical platform roadmap + sequencing. Read before any new
+  feature work or platform-direction discussion. Next: v2.0 Studio module.
+- `docs/STUDIO_MODULE_SPEC.md` — detailed fitness/studio reservation + membership spec.
+  Read when building any v2.x Studio feature.
+- `docs/ROADMAP_v1_sprints.md` — historical v1 sprint plan (Sprints 1–11). Read for v1 context.
+- `docs/LAUNCH.md` — go-to-market copy, pricing ($99/mo flat), and launch messaging.
+  Read before marketing/outreach work.
+
+### Security & audit
+- `docs/WHITE_GLOVE_AUDIT.md` — 9-layer comprehensive audit (2026-06-19). WG-001–016 P0/P1
+  fixed; P2/P3 open. Read before any security/hardening/triage work or before acting on WG-IDs.
+- `docs/SECURITY_AUDIT_2026.md` — formal OWASP Top 10 + PCI DSS 4.0 cert report (0 crit/high).
+  Read when discussing security posture or compliance.
+- `docs/SECURITY.md` — security controls as implemented + verified in code. Read before
+  touching auth, encryption, or session handling.
+- `docs/PSR_REPORT.md` — Production Security Review (2026-06-12). Companion to SECURITY_AUDIT.
+- `docs/QA_REPORT.md` — white-glove QA pass (2026-06-02). Historical; use BACKLOG for open items.
+- `docs/PRODUCTION_CERTIFICATION.md` — production readiness cert (2026-06-10). Historical record.
+
+### Operations & infrastructure
+- `docs/RUNBOOK.md` — ops runbook: incident response, rollback, monitoring, on-call.
+  Read during any production incident or deploy issue.
+- `docs/DEPLOYMENT.md` — full deployment guide: local dev, CI/CD, Railway/Vercel setup.
+  Read when setting up infra or debugging deploys.
+- `docs/ENV_CHECKLIST.md` — Railway env var checklist (derived from `config.ts`).
+  Read before touching environment configuration.
+- `docs/RAILWAY_ENV.md` — copy-paste Railway env var values (current known values).
+  Read when provisioning a new Railway service.
+- `docs/BACKUP.md` — backup strategy for multi-tenant Postgres. Read before DB maintenance.
+- `docs/FULL_STACK_DIAGRAM.md` — codebase-derived full-stack architecture diagram (2026-06-09).
+
+### Technical reference
+- `docs/API.md` — API reference (endpoints, auth, request/response shapes).
+  Read when building or debugging API integrations.
+- `docs/TECH_SPEC.md` — complete technical specification (v1.5.0). Deep-reference for internals.
+- `docs/ARCHITECTURE.md` — architecture decision records (product state machine, key patterns).
+- `docs/PRINT_SERVER.md` — print server docs (ESC-POS / thermal printing). Read for print work.
+- `docs/DESKTOP_CODE_SIGNING.md` — macOS code signing + notarization guide for Tauri desktop app.
+
+### Onboarding & UX
+- `docs/ONBOARDING.md` — new-customer onboarding guide (sign-up → first sale in ~10 min).
+  Read when improving the onboarding flow.
+- `docs/SESSION_GUIDELINES.md` — session-start protocol + auth verification rules.
+
+### SQL scripts (run manually in Railway → Data tab — Claude has no DB write access)
+- `docs/PSR_CLEANUP.sql` — remove PSR automated-test data. Run before go-live.
+- `docs/HOUR5_CLEANUP.sql` — remove Hour-5 automated-test data. Run before go-live.
+- `docs/REMOVE_DEMO_DATA.sql` — remove demo org/data permanently. Run when first customers arrive.
+- `docs/ADMIN_USER_CHECK.sql` — verify admin user exists and is configured correctly.
+- `docs/DEMO_DATA_FIX.sql` — patch demo-org data if corrupted.
+- `docs/MIGRATIONS_CHECK.sql` — verify which migrations are applied against live DB.
+
+### Historical one-off reports
+- `docs/ACCOUNT_WORKFLOW_TEST.md` — 8/8 E2E account-creation test (2026-06-09, live prod).
+- `docs/HOUR1_REPORT.md` — security + infrastructure hour-1 report (2026-06-10).
+- `docs/HOUR3_REPORT.md` — DB + Redis + security hour-3 report (2026-06-10).
 
 ---
 
