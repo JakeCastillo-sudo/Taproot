@@ -29,14 +29,15 @@ the customer keeps nothing, the merchant keeps the money, the order shows voided
 recovery). None of these are theoretical; all three were read and confirmed in source.
 
 **Total findings: 71**
-**P0: 3 · P1: 14 · P2: 22 · P3: 32**
+**P0: 3 · P1: 13 · P2: 22 · P3: 33**
+> *Counts updated 2026-06-19: WG-005 reclassified P1 → P3 after live-code verification (see corrected finding).*
 
 **Top 5 to fix before the first paying customer:**
-1. **WG-003** — Voiding a *paid* order via the location route keeps the customer's money (no refund). **P0**
-2. **WG-002** — No idempotency on `processPayment` → double-tap / retry / concurrent = double charge. **P0**
+1. **WG-003** — Voiding a partially-paid / partially-refunded order via the location route keeps captured money (no refund). **P0**
+2. **WG-002** — No idempotency on `processPayment` → concurrent double-tap / retry = double charge. **P0**
 3. **WG-001** — Stripe charged but DB write fails → no order, no payment row, no auto-recovery. **P0**
-4. **WG-005** — Walk-in (no-customer) orders never reach `completed`, so a second full payment is accepted → double charge. **P1**
-5. **WG-004** — `ORDER_PRICE_OVERRIDE` permission is defined but never enforced; any cashier can set arbitrary line-item prices (incl. 0 / negative). **P1**
+4. **WG-004** — `ORDER_PRICE_OVERRIDE` permission is defined but never enforced; any cashier can set arbitrary line-item prices (incl. 0 / negative). **P1**
+5. **WG-006** — Gift-card / account-credit double-spend (balance checked outside the txn, no row lock). **P1**
 
 **What's GOOD about this codebase (be fair):**
 - **Multi-tenant isolation is real and consistent.** Of dozens of by-UUID lookups reviewed, only
@@ -56,11 +57,11 @@ recovery). None of these are theoretical; all three were read and confirmed in s
   idempotency (72h). The mobile Stripe placeholder guard correctly disables card payments.
 
 **Biggest risks if launched as-is:**
-- **Money loss / double-billing** on the core payment + void paths (WG-001/002/003/005/006/013).
+- **Money loss / double-billing** on the core payment + void paths (WG-001/002/003/006/013).
   These will surface on day one of real card traffic.
-- **Silent inventory drift** — deduction is fire-and-forget, non-idempotent, and only runs on
-  customer-attached completed orders (WG-011/012; and WG-058: legacy `inventory_levels` products
-  are never auto-depleted on sale at all).
+- **Silent inventory drift** — deduction is fire-and-forget and non-idempotent; it runs on every
+  fully-paid order (incl. walk-ins) but failures vanish with no retry/alert (WG-011/012; and
+  WG-058: legacy `inventory_levels` products are never auto-depleted on sale at all).
 - **Unauthenticated forged delivery orders** (WG-021) and dropped delivery orders (WG-009) once
   DoorDash/Uber Eats are connected.
 - **Operational launch blockers** outside code: default admin password still seeded (WG-024),
@@ -75,9 +76,9 @@ recovery). None of these are theoretical; all three were read and confirmed in s
 |---|---|---|---|
 | WG-001 | P0 | Reliability | Stripe charge succeeds but DB write fails → money taken, no order, manual-only recovery |
 | WG-002 | P0 | Reliability | No idempotency on `processPayment` → double-tap / retry / concurrent double charge |
-| WG-003 | P0 | Correctness | Location-route void of a *paid* order keeps the customer's money (no refund) |
+| WG-003 | P0 | Correctness | Location-route void of a partially-paid / partially-refunded order keeps captured money (no refund) |
 | WG-004 | P1 | Security | `ORDER_PRICE_OVERRIDE` defined but never enforced — cashier price tampering |
-| WG-005 | P1 | Correctness | Walk-in orders never reach `completed`; second full payment accepted → double charge; also pay-after-refund |
+| WG-005 | P3 | Correctness | `processPayment` doesn't block refunded/partially_refunded orders (minor pay-after-refund gap) — *reclassified from P1; walk-in double-charge premise withdrawn* |
 | WG-006 | P1 | Correctness | Gift-card / account-credit double-spend (balance checked outside txn, no row lock) |
 | WG-007 | P1 | Correctness | Recipe yield/waste division has no null/zero guard → NaN/Infinity into inventory & variance |
 | WG-008 | P1 | Correctness | Archived products/variants can be sold (order create never filters `archived_at`) |
@@ -171,13 +172,17 @@ recovery). None of these are theoretical; all three were read and confirmed in s
 - **Fix risk:** Low-medium. Adding the idempotency key is safe and low-risk; row-locking across a network call to Stripe should be avoided (prefer the idempotency-key approach as the primary mitigation).
 - **Effort:** small (idempotency key) / medium (locking).
 
-### WG-003 — Voiding a PAID order via the location route keeps the customer's money
+### WG-003 — Voiding a partially-paid / partially-refunded order via the location route keeps captured money
+- **[CORRECTED 2026-06-19 after live-code verification]**
 - **Severity:** P0
 - **Layer:** Correctness
 - **File:** `apps/api/src/services/order.service.ts:867-915` (called from `apps/api/src/routes/order.routes.ts:178-187`)
-- **Issue:** Verified directly. `OrderSvc.voidOrder` blocks only `voided` (line 880) and `completed` (line 881); it then voids line items and sets `status='voided'` but **never reverses captured payments** (no Stripe refund, no gift-card credit-back, no account-credit return). The location-scoped route `POST /api/v1/locations/:locationId/orders/:orderId/void` calls this function directly. A separate, *correct* implementation exists — `TransactionSvc.voidOrder` (`transaction.service.ts:124`) calls `distributeRefund` — so there are two divergent void paths and the location route uses the unsafe one. Because `completed` is only set when a customer is attached (see WG-005), most paid walk-in orders sit in `paid`/`partially_refunded` and are fully voidable here.
-- **Impact:** A paid order can be voided with the charge never reversed: customer is charged, order shows voided, merchant keeps the money. Loyalty/inventory reversal is also skipped on this path. This is a live money-retention bug on the primary void button.
-- **Proposed fix:** Make the location-scoped void delegate to `TransactionSvc.voidOrder` (which refunds), or add a guard in `OrderSvc.voidOrder` rejecting any order with `amount_paid > 0` (status in `paid`/`partially_refunded`) and force it through the refunding path.
+- **Issue:** Verified directly. `OrderSvc.voidOrder` blocks only `voided` (line 880) and `completed` (line 881); it then voids line items and sets `status='voided'` but **never reverses captured payments** (no Stripe refund, no gift-card credit-back, no account-credit return). The location-scoped route `POST /api/v1/locations/:locationId/orders/:orderId/void` (`order.routes.ts:178-184`) calls this function directly. A separate, *correct* implementation exists — `TransactionSvc.voidOrder` (`transaction.service.ts:124-157`) calls `distributeRefund` — and is wired to the org-level route `POST /api/v1/orders/:id/void` (`order.routes.ts:54-60`). So there are two divergent void paths and the location route uses the unsafe one.
+- **Impact (CORRECTED — scope is narrower than originally stated):** The original text claimed "most paid walk-in orders sit in `paid`/`partially_refunded` and are fully voidable here." That is **wrong**. There is **no `'paid'` status** in this system (statuses are `open`, `in_progress`, `parked`, `completed`, `voided`, `refunded`, `partially_refunded`), and a **fully-paid order becomes `completed`** (status flips on `fullyPaid` alone — see WG-005), which `OrderSvc.voidOrder` **blocks** at line 881. Fully-paid orders are therefore **protected** from this path. The genuinely exploitable cases are:
+  - **Partially-paid orders** — status still `open`/`in_progress` with `amount_paid > 0` (e.g. a deposit or a split-payment in progress): voidable here with the captured partial payment never reversed.
+  - **`partially_refunded` orders** — still hold a captured remainder: voidable here without refunding the remainder.
+  In those cases the customer's captured money is kept, the order shows voided, and loyalty/inventory reversal is skipped. Still a live money-retention bug on the location void button, but it does **not** affect fully-paid (`completed`) orders.
+- **Proposed fix:** Make the location-scoped void delegate to `TransactionSvc.voidOrder` (which refunds), or add a guard in `OrderSvc.voidOrder` rejecting any order with `amount_paid > 0` (status `open`/`in_progress`/`partially_refunded`) and force it through the refunding path.
 - **Fix risk:** Low-medium — two callers exist; ensure the UI points at the refunding endpoint and that downstream reporting handles the refunded state.
 - **Effort:** small.
 
@@ -195,15 +200,18 @@ recovery). None of these are theoretical; all three were read and confirmed in s
 - **Fix risk:** Low — additive permission gate; only affects clients sending overrides.
 - **Effort:** small.
 
-### WG-005 — Walk-in orders never reach `completed`; second full payment accepted (double charge) + pay-after-refund
-- **Severity:** P1
+### WG-005 — `processPayment` does not block already-refunded orders (minor pay-after-refund gap)
+- **[CORRECTED 2026-06-19 after live-code verification]**
+- **Severity:** P3 (reclassified down from P1; entry kept here under its original ID for traceability — logically belongs in the P3 section)
 - **Layer:** Correctness
-- **File:** `apps/api/src/services/payment.service.ts:66-67` (status guard), `:269` (`justCompleted = fullyPaid && totals.customer_id`)
-- **Issue:** `processPayment` blocks only `voided` and `completed`. Orders that ended `refunded`/`partially_refunded` are not blocked (re-charge after refund). Worse, `status` flips to `completed` only when `customer_id` is non-null, so a fully-paid **walk-in (no-customer) order never becomes `completed`** — a second full `processPayment` passes the guard and stacks another payment. Verified: the completed-gate on customer_id is real and combines with WG-002.
-- **Impact:** Double charge on the most common POS path (walk-in cash/card), and the ability to charge an already-refunded order.
-- **Proposed fix:** Block payment when status is `refunded`/`partially_refunded`; set `status='completed'` on full payment regardless of whether a customer is attached (decouple completion from loyalty accrual).
-- **Fix risk:** Medium — changes when orders flip to completed; verify reporting/KDS filters and the inventory-deduction trigger (WG-011, which is also gated on `orderCompleted`).
-- **Effort:** small-medium.
+- **File:** `apps/api/src/services/payment.service.ts:66-67` (status guard)
+- **Original (WITHDRAWN) claim:** The first version of this finding claimed that `status` flips to `completed` only when `customer_id` is non-null, so a fully-paid **walk-in (no-customer) order never becomes `completed`**, allowing a second full `processPayment` to stack another payment — a "double charge on the most common POS path." **This premise is WRONG and is withdrawn.**
+- **What the code actually does (verified):** In the completion block, `fullyPaid = amountOnly >= total` (`:268`), `orderCompleted = fullyPaid` (`:270`, **not** gated on customer), and the order UPDATE sets `status = CASE WHEN $4 THEN 'completed' ... END` where `$4 = fullyPaid` (`:275`). The `customer_id` condition appears only in `justCompleted = fullyPaid && totals.customer_id` (`:269`), which **gates loyalty accrual only** (`:283 awardPoints`). Therefore a fully-paid walk-in order **does** become `completed`, and a *sequential* second full payment is **blocked** by the `status==='completed'` guard at `:67`. The "walk-in double-charge via the completion gap" mechanism **does not exist.** The remaining genuine concurrent double-charge vector is already captured by **WG-002** (the status guard is read outside any lock, so two in-flight requests can both pass it).
+- **Residual real issue (the only valid part):** `processPayment` blocks only `voided` and `completed` (`:66-67`); it does **not** block `refunded` / `partially_refunded`. So an order that was paid and later refunded can accept a fresh payment. This is an unusual operational flow and low impact — hence P3.
+- **Impact:** Minor. A previously-refunded order can be charged again if someone re-runs payment against it. No impact on the normal walk-in checkout path.
+- **Proposed fix:** Block payment when status is `refunded`/`partially_refunded` (extend the guard at `:66-67`).
+- **Fix risk:** Low — additive guard; confirm no legitimate flow re-pays a refunded order.
+- **Effort:** trivial.
 
 ### WG-006 — Gift-card / account-credit double-spend (balance checked outside txn, no row lock)
 - **Severity:** P1
@@ -256,11 +264,13 @@ recovery). None of these are theoretical; all three were read and confirmed in s
 - **Effort:** small-medium.
 
 ### WG-011 — Inventory deduction is fire-and-forget with no retry/alert → silent stock drift
+- **[CORRECTED 2026-06-19 after live-code verification]**
 - **Severity:** P1
 - **Layer:** Reliability
 - **File:** `apps/api/src/services/payment.service.ts:323-328`; impl `apps/api/src/services/ingredientInventory.service.ts:26-158`
-- **Issue:** Verified: `if (orderCompleted) { void deductOrderIngredients(orgId, orderId).catch((err) => console.error(...)); }`. The function also swallows its own errors internally and skips missing/wrong-org ingredients (`if (!ing) continue;`). The fire-and-forget *priority* (never block payment) is correct, but failures vanish into stderr with no retry, dead-letter, or alert. Note: it is also gated on `orderCompleted`, which (per WG-005) is false for walk-in orders — so most POS sales never deduct at all.
-- **Impact:** Recorded stock stays higher than physical stock; low-stock/reorder alerts fire late or never; the `stock_movements` audit trail is incomplete. Erodes trust in the inventory feature over time.
+- **Issue:** Verified: `if (orderCompleted) { void deductOrderIngredients(orgId, orderId).catch((err) => console.error(...)); }`. The function also swallows its own errors internally and skips missing/wrong-org ingredients (`if (!ing) continue;`). The fire-and-forget *priority* (never block payment) is correct, but failures vanish into stderr with no retry, dead-letter, or alert.
+- **CORRECTION (knock-on from WG-005):** An earlier version of this finding stated the deduction "is also gated on `orderCompleted`, which is false for walk-in orders — so most POS sales never deduct at all." **That sub-claim is false and is withdrawn.** `orderCompleted` is set to `fullyPaid` (`payment.service.ts:270`), **not** gated on `customer_id`, so deduction **does** run for fully-paid walk-in orders. Only the loyalty-accrual `justCompleted` path is customer-gated. The fire-and-forget / no-retry / no-alert concern below remains fully valid.
+- **Impact:** When a deduction *does* fail (DB hiccup, pool exhaustion, deleted ingredient), recorded stock stays higher than physical stock; low-stock/reorder alerts fire late or never; the `stock_movements` audit trail is incomplete. Erodes trust in the inventory feature over time.
 - **Proposed fix:** Keep it non-blocking but recoverable: enqueue deduction as a durable BullMQ job keyed on orderId (the repo already has `queues/`), retry with backoff, dead-letter on permanent failure, and alert via Sentry instead of `console.error`. Add a nightly reconciliation of expected vs recorded deductions.
 - **Fix risk:** Low-medium — additive; requires WG-012 (idempotency) first.
 - **Effort:** medium.
@@ -270,7 +280,7 @@ recovery). None of these are theoretical; all three were read and confirmed in s
 - **Layer:** Reliability
 - **File:** `apps/api/src/services/ingredientInventory.service.ts:26-158`
 - **Issue:** Unlike `reverseOrderIngredients` (which guards with a `sale_void` existence check), `deductOrderIngredients` has no "already deducted" guard — it recomputes and writes new `stock_movements` + decrements `current_stock` every time it runs.
-- **Impact:** Latent today (called once), but becomes an active double-deduction the moment a retry mechanism (WG-011's queue) is added, or if `processPayment` runs twice (WG-002/WG-005).
+- **Impact:** Latent today (called once), but becomes an active double-deduction the moment a retry mechanism (WG-011's queue) is added, or if `processPayment` runs twice via the concurrent race (WG-002).
 - **Proposed fix:** Add an idempotency guard mirroring the reversal: `SELECT 1 FROM stock_movements WHERE order_id=$1 AND organization_id=$2 AND movement_type='sale' LIMIT 1` and return early if present. Do this before introducing any retry.
 - **Fix risk:** Low.
 - **Effort:** small.
@@ -720,7 +730,7 @@ recovery). None of these are theoretical; all three were read and confirmed in s
 - **Layer:** Dead code / Correctness
 - **File:** `apps/api/src/services/payment.service.ts:325-328` (only `deductOrderIngredients` runs); `inventory.service.ts:141` (`depleteForOrder` dead)
 - **Issue:** The only sale-driven depletion is `deductOrderIngredients`, which acts on recipe_mode/ingredient products. Products tracked via the legacy `inventory_levels` system have no auto-depletion path (depletion happens only via manual `adjustInventory`/`recordStockCount`).
-- **Impact:** Any org relying on `inventory_levels` for sell-through sees stock never move on sales — a potential missing feature, not just dead code. (Also note: even ingredient depletion is gated on `orderCompleted`, false for walk-ins — see WG-005/WG-011.)
+- **Impact:** Any org relying on `inventory_levels` for sell-through sees stock never move on sales — a potential missing feature, not just dead code. (Ingredient depletion for recipe_mode products *does* run on fully-paid orders incl. walk-ins — it is gated on `orderCompleted` = `fullyPaid`, not on `customer_id`; see the WG-005/WG-011 corrections. The reliability concern there is fire-and-forget failure handling, WG-011, not a walk-in gap.)
 - **Proposed fix:** Decide intentionally — either retire the legacy system or wire `depleteForOrder` into completion for non-recipe products.
 - **Fix risk:** Low (document) / medium (wire in). **Effort:** small-medium.
 
@@ -854,10 +864,12 @@ recovery). None of these are theoretical; all three were read and confirmed in s
   lines, not taken on report alone.
 - **Reconciliation note:** one sub-report initially claimed there is "no automatic sale-driven
   inventory depletion at all." Direct reading of `payment.service.ts:325-328` shows
-  `deductOrderIngredients` IS wired (fire-and-forget, gated on `orderCompleted`). The accurate
-  picture: the new ingredient system auto-depletes recipe_mode products on customer-attached
-  completed orders; the legacy `depleteForOrder` is dead (WG-049); legacy `inventory_levels`
-  products are not auto-depleted (WG-058). The findings above reflect the verified behavior.
+  `deductOrderIngredients` IS wired (fire-and-forget, gated on `orderCompleted` = `fullyPaid`).
+  The accurate picture: the new ingredient system auto-depletes recipe_mode products on every
+  fully-paid order regardless of whether a customer is attached (the `customer_id` gate affects
+  only loyalty accrual — see the WG-005/WG-011 corrections, 2026-06-19); the legacy
+  `depleteForOrder` is dead (WG-049); legacy `inventory_levels` products are not auto-depleted
+  (WG-058). The findings above reflect the verified behavior.
 - **Not covered (require a running environment / live DB, explicitly out of this read-only pass):**
   live load/index `EXPLAIN` profiling, browser/device visual QA, and confirming which exact
   indexes exist on the production database (index findings are cross-referenced against migration
