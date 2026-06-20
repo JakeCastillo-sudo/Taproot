@@ -36,6 +36,7 @@ import { products as productsApi, categories as categoriesApi, settings as setti
 import { setPosTaxRate } from '../../store/pos.store';
 import { initDisplayBroadcast, openCustomerDisplay } from '../../lib/displayChannel';
 import { canAccessSettings } from '../../lib/session';
+import { useCapabilities } from '../../hooks/useCapabilities';
 import { allergenConflicts, allergenLabel, buildAllergenNote, ALLERGEN_NOTE_PREFIX } from '../../lib/allergens';
 import { IntelligenceFeed } from '../ai/IntelligenceFeed';
 import { customers as customersApi, timeclock as timeclockApi } from '../../lib/api';
@@ -241,6 +242,13 @@ interface NavItem {
   /** Short (≤8 char) label shown under the icon when the sidebar is collapsed. */
   short?: string;
   path:  string;
+  /**
+   * v2.0 capability gate. If set, this item only renders when the org has that
+   * capability on. Items with NO `cap` (all of today's restaurant nav) always
+   * render → default-on, so existing behavior is unchanged. Studio/retail nav
+   * attaches here in v2.1+.
+   */
+  cap?:  'studio' | 'retail';
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -258,6 +266,12 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'migrate',   icon: <ArrowRightLeft size={18}/>,label: 'Migrate',   path: '/migrate' },
   { id: 'settings',  icon: <Settings size={18} />,     label: 'Settings',  path: '/settings' },
   { id: 'customize', icon: <LayoutGrid size={18} />,   label: 'Customize', short: 'Layout',  path: '/settings/dashboard' },
+  // ── v2.1+ capability-gated nav SEAM (kept commented until those features land) ──
+  // These render only when the org has the matching capability (see the gate in
+  // the Sidebar navItems memo). Example shape — DO NOT uncomment until built:
+  // { id: 'classes',     icon: <Dumbbell size={18} />,   label: 'Classes',     path: '/studio/classes',     cap: 'studio' },
+  // { id: 'members',     icon: <Users size={18} />,      label: 'Members',     path: '/studio/members',     cap: 'studio' },
+  // { id: 'retail',      icon: <ShoppingBag size={18} />, label: 'Retail',     path: '/retail',             cap: 'retail' },
 ];
 
 // ─── Clock-out button (S9-02) ─────────────────────────────────────────────────
@@ -332,11 +346,19 @@ function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarPr
   const orgName      = business?.orgName?.trim() || 'Taproot POS';
   const avatarLetter = (business?.orgName?.trim()?.charAt(0) || 'T').toUpperCase();
 
+  // v2.0 capability spine. Fail-open: unknown/loading/errored → restaurant defaults,
+  // so nothing is hidden for existing orgs (caps.studio/retail default false → no
+  // capability-gated items exist today anyway).
+  const { capabilities: caps } = useCapabilities();
+
   const navItems = useMemo(() => {
     // Analytics + Schedule are manager/owner only
     let items = canAccessSettings()
       ? [...NAV_ITEMS]
       : NAV_ITEMS.filter((i) => i.id !== 'analytics' && i.id !== 'schedule');
+    // v2.0 capability gate: hide items that REQUIRE a capability the org lacks.
+    // Items with no `cap` (all of today's restaurant nav) always pass → default-on.
+    items = items.filter((i) => !i.cap || Boolean(caps[i.cap]));
     if (frInfo?.orgType === 'franchisor') {
       items = [...items];
       const idx = items.findIndex((i) => i.id === 'import');
@@ -345,7 +367,7 @@ function Sidebar({ user, collapsed, onToggle, onClose, onSwitchUser }: SidebarPr
       });
     }
     return items;
-  }, [frInfo?.orgType]);
+  }, [frInfo?.orgType, caps]);
 
   const handleLogout = () => {
     clearTokens();

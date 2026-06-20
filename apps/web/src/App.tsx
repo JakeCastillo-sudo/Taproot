@@ -22,6 +22,8 @@ import { TermsPage } from './pages/TermsPage';
 import { HardwarePage } from './pages/HardwarePage';
 import { DownloadPage } from './pages/DownloadPage';
 import { OnboardingPage } from './pages/OnboardingPage';
+import { BusinessTypePage } from './pages/BusinessTypePage';
+import { CapabilitiesSettingsPage } from './pages/CapabilitiesSettingsPage';
 import { ReceiptPage } from './pages/ReceiptPage';
 import { SettingsLayout } from './components/layout/SettingsLayout';
 import { ProductsSettingsPage } from './pages/ProductsSettingsPage';
@@ -276,6 +278,17 @@ export default function App() {
               </RequireAuth>
             }
           />
+          {/* v2.0 business-type / capability preset selection. Additive, opt-in route
+              (reached from onboarding or Settings → Capabilities). NOT a forced
+              redirect — see docs/V2_0_SANDBOX_NOTES.md for the first-run seam. */}
+          <Route
+            path="/onboarding/business-type"
+            element={
+              <RequireAuth>
+                <BusinessTypePage />
+              </RequireAuth>
+            }
+          />
 
           {/* ── Receipt (full-screen, no sidebar) ─────────────────────────── */}
           <Route
@@ -442,6 +455,7 @@ export default function App() {
             }
           >
             <Route index element={<Navigate to="/settings/products" replace />} />
+            <Route path="capabilities" element={<CapabilitiesSettingsPage />} />
             <Route path="products" element={<ProductsSettingsPage />} />
             <Route path="categories" element={<CategoriesSettingsPage />} />
             <Route path="modifiers" element={<ModifiersSettingsPage />} />

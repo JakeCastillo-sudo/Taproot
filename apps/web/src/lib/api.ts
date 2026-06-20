@@ -11,6 +11,7 @@ import type {
   Product, ProductVariant, Category,
   Order, OrderStatus,
   Customer,
+  Capabilities,
 } from '@taproot/shared';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -436,6 +437,29 @@ export interface CorporateMenuItem {
 export interface MenuPushResult {
   franchisees: number; created: number; updated: number; errors: string[];
 }
+
+// ─── Capabilities (v2.0 capability spine) ──────────────────────────────────────
+// Mirrors the franchise client. Fails through apiFetch like everything else; the
+// useCapabilities hook treats any error as the food_service default (fail-open).
+export type CapabilitiesUpdate =
+  | { preset: string }
+  | {
+      food_service?: boolean;
+      studio?: boolean;
+      retail?: boolean;
+      billing_models?: Partial<Capabilities['billing_models']>;
+    };
+
+export const capabilities = {
+  get: () => apiFetch<{ capabilities: Capabilities }>('/capabilities').then((r) => r.capabilities),
+  presets: () =>
+    apiFetch<{ presets: Array<{ name: string; capabilities: Capabilities }> }>('/capabilities/presets')
+      .then((r) => r.presets),
+  update: (body: CapabilitiesUpdate) =>
+    apiFetch<{ capabilities: Capabilities }>('/capabilities', {
+      method: 'PUT', body: JSON.stringify(body),
+    }).then((r) => r.capabilities),
+};
 
 export const franchise = {
   info: () => apiFetch<FranchiseInfo>('/franchise/info'),

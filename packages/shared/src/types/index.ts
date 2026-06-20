@@ -14,6 +14,24 @@ export interface OnlineOrderConfig { enabled: boolean; url?: string; lead_time_m
 export interface ReceiptConfig { header?: string; footer?: string; show_tax_breakdown?: boolean; show_logo?: boolean; }
 export interface DeviceConfig { [key: string]: unknown; }
 
+// ─── Capabilities (v2.0 — per-org feature spine) ───────────────────────────────
+// Generalizes products.recipe_mode to the org level. An ABSENT or EMPTY value is
+// treated as food_service:true everywhere (default-on), so existing restaurants
+// behave exactly as before. See apps/api/src/services/capability.service.ts.
+export interface BillingModels {
+  drop_in: boolean;
+  class_packs: boolean;
+  free_trial: boolean;
+  memberships: boolean;
+  classpass: boolean;
+}
+export interface Capabilities {
+  food_service: boolean;
+  studio: boolean;
+  retail: boolean;
+  billing_models: BillingModels;
+}
+
 // ─── Core tables ──────────────────────────────────────────────────────────────
 
 export interface Organization {
