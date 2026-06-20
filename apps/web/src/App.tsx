@@ -24,6 +24,8 @@ import { DownloadPage } from './pages/DownloadPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { BusinessTypePage } from './pages/BusinessTypePage';
 import { CapabilitiesSettingsPage } from './pages/CapabilitiesSettingsPage';
+import { MembersPage } from './pages/MembersPage';
+import { StudioCatalogPage } from './pages/StudioCatalogPage';
 import { ReceiptPage } from './pages/ReceiptPage';
 import { SettingsLayout } from './components/layout/SettingsLayout';
 import { ProductsSettingsPage } from './pages/ProductsSettingsPage';
@@ -289,6 +291,10 @@ export default function App() {
               </RequireAuth>
             }
           />
+          {/* v2.1 studio pages — gated at the page level by useRequireStudio (non-studio
+              orgs are bounced to the register); nav links are hidden unless studio is on. */}
+          <Route path="/studio/members" element={<RequireAuth><MembersPage /></RequireAuth>} />
+          <Route path="/studio/catalog" element={<RequireAuth><StudioCatalogPage /></RequireAuth>} />
 
           {/* ── Receipt (full-screen, no sidebar) ─────────────────────────── */}
           <Route

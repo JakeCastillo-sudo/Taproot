@@ -32,6 +32,44 @@ export interface Capabilities {
   billing_models: BillingModels;
 }
 
+// ─── Member + studio catalog (v2.1 — gated behind capabilities.studio) ─────────
+// Members EXTEND customers (optional customer_id link). Credits are integer COUNTS
+// (not money). Subscriptions are MANUAL-mode only in v2.1 (Taproot tracks, doesn't
+// charge — native recurring billing is v2.5). Studio catalog items are normal
+// products carrying item_type + studio_meta, sold via the existing checkout.
+export type MemberStatus = 'prospect' | 'active' | 'frozen' | 'cancelled' | 'lead';
+export interface Member {
+  id: UUID; organization_id: UUID; customer_id: UUID | null;
+  display_name: string | null; email: string | null; phone: string | null;
+  status: MemberStatus;
+  waiver_signed_at: Timestamptz | null; waiver_doc_id: UUID | null;
+  home_location_id: UUID | null; tags: string[] | null;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
+}
+export interface MemberCredit {
+  id: UUID; organization_id: UUID; member_id: UUID;
+  credit_type: string; source_catalog_item_id: UUID | null; source_ref: string | null;
+  credits_total: number; credits_remaining: number;
+  expires_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
+}
+export type MemberSubscriptionState = 'active' | 'frozen' | 'cancelled';
+export interface MemberSubscription {
+  id: UUID; organization_id: UUID; member_id: UUID; catalog_item_id: UUID | null;
+  state: MemberSubscriptionState; managed_externally: boolean;
+  notes: string | null; current_period_end: Timestamptz | null;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
+}
+export type StudioItemType = 'membership' | 'class_pack' | 'drop_in' | 'add_on' | 'gift_card';
+export type CatalogItemType = 'food' | 'retail' | StudioItemType;
+/** Per-item_type config; loosely typed (shape documented in migration 033). */
+export type StudioMeta = Record<string, unknown>;
+export interface StudioCatalogItem {
+  id: UUID; organization_id: UUID; name: string; description: string | null;
+  item_type: CatalogItemType; studio_meta: StudioMeta;
+  price_cents: number | null; is_active: boolean;
+  created_at: Timestamptz; updated_at: Timestamptz;
+}
+
 // ─── Core tables ──────────────────────────────────────────────────────────────
 
 export interface Organization {

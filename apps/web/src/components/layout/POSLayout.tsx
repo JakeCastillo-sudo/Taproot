@@ -27,6 +27,7 @@ import {
   FileText, AlertTriangle, User, Layers, BarChart3,
   Upload, ArrowRightLeft, Menu, Terminal, Settings,
   LayoutGrid, UserCog, Grid3x3, Utensils, CalendarClock, Sparkles, Network, MonitorSmartphone, TrendingUp, CalendarDays, Pencil,
+  Dumbbell, Boxes,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useQuery } from '@tanstack/react-query';
@@ -266,12 +267,10 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'migrate',   icon: <ArrowRightLeft size={18}/>,label: 'Migrate',   path: '/migrate' },
   { id: 'settings',  icon: <Settings size={18} />,     label: 'Settings',  path: '/settings' },
   { id: 'customize', icon: <LayoutGrid size={18} />,   label: 'Customize', short: 'Layout',  path: '/settings/dashboard' },
-  // ── v2.1+ capability-gated nav SEAM (kept commented until those features land) ──
-  // These render only when the org has the matching capability (see the gate in
-  // the Sidebar navItems memo). Example shape — DO NOT uncomment until built:
-  // { id: 'classes',     icon: <Dumbbell size={18} />,   label: 'Classes',     path: '/studio/classes',     cap: 'studio' },
-  // { id: 'members',     icon: <Users size={18} />,      label: 'Members',     path: '/studio/members',     cap: 'studio' },
-  // { id: 'retail',      icon: <ShoppingBag size={18} />, label: 'Retail',     path: '/retail',             cap: 'retail' },
+  // ── v2.1 studio nav (gated: only render when capabilities.studio is on) ──
+  { id: 'members',        icon: <Dumbbell size={18} />, label: 'Members',  path: '/studio/members', cap: 'studio' },
+  { id: 'studio-catalog', icon: <Boxes size={18} />,    label: 'Studio',   short: 'Studio', path: '/studio/catalog', cap: 'studio' },
+  // Future studio nav (classes/reservations) attaches here in v2.2, same cap gate.
 ];
 
 // ─── Clock-out button (S9-02) ─────────────────────────────────────────────────

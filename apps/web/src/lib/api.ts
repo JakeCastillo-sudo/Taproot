@@ -12,6 +12,7 @@ import type {
   Order, OrderStatus,
   Customer,
   Capabilities,
+  Member, MemberCredit, MemberSubscription, StudioCatalogItem,
 } from '@taproot/shared';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -459,6 +460,48 @@ export const capabilities = {
     apiFetch<{ capabilities: Capabilities }>('/capabilities', {
       method: 'PUT', body: JSON.stringify(body),
     }).then((r) => r.capabilities),
+};
+
+// ─── Members + studio catalog (v2.1) ───────────────────────────────────────────
+// Studio-gated server-side: these endpoints 404 for non-studio orgs and are unwired
+// until reviewed (see docs/V2_1_SANDBOX_NOTES.md). The studio UI only renders behind
+// hasCapability('studio'), so restaurants never call them.
+export const members = {
+  list: (params?: { search?: string; status?: string; page?: number; perPage?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.perPage) q.set('perPage', String(params.perPage));
+    const qs = q.toString();
+    return apiFetch<{ members: Member[]; total: number }>(`/members${qs ? `?${qs}` : ''}`);
+  },
+  get: (id: string) => apiFetch<{ member: Member }>(`/members/${id}`).then((r) => r.member),
+  create: (body: { displayName?: string; email?: string; phone?: string; status?: string; customerId?: string | null; homeLocationId?: string | null; tags?: string[] }) =>
+    apiFetch<{ member: Member }>('/members', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.member),
+  update: (id: string, body: Record<string, unknown>) =>
+    apiFetch<{ member: Member }>(`/members/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).then((r) => r.member),
+  remove: (id: string) => apiFetch<{ success: boolean }>(`/members/${id}`, { method: 'DELETE' }),
+  signWaiver: (id: string, waiverDocId?: string | null) =>
+    apiFetch<{ member: Member }>(`/members/${id}/waiver`, { method: 'POST', body: JSON.stringify({ waiverDocId: waiverDocId ?? null }) }).then((r) => r.member),
+  credits: (id: string) => apiFetch<{ total: number; packs: MemberCredit[] }>(`/members/${id}/credits`),
+  grantCredits: (id: string, body: { count: number; creditType?: string; sourceCatalogItemId?: string | null; expiresAt?: string | null }) =>
+    apiFetch<{ credit: MemberCredit | null }>(`/members/${id}/credits`, { method: 'POST', body: JSON.stringify(body) }),
+  subscriptions: (id: string) => apiFetch<{ subscriptions: MemberSubscription[] }>(`/members/${id}/subscriptions`).then((r) => r.subscriptions),
+  recordSubscription: (id: string, body: { catalogItemId?: string | null; state?: string; notes?: string; currentPeriodEnd?: string | null }) =>
+    apiFetch<{ subscription: MemberSubscription }>(`/members/${id}/subscriptions`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.subscription),
+  cancelSubscription: (subId: string) =>
+    apiFetch<{ subscription: MemberSubscription }>(`/members/subscriptions/${subId}/cancel`, { method: 'POST' }).then((r) => r.subscription),
+};
+
+export const studioCatalog = {
+  list: (itemType?: string) =>
+    apiFetch<{ items: StudioCatalogItem[] }>(`/studio/catalog${itemType ? `?itemType=${encodeURIComponent(itemType)}` : ''}`).then((r) => r.items),
+  create: (body: { name: string; itemType: string; priceCents?: number; description?: string; studioMeta?: Record<string, unknown> }) =>
+    apiFetch<{ item: StudioCatalogItem }>('/studio/catalog', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.item),
+  update: (id: string, body: Record<string, unknown>) =>
+    apiFetch<{ item: StudioCatalogItem }>(`/studio/catalog/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).then((r) => r.item),
+  remove: (id: string) => apiFetch<{ success: boolean }>(`/studio/catalog/${id}`, { method: 'DELETE' }),
 };
 
 export const franchise = {

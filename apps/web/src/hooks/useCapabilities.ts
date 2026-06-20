@@ -6,6 +6,8 @@
  * restaurant POS. A capability is only ever HIDDEN when the backend explicitly says
  * it is off — never because of a fetch failure. Restaurant owners see zero change.
  */
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { Capabilities } from '@taproot/shared';
 import { capabilities as capabilitiesApi } from '../lib/api';
@@ -48,4 +50,21 @@ export function useCapabilities(): UseCapabilitiesResult {
     isLoading,
     hasCapability: (key) => Boolean(caps[key]),
   };
+}
+
+/**
+ * Page-level guard for studio-only pages (v2.1+). Redirects to the register once
+ * capabilities have loaded and `studio` is off — so a non-studio org that hits a
+ * studio URL directly is bounced cleanly. Waits for load (never redirects while
+ * unknown) to avoid bouncing a studio org before its capabilities resolve.
+ * Returns { ready, allowed } so the page can render a loading state until ready.
+ */
+export function useRequireStudio(): { ready: boolean; allowed: boolean } {
+  const { hasCapability, isLoading } = useCapabilities();
+  const navigate = useNavigate();
+  const allowed = hasCapability('studio');
+  useEffect(() => {
+    if (!isLoading && !allowed) navigate('/', { replace: true });
+  }, [isLoading, allowed, navigate]);
+  return { ready: !isLoading, allowed };
 }
