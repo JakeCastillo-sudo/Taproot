@@ -27,6 +27,7 @@ import { CapabilitiesSettingsPage } from './pages/CapabilitiesSettingsPage';
 import { MembersPage } from './pages/MembersPage';
 import { StudioCatalogPage } from './pages/StudioCatalogPage';
 import { StudioSchedulePage } from './pages/StudioSchedulePage';
+import { StudioImportPage } from './pages/StudioImportPage';
 import { ReceiptPage } from './pages/ReceiptPage';
 import { SettingsLayout } from './components/layout/SettingsLayout';
 import { ProductsSettingsPage } from './pages/ProductsSettingsPage';
@@ -297,6 +298,7 @@ export default function App() {
           <Route path="/studio/members" element={<RequireAuth><MembersPage /></RequireAuth>} />
           <Route path="/studio/catalog" element={<RequireAuth><StudioCatalogPage /></RequireAuth>} />
           <Route path="/studio/schedule" element={<RequireAuth><StudioSchedulePage /></RequireAuth>} />
+          <Route path="/studio/import" element={<RequireAuth><StudioImportPage /></RequireAuth>} />
 
           {/* ── Receipt (full-screen, no sidebar) ─────────────────────────── */}
           <Route

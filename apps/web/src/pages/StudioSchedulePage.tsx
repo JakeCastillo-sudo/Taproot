@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CalendarDays, Plus, X, Trash2, CheckCircle2, Search, Repeat } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Plus, X, Trash2, CheckCircle2, Search, Repeat, Upload } from 'lucide-react';
 import { clsx } from 'clsx';
 import { studioSchedule as schedApi, classBooking as bookApi, members as membersApi } from '../lib/api';
 import { showToast } from '../components/ui/Toast';
@@ -45,6 +45,7 @@ export function StudioSchedulePage() {
             <h1 className="text-base font-bold text-gray-900">Schedule</h1>
           </div>
           <div className="flex-1" />
+          <button onClick={() => navigate('/studio/import')} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-md text-sm text-gray-600 hover:bg-gray-50"><Upload size={13} /> Import</button>
           {tab === 'templates' && <button onClick={() => setNewTemplate(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-md text-sm font-semibold hover:bg-primary-dark"><Plus size={14} /> New class</button>}
         </div>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-2 flex gap-2">

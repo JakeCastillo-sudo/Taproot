@@ -545,6 +545,19 @@ export const classBooking = {
     apiFetch<{ entry: ClassWaitlistEntry }>(`/sessions/${sessionId}/waitlist`, { method: 'POST', body: JSON.stringify({ memberId }) }).then((r) => r.entry),
 };
 
+// ─── Studio migration importer (v2.2 — Mindbody / Mariana Tek) ─────────────────
+export interface StudioImportDryRun {
+  kind: string; provider: string; total: number; toCreate: number;
+  alreadyPresent: number; invalid: number; sample: Array<Record<string, unknown>>; notes: string[];
+}
+export interface StudioImportCommit { created: number; skipped: number; failed: number; errors: string[] }
+export const studioImport = {
+  dryRun: (provider: string, kind: string, csv: string) =>
+    apiFetch<StudioImportDryRun>('/studio/import/dry-run', { method: 'POST', body: JSON.stringify({ provider, kind, csv }) }),
+  commit: (provider: string, kind: string, csv: string) =>
+    apiFetch<StudioImportCommit>('/studio/import/commit', { method: 'POST', body: JSON.stringify({ provider, kind, csv }) }),
+};
+
 export const franchise = {
   info: () => apiFetch<FranchiseInfo>('/franchise/info'),
   enable: () => apiFetch<{ franchiseCode: string }>('/franchise/enable', { method: 'POST' }),
