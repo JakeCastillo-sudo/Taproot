@@ -26,6 +26,7 @@ import { BusinessTypePage } from './pages/BusinessTypePage';
 import { CapabilitiesSettingsPage } from './pages/CapabilitiesSettingsPage';
 import { MembersPage } from './pages/MembersPage';
 import { StudioCatalogPage } from './pages/StudioCatalogPage';
+import { StudioSchedulePage } from './pages/StudioSchedulePage';
 import { ReceiptPage } from './pages/ReceiptPage';
 import { SettingsLayout } from './components/layout/SettingsLayout';
 import { ProductsSettingsPage } from './pages/ProductsSettingsPage';
@@ -295,6 +296,7 @@ export default function App() {
               orgs are bounced to the register); nav links are hidden unless studio is on. */}
           <Route path="/studio/members" element={<RequireAuth><MembersPage /></RequireAuth>} />
           <Route path="/studio/catalog" element={<RequireAuth><StudioCatalogPage /></RequireAuth>} />
+          <Route path="/studio/schedule" element={<RequireAuth><StudioSchedulePage /></RequireAuth>} />
 
           {/* ── Receipt (full-screen, no sidebar) ─────────────────────────── */}
           <Route

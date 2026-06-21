@@ -267,10 +267,10 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'migrate',   icon: <ArrowRightLeft size={18}/>,label: 'Migrate',   path: '/migrate' },
   { id: 'settings',  icon: <Settings size={18} />,     label: 'Settings',  path: '/settings' },
   { id: 'customize', icon: <LayoutGrid size={18} />,   label: 'Customize', short: 'Layout',  path: '/settings/dashboard' },
-  // ── v2.1 studio nav (gated: only render when capabilities.studio is on) ──
+  // ── studio nav (gated: only render when capabilities.studio is on) — v2.1 + v2.2 ──
+  { id: 'studio-schedule', icon: <CalendarDays size={18} />, label: 'Classes', short: 'Classes', path: '/studio/schedule', cap: 'studio' },
   { id: 'members',        icon: <Dumbbell size={18} />, label: 'Members',  path: '/studio/members', cap: 'studio' },
   { id: 'studio-catalog', icon: <Boxes size={18} />,    label: 'Studio',   short: 'Studio', path: '/studio/catalog', cap: 'studio' },
-  // Future studio nav (classes/reservations) attaches here in v2.2, same cap gate.
 ];
 
 // ─── Clock-out button (S9-02) ─────────────────────────────────────────────────

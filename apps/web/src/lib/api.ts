@@ -13,6 +13,7 @@ import type {
   Customer,
   Capabilities,
   Member, MemberCredit, MemberSubscription, StudioCatalogItem,
+  StudioRoom, ClassTemplate, ClassSessionWithAvailability, ClassReservation, ClassRosterEntry, ClassWaitlistEntry,
 } from '@taproot/shared';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -502,6 +503,46 @@ export const studioCatalog = {
   update: (id: string, body: Record<string, unknown>) =>
     apiFetch<{ item: StudioCatalogItem }>(`/studio/catalog/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).then((r) => r.item),
   remove: (id: string) => apiFetch<{ success: boolean }>(`/studio/catalog/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Studio scheduling + class booking (v2.2) ──────────────────────────────────
+// Studio-gated server-side (404 for non-studio orgs); unwired until reviewed. The
+// studio UI only renders behind hasCapability('studio').
+export type BookResult =
+  | { status: 'booked'; reservation: ClassReservation }
+  | { status: 'full'; available: 0 };
+
+export const studioSchedule = {
+  rooms: () => apiFetch<{ rooms: StudioRoom[] }>('/studio/rooms').then((r) => r.rooms),
+  createRoom: (body: { name: string; locationId?: string | null; capacity?: number }) =>
+    apiFetch<{ room: StudioRoom }>('/studio/rooms', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.room),
+  templates: () => apiFetch<{ templates: ClassTemplate[] }>('/class-templates').then((r) => r.templates),
+  createTemplate: (body: Record<string, unknown>) =>
+    apiFetch<{ template: ClassTemplate }>('/class-templates', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.template),
+  deleteTemplate: (id: string) => apiFetch<{ success: boolean }>(`/class-templates/${id}`, { method: 'DELETE' }),
+  generate: (id: string, fromDate: string, toDate: string) =>
+    apiFetch<{ created: number }>(`/class-templates/${id}/generate`, { method: 'POST', body: JSON.stringify({ fromDate, toDate }) }),
+  sessions: (params?: { from?: string; to?: string; locationId?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    if (params?.locationId) q.set('location_id', params.locationId);
+    const qs = q.toString();
+    return apiFetch<{ sessions: ClassSessionWithAvailability[] }>(`/classes${qs ? `?${qs}` : ''}`).then((r) => r.sessions);
+  },
+  cancelSession: (id: string) => apiFetch<{ released: number; creditsRestored: number }>(`/class-sessions/${id}/cancel`, { method: 'POST' }),
+};
+
+export const classBooking = {
+  book: (sessionId: string, memberId: string, source = 'staff') =>
+    apiFetch<BookResult>('/reservations', { method: 'POST', body: JSON.stringify({ sessionId, memberId, source }) }),
+  cancel: (id: string) => apiFetch<{ state: string; creditRestored: boolean }>(`/reservations/${id}`, { method: 'DELETE' }),
+  checkIn: (id: string) => apiFetch<{ reservation: ClassReservation }>(`/reservations/${id}/check-in`, { method: 'POST' }).then((r) => r.reservation),
+  noShow: (id: string) => apiFetch<{ reservation: ClassReservation }>(`/reservations/${id}/no-show`, { method: 'POST' }).then((r) => r.reservation),
+  roster: (sessionId: string) => apiFetch<{ roster: ClassRosterEntry[] }>(`/sessions/${sessionId}/roster`).then((r) => r.roster),
+  waitlist: (sessionId: string) => apiFetch<{ waitlist: ClassWaitlistEntry[] }>(`/sessions/${sessionId}/waitlist`).then((r) => r.waitlist),
+  joinWaitlist: (sessionId: string, memberId: string) =>
+    apiFetch<{ entry: ClassWaitlistEntry }>(`/sessions/${sessionId}/waitlist`, { method: 'POST', body: JSON.stringify({ memberId }) }).then((r) => r.entry),
 };
 
 export const franchise = {
