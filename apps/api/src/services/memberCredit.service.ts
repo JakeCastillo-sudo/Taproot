@@ -14,10 +14,18 @@
  *
  * GRACEFUL: guards the member_credits table (to_regclass) so it's safe pre-migration.
  */
+import type { QueryResult, QueryResultRow } from 'pg';
 import { query, withTransaction } from '../db/client';
 import { ValidationError } from '../errors';
 import { createAuditLog } from '../auth/audit';
 import type { MemberCredit } from '@taproot/shared';
+
+// A minimal query runner — satisfied by both the pool (`query`) and a `PoolClient`.
+// Lets deduct/restore COMPOSE into a caller's transaction (e.g. booking) so the credit
+// move and the booking insert commit atomically, without duplicating credit math.
+interface Runner {
+  query<T extends QueryResultRow = QueryResultRow>(sql: string, params?: unknown[]): Promise<QueryResult<T>>;
+}
 
 export interface GrantCreditsInput {
   memberId: string;
@@ -82,42 +90,76 @@ export async function grantCredits(orgId: string, employeeId: string, input: Gra
  * ValidationError('Insufficient credits') when no single pack can cover `count`.
  */
 export async function deductCredit(
-  orgId: string, employeeId: string, memberId: string, count = 1,
+  orgId: string, employeeId: string, memberId: string, count = 1, client?: Runner,
 ): Promise<{ creditId: string; remaining: number }> {
   if (!(await creditsReady())) throw new ValidationError('Credit ledger not provisioned yet (migration 033 pending)');
   if (!Number.isInteger(count) || count <= 0) throw new ValidationError('Deduct count must be a positive integer');
+  // Compose into a caller's transaction when a client is passed; else own one.
+  return client ? deductCore(client, orgId, employeeId, memberId, count)
+                : withTransaction((c) => deductCore(c, orgId, employeeId, memberId, count));
+}
 
-  return withTransaction(async (client) => {
-    // Pick the oldest usable pack with enough remaining, locking it.
-    const { rows: [pick] } = await client.query<{ id: string }>(
-      `SELECT id FROM member_credits
-        WHERE organization_id = $1 AND member_id = $2
-          AND credits_remaining >= $3
-          AND (expires_at IS NULL OR expires_at > now())
-        ORDER BY expires_at NULLS LAST, created_at ASC
-        LIMIT 1
-        FOR UPDATE`,
-      [orgId, memberId, count],
-    );
-    if (!pick) throw new ValidationError('Insufficient credits');
+async function deductCore(
+  runner: Runner, orgId: string, employeeId: string, memberId: string, count: number,
+): Promise<{ creditId: string; remaining: number }> {
+  // Pick the oldest usable pack with enough remaining, locking it.
+  const { rows: [pick] } = await runner.query<{ id: string }>(
+    `SELECT id FROM member_credits
+      WHERE organization_id = $1 AND member_id = $2
+        AND credits_remaining >= $3
+        AND (expires_at IS NULL OR expires_at > now())
+      ORDER BY expires_at NULLS LAST, created_at ASC
+      LIMIT 1
+      FOR UPDATE`,
+    [orgId, memberId, count],
+  );
+  if (!pick) throw new ValidationError('Insufficient credits');
 
-    // WG-006-style conditional decrement (belt + suspenders under the row lock).
-    const { rows: [upd] } = await client.query<{ credits_remaining: number }>(
-      `UPDATE member_credits
-          SET credits_remaining = credits_remaining - $1, updated_at = now()
-        WHERE id = $2 AND credits_remaining >= $1
-        RETURNING credits_remaining`,
-      [count, pick.id],
-    );
-    if (!upd) throw new ValidationError('Insufficient credits');
+  // WG-006-style conditional decrement (belt + suspenders under the row lock).
+  const { rows: [upd] } = await runner.query<{ credits_remaining: number }>(
+    `UPDATE member_credits
+        SET credits_remaining = credits_remaining - $1, updated_at = now()
+      WHERE id = $2 AND credits_remaining >= $1
+      RETURNING credits_remaining`,
+    [count, pick.id],
+  );
+  if (!upd) throw new ValidationError('Insufficient credits');
 
-    void createAuditLog({
-      organizationId: orgId, actorId: employeeId,
-      action: 'member.credit_deducted', resourceType: 'member', resourceId: memberId,
-      afterState: { creditId: pick.id, count, remaining: Number(upd.credits_remaining) },
-    });
-    return { creditId: pick.id, remaining: Number(upd.credits_remaining) };
+  void createAuditLog({
+    organizationId: orgId, actorId: employeeId,
+    action: 'member.credit_deducted', resourceType: 'member', resourceId: memberId,
+    afterState: { creditId: pick.id, count, remaining: Number(upd.credits_remaining) },
   });
+  return { creditId: pick.id, remaining: Number(upd.credits_remaining) };
+}
+
+/**
+ * Restore `count` credits to a specific pack — the symmetric inverse of deductCredit,
+ * used when a booking that spent a credit is cancelled before cutoff (v2.2) or its
+ * session is cancelled. Bounded by `credits_remaining + count <= credits_total` (and
+ * the DB CHECK), so a restore can never exceed what the pack originally held. Idempotent
+ * at the math level: over-restoring is rejected (0 rows). Returns null if the pack is gone.
+ */
+export async function restoreCredit(
+  orgId: string, employeeId: string, creditId: string, count = 1, client?: Runner,
+): Promise<{ creditId: string; remaining: number } | null> {
+  if (!(await creditsReady())) return null;
+  if (!Number.isInteger(count) || count <= 0) throw new ValidationError('Restore count must be a positive integer');
+  const runner: Runner = client ?? { query };
+  const { rows: [upd] } = await runner.query<{ credits_remaining: number }>(
+    `UPDATE member_credits
+        SET credits_remaining = credits_remaining + $1, updated_at = now()
+      WHERE id = $2 AND organization_id = $3 AND credits_remaining + $1 <= credits_total
+      RETURNING credits_remaining`,
+    [count, creditId, orgId],
+  );
+  if (!upd) return null; // pack gone or would exceed credits_total — nothing restored
+  void createAuditLog({
+    organizationId: orgId, actorId: employeeId,
+    action: 'member.credit_restored', resourceType: 'member_credit', resourceId: creditId,
+    afterState: { count, remaining: Number(upd.credits_remaining) },
+  });
+  return { creditId, remaining: Number(upd.credits_remaining) };
 }
 
 /** Total usable (non-expired) credits + the per-pack breakdown. */
