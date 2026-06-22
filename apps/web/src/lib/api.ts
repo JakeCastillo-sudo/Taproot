@@ -512,6 +512,19 @@ export type BookResult =
   | { status: 'booked'; reservation: ClassReservation }
   | { status: 'full'; available: 0 };
 
+// v2.3 Counter Bridge — pre-order café/bar add-ons on a reservation; fire at check-in.
+export interface ReservationAddOns {
+  orderId: string | null; status: string | null; fired: boolean;
+  items: Array<{ name: string; quantity: number; unitPrice: number }>;
+}
+export const counterBridge = {
+  getAddOns: (reservationId: string) => apiFetch<ReservationAddOns>(`/reservations/${reservationId}/add-ons`),
+  attach: (reservationId: string, itemIds: string[]) =>
+    apiFetch<ReservationAddOns>(`/reservations/${reservationId}/add-ons`, { method: 'POST', body: JSON.stringify({ itemIds }) }),
+  fire: (reservationId: string) =>
+    apiFetch<{ fired: boolean; orderId: string | null }>(`/reservations/${reservationId}/fire-add-ons`, { method: 'POST' }),
+};
+
 export const studioSchedule = {
   rooms: () => apiFetch<{ rooms: StudioRoom[] }>('/studio/rooms').then((r) => r.rooms),
   createRoom: (body: { name: string; locationId?: string | null; capacity?: number }) =>

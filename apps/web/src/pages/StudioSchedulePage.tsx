@@ -6,9 +6,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CalendarDays, Plus, X, Trash2, CheckCircle2, Search, Repeat, Upload } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Plus, X, Trash2, CheckCircle2, Search, Repeat, Upload, Coffee } from 'lucide-react';
 import { clsx } from 'clsx';
-import { studioSchedule as schedApi, classBooking as bookApi, members as membersApi } from '../lib/api';
+import { studioSchedule as schedApi, classBooking as bookApi, members as membersApi, counterBridge as bridgeApi, studioCatalog as catalogApi } from '../lib/api';
 import { showToast } from '../components/ui/Toast';
 import { useRequireStudio } from '../hooks/useCapabilities';
 import type { ClassTemplate, ClassSessionWithAvailability, Member } from '@taproot/shared';
@@ -191,6 +191,7 @@ function TemplateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
 function SessionDrawer({ sessionId, session, onClose, onChanged }: { sessionId: string; session: ClassSessionWithAvailability | null; onClose: () => void; onChanged: () => void }) {
   const qc = useQueryClient();
   const [booking, setBooking] = useState(false);
+  const [addOnFor, setAddOnFor] = useState<string | null>(null);
   const rosterQ = useQuery({ queryKey: ['roster', sessionId], queryFn: () => bookApi.roster(sessionId), retry: false });
   const refresh = (): void => { void qc.invalidateQueries({ queryKey: ['roster', sessionId] }); onChanged(); };
 
@@ -221,6 +222,7 @@ function SessionDrawer({ sessionId, session, onClose, onChanged }: { sessionId: 
                 <p className="text-xs text-gray-400 capitalize">{r.state.replace('_', ' ')}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                {(r.state === 'booked' || r.state === 'checked_in') && <button title="Café/bar add-on" onClick={() => setAddOnFor(r.id)} className="text-xs px-2 py-1 rounded hover:bg-amber-50 text-amber-600 inline-flex items-center"><Coffee size={13} /></button>}
                 {r.state === 'booked' && <button onClick={() => checkIn.mutate(r.id)} className="text-xs px-2 py-1 rounded bg-green-50 text-green-700 inline-flex items-center gap-1"><CheckCircle2 size={12} /> In</button>}
                 {(r.state === 'booked' || r.state === 'checked_in') && <button onClick={() => cancelRes.mutate(r.id)} className="text-xs px-2 py-1 rounded hover:bg-gray-100 text-gray-500">Cancel</button>}
               </div>
@@ -232,7 +234,48 @@ function SessionDrawer({ sessionId, session, onClose, onChanged }: { sessionId: 
         </div>
       </div>
       {booking && <BookMemberModal sessionId={sessionId} onClose={() => setBooking(false)} onBooked={() => { setBooking(false); refresh(); }} />}
+      {addOnFor && <AddOnModal reservationId={addOnFor} onClose={() => setAddOnFor(null)} />}
     </div>
+  );
+}
+
+function AddOnModal({ reservationId, onClose }: { reservationId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const addOnsQ = useQuery({ queryKey: ['addons', reservationId], queryFn: () => bridgeApi.getAddOns(reservationId), retry: false });
+  const catalogQ = useQuery({ queryKey: ['addon-catalog'], queryFn: () => catalogApi.list('add_on'), retry: false });
+  const attach = useMutation({
+    mutationFn: (itemIds: string[]) => bridgeApi.attach(reservationId, itemIds),
+    onSuccess: () => { showToast.success('Add-on pre-ordered — fires at check-in'); void qc.invalidateQueries({ queryKey: ['addons', reservationId] }); },
+    onError: (e: unknown) => showToast.error(e instanceof Error ? e.message : 'Failed'),
+  });
+  const current = addOnsQ.data;
+  const items = catalogQ.data ?? [];
+  const hasAddOn = Boolean(current?.orderId);
+
+  return (
+    <Modal title="Café / bar add-on" onClose={onClose}>
+      {hasAddOn ? (
+        <div className="space-y-2">
+          <div className={clsx('inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full', current?.fired ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
+            <Coffee size={12} /> {current?.fired ? 'Fired to the counter' : 'Pre-ordered — fires at check-in'}
+          </div>
+          {(current?.items ?? []).map((it, i) => <p key={i} className="text-sm text-gray-700">{it.quantity}× {it.name} · {fmtCents(it.unitPrice)}</p>)}
+          <p className="text-xs text-gray-400">One add-on order per reservation. It hits the café/bar KDS automatically when the member checks in.</p>
+        </div>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-gray-400">No add-on items in the catalog yet. Create an <span className="font-medium">add_on</span> item in Studio Catalog (e.g. a post-class smoothie).</p>
+      ) : (
+        <div className="space-y-1">
+          <p className="text-xs text-gray-500 mb-1">Pre-order an item for after class:</p>
+          {items.filter((it) => it.is_active).map((it) => (
+            <button key={it.id} onClick={() => attach.mutate([it.id])} disabled={attach.isPending} className="w-full flex items-center justify-between px-3 py-2 rounded-md hover:bg-amber-50 text-sm disabled:opacity-50">
+              <span className="text-gray-800">{it.name}</span>
+              <span className="text-gray-500">{it.price_cents != null ? fmtCents(it.price_cents) : '—'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Modal>
   );
 }
 
