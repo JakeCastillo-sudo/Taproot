@@ -109,7 +109,14 @@ export async function attachAddOns(orgId: string, employeeId: string, reservatio
     metadata: { studioAddOn: true, reservationId: r.id, fulfillment: 'bar' },
     lineItems: itemIds.map((id) => ({ productId: id, quantity: 1 })),
   });
-  await OrderSvc.parkOrder(orgId, locationId, order.id, employeeId);
+  try {
+    await OrderSvc.parkOrder(orgId, locationId, order.id, employeeId);
+  } catch (err) {
+    // Compensate: createOrder made an 'open' order (on the KDS). If parking fails we must
+    // NOT leave it visible at the counter — void it (unpaid, so a plain void is clean).
+    await OrderSvc.voidOrder(orgId, locationId, order.id, employeeId, 'studio add-on: park failed').catch(() => undefined);
+    throw err;
+  }
 
   await query(`UPDATE class_reservations SET add_on_order_id = $1, updated_at = now() WHERE id = $2 AND organization_id = $3`, [order.id, r.id, orgId]);
 
