@@ -16,6 +16,7 @@ import { query, withTransaction } from '../db/client';
 import { ValidationError, NotFoundError } from '../errors';
 import { createAuditLog } from '../auth/audit';
 import { deductCredit, restoreCredit } from './memberCredit.service';
+import { fireAddOnsForReservation } from './counterBridge.service';
 import type { ClassReservation, ClassReservationSource, ClassRosterEntry, ClassWaitlistEntry } from '@taproot/shared';
 
 const SOURCES: ClassReservationSource[] = ['member_app', 'widget', 'staff', 'kiosk', 'api'];
@@ -166,6 +167,13 @@ export async function checkIn(orgId: string, employeeId: string, reservationId: 
     throw new ValidationError(`Cannot check in a reservation in state ${exists.state}`);
   }
   void createAuditLog({ organizationId: orgId, actorId: employeeId, action: 'studio.checked_in', resourceType: 'class_reservation', resourceId: r.id });
+
+  // v2.3 Counter Bridge: at check-in, fire any pre-ordered café/bar add-on to the KDS.
+  // Idempotent (only fires a parked order) and never blocks check-in.
+  if (r.add_on_order_id) {
+    await fireAddOnsForReservation(orgId, employeeId, r.id).catch((err) =>
+      console.error('[CounterBridge] add-on fire failed:', err instanceof Error ? err.message : String(err)));
+  }
   return r;
 }
 
