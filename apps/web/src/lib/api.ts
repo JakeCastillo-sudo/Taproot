@@ -518,11 +518,11 @@ export interface ReservationAddOns {
   items: Array<{ name: string; quantity: number; unitPrice: number }>;
 }
 export const counterBridge = {
-  getAddOns: (reservationId: string) => apiFetch<ReservationAddOns>(`/reservations/${reservationId}/add-ons`),
+  getAddOns: (reservationId: string) => apiFetch<ReservationAddOns>(`/class-reservations/${reservationId}/add-ons`),
   attach: (reservationId: string, itemIds: string[]) =>
-    apiFetch<ReservationAddOns>(`/reservations/${reservationId}/add-ons`, { method: 'POST', body: JSON.stringify({ itemIds }) }),
+    apiFetch<ReservationAddOns>(`/class-reservations/${reservationId}/add-ons`, { method: 'POST', body: JSON.stringify({ itemIds }) }),
   fire: (reservationId: string) =>
-    apiFetch<{ fired: boolean; orderId: string | null }>(`/reservations/${reservationId}/fire-add-ons`, { method: 'POST' }),
+    apiFetch<{ fired: boolean; orderId: string | null }>(`/class-reservations/${reservationId}/fire-add-ons`, { method: 'POST' }),
 };
 
 export const studioSchedule = {
@@ -548,14 +548,14 @@ export const studioSchedule = {
 
 export const classBooking = {
   book: (sessionId: string, memberId: string, source = 'staff') =>
-    apiFetch<BookResult>('/reservations', { method: 'POST', body: JSON.stringify({ sessionId, memberId, source }) }),
-  cancel: (id: string) => apiFetch<{ state: string; creditRestored: boolean }>(`/reservations/${id}`, { method: 'DELETE' }),
-  checkIn: (id: string) => apiFetch<{ reservation: ClassReservation }>(`/reservations/${id}/check-in`, { method: 'POST' }).then((r) => r.reservation),
-  noShow: (id: string) => apiFetch<{ reservation: ClassReservation }>(`/reservations/${id}/no-show`, { method: 'POST' }).then((r) => r.reservation),
-  roster: (sessionId: string) => apiFetch<{ roster: ClassRosterEntry[] }>(`/sessions/${sessionId}/roster`).then((r) => r.roster),
-  waitlist: (sessionId: string) => apiFetch<{ waitlist: ClassWaitlistEntry[] }>(`/sessions/${sessionId}/waitlist`).then((r) => r.waitlist),
+    apiFetch<BookResult>('/class-reservations', { method: 'POST', body: JSON.stringify({ sessionId, memberId, source }) }),
+  cancel: (id: string) => apiFetch<{ state: string; creditRestored: boolean }>(`/class-reservations/${id}`, { method: 'DELETE' }),
+  checkIn: (id: string) => apiFetch<{ reservation: ClassReservation }>(`/class-reservations/${id}/check-in`, { method: 'POST' }).then((r) => r.reservation),
+  noShow: (id: string) => apiFetch<{ reservation: ClassReservation }>(`/class-reservations/${id}/no-show`, { method: 'POST' }).then((r) => r.reservation),
+  roster: (sessionId: string) => apiFetch<{ roster: ClassRosterEntry[] }>(`/class-sessions/${sessionId}/roster`).then((r) => r.roster),
+  waitlist: (sessionId: string) => apiFetch<{ waitlist: ClassWaitlistEntry[] }>(`/class-sessions/${sessionId}/waitlist`).then((r) => r.waitlist),
   joinWaitlist: (sessionId: string, memberId: string) =>
-    apiFetch<{ entry: ClassWaitlistEntry }>(`/sessions/${sessionId}/waitlist`, { method: 'POST', body: JSON.stringify({ memberId }) }).then((r) => r.entry),
+    apiFetch<{ entry: ClassWaitlistEntry }>(`/class-sessions/${sessionId}/waitlist`, { method: 'POST', body: JSON.stringify({ memberId }) }).then((r) => r.entry),
 };
 
 // ─── Studio migration importer (v2.2 — Mindbody / Mariana Tek) ─────────────────

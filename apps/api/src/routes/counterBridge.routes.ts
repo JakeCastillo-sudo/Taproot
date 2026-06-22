@@ -36,13 +36,13 @@ async function gate(req: FastifyRequest, reply: FastifyReply): Promise<boolean> 
 }
 
 export default async function counterBridgeRoutes(fastify: FastifyInstance): Promise<void> {
-  fastify.get('/api/v1/reservations/:id/add-ons', async (req, reply) => {
+  fastify.get('/api/v1/class-reservations/:id/add-ons', async (req, reply) => {
     if (!(await gate(req, reply))) return;
     const { user } = req as AuthedRequest;
     return reply.send(await BridgeSvc.getReservationAddOns(user.orgId, (req.params as { id: string }).id));
   });
 
-  fastify.post('/api/v1/reservations/:id/add-ons', async (req, reply) => {
+  fastify.post('/api/v1/class-reservations/:id/add-ons', async (req, reply) => {
     if (!(await gate(req, reply))) return;
     const { user } = req as AuthedRequest;
     const body = (req.body ?? {}) as { itemIds?: string[] };
@@ -51,7 +51,7 @@ export default async function counterBridgeRoutes(fastify: FastifyInstance): Pro
   });
 
   // Manual fire (the normal fire is automatic at check-in). Idempotent.
-  fastify.post('/api/v1/reservations/:id/fire-add-ons', async (req, reply) => {
+  fastify.post('/api/v1/class-reservations/:id/fire-add-ons', async (req, reply) => {
     if (!(await gate(req, reply))) return;
     const { user } = req as AuthedRequest;
     return reply.send(await BridgeSvc.fireAddOnsForReservation(user.orgId, user.sub, (req.params as { id: string }).id));
