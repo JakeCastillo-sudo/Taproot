@@ -108,7 +108,7 @@ jobs:
           prerelease:  ${{ contains(steps.version.outputs.tag, '-') }}
 
       - name: Trigger production deploy
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             await github.rest.actions.createWorkflowDispatch({
