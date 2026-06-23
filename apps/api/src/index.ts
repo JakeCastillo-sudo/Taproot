@@ -53,6 +53,14 @@ import apiKeysRoutes from './routes/apiKeys.routes';
 import webhooksRoutes from './routes/webhooks.routes';
 import schedulingRoutes from './routes/scheduling.routes';
 import quickbooksRoutes from './routes/quickbooks.routes';
+// ── v2 studio platform routes (activation wiring) ──
+import capabilityRoutes from './routes/capability.routes';
+import memberRoutes from './routes/member.routes';
+import studioCatalogRoutes from './routes/studioCatalog.routes';
+import studioScheduleRoutes from './routes/studioSchedule.routes';
+import classBookingRoutes from './routes/classBooking.routes';
+import studioImportRoutes from './routes/studioImport.routes';
+import counterBridgeRoutes from './routes/counterBridge.routes';
 import { registerWaitTimeRoutes } from './routes/waitTime.routes';
 import { registerIngredientRoutes } from './routes/ingredient.routes';
 import { registerAdminRoutes } from './routes/admin.routes';
@@ -309,6 +317,14 @@ async function buildApp(): Promise<any> {
   await fastify.register(schedulingRoutes);
   await fastify.register(smsRoutes);
   await fastify.register(quickbooksRoutes);
+  // ── v2 studio platform routes (activation wiring) ──
+  await fastify.register(capabilityRoutes);
+  await fastify.register(memberRoutes);
+  await fastify.register(studioCatalogRoutes);
+  await fastify.register(studioScheduleRoutes);
+  await fastify.register(classBookingRoutes);
+  await fastify.register(studioImportRoutes);
+  await fastify.register(counterBridgeRoutes);
   await registerWaitTimeRoutes(fastify);
   await registerIngredientRoutes(fastify);
 

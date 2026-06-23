@@ -22,6 +22,12 @@ import { TermsPage } from './pages/TermsPage';
 import { HardwarePage } from './pages/HardwarePage';
 import { DownloadPage } from './pages/DownloadPage';
 import { OnboardingPage } from './pages/OnboardingPage';
+import { BusinessTypePage } from './pages/BusinessTypePage';
+import { CapabilitiesSettingsPage } from './pages/CapabilitiesSettingsPage';
+import { MembersPage } from './pages/MembersPage';
+import { StudioCatalogPage } from './pages/StudioCatalogPage';
+import { StudioSchedulePage } from './pages/StudioSchedulePage';
+import { StudioImportPage } from './pages/StudioImportPage';
 import { ReceiptPage } from './pages/ReceiptPage';
 import { SettingsLayout } from './components/layout/SettingsLayout';
 import { ProductsSettingsPage } from './pages/ProductsSettingsPage';
@@ -276,6 +282,23 @@ export default function App() {
               </RequireAuth>
             }
           />
+          {/* v2.0 business-type / capability preset selection. Additive, opt-in route
+              (reached from onboarding or Settings → Capabilities). NOT a forced
+              redirect — see docs/V2_0_SANDBOX_NOTES.md for the first-run seam. */}
+          <Route
+            path="/onboarding/business-type"
+            element={
+              <RequireAuth>
+                <BusinessTypePage />
+              </RequireAuth>
+            }
+          />
+          {/* v2.1 studio pages — gated at the page level by useRequireStudio (non-studio
+              orgs are bounced to the register); nav links are hidden unless studio is on. */}
+          <Route path="/studio/members" element={<RequireAuth><MembersPage /></RequireAuth>} />
+          <Route path="/studio/catalog" element={<RequireAuth><StudioCatalogPage /></RequireAuth>} />
+          <Route path="/studio/schedule" element={<RequireAuth><StudioSchedulePage /></RequireAuth>} />
+          <Route path="/studio/import" element={<RequireAuth><StudioImportPage /></RequireAuth>} />
 
           {/* ── Receipt (full-screen, no sidebar) ─────────────────────────── */}
           <Route
@@ -442,6 +465,7 @@ export default function App() {
             }
           >
             <Route index element={<Navigate to="/settings/products" replace />} />
+            <Route path="capabilities" element={<CapabilitiesSettingsPage />} />
             <Route path="products" element={<ProductsSettingsPage />} />
             <Route path="categories" element={<CategoriesSettingsPage />} />
             <Route path="modifiers" element={<ModifiersSettingsPage />} />

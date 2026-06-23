@@ -14,3 +14,5 @@ logs/
 *.log
 apps/api/uploads/*
 !apps/api/uploads/.gitkeep
+taproot_prod_*.sql
+taproot_prod_*.sql

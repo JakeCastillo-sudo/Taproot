@@ -9,18 +9,28 @@
 
 ---
 
-## 🌿 Current State (v1.9.0 — last updated 2026-06-19)
+## 🌿 Current State (last updated 2026-06-22)
 
-Production certified and launch-ready. Sprints 1–11 + V1.0–V1.9 complete.
+**`main` = v1.9.0, frozen, in production.** Restaurant POS, real-money-safe.
 - **Web** https://taproot-pos.com (Vercel) · **API** Railway · tsc 0 errors both apps.
 - Latest tags: `v1.9.0` (WG P0/P1 fixes + WG-024), `psr-2026-06-12` (security certified;
   OWASP Top 10 + PCI DSS 4.0, 0 crit / 0 high — `docs/SECURITY_AUDIT_2026.md`).
 - Apps: web (`apps/web`), api (`apps/api`), mobile (`apps/mobile`, Expo/React Native),
   desktop (`apps/desktop`, Tauri v2 — `desktop-v1.0.0` draft release), print-server
   (`apps/print-server`).
-- Latest work: **White Glove Audit fixes** — WG-001–016 P0/P1 payment safety + reliability;
-  WG-024 removed hardcoded admin password. v2.x roadmap drafted (`docs/ROADMAP.md`).
-  Full history in `docs/SESSION_HISTORY.md`.
+
+**`v2` branch = the full studio platform — BUILT + REVIEWED, NOT deployed.**
+Four floors, each studio-gated (restaurants byte-identical), `main` untouched:
+v2.0 capability spine · v2.1 member + studio catalog + credits · v2.2 scheduling +
+check-in + Mindbody/MT importers · v2.3 Counter Bridge (add-on fires to café KDS at
+check-in). Per-floor design in `docs/V2_0_…`→`V2_3_SANDBOX_NOTES.md`; sequence in
+`docs/ROADMAP.md`.
+
+**Activation is PENDING (supervised).** Branch `activation/v2-prep` (off `v2`) holds the
+boot-verified wiring: route registrations + a fixed `/reservations` route collision + the
+payment `grantCredits` seam. **Deploy `activation/v2-prep`, not bare `v2`.** The exact
+human-run sequence (migrations 032/033/034 → deploy → verify → activate → smoke → rollback)
+is in **`docs/V2_ACTIVATION_RUNBOOK.md`**.
 
 ---
 
@@ -167,12 +177,25 @@ cd apps/api && npx tsc --noEmit   # → 0 errors
 
 ### Strategy / roadmap
 - `docs/ROADMAP.md` — v2.x multi-vertical platform roadmap + sequencing. Read before any new
-  feature work or platform-direction discussion. Next: v2.0 Studio module.
+  feature work or platform-direction discussion.
 - `docs/STUDIO_MODULE_SPEC.md` — detailed fitness/studio reservation + membership spec.
   Read when building any v2.x Studio feature.
 - `docs/ROADMAP_v1_sprints.md` — historical v1 sprint plan (Sprints 1–11). Read for v1 context.
 - `docs/LAUNCH.md` — go-to-market copy, pricing ($99/mo flat), and launch messaging.
   Read before marketing/outreach work.
+
+### v2 studio platform (built on the `v2` branch — NOT deployed)
+- `docs/V2_0_SANDBOX_NOTES.md` — capability spine (the `capabilities` JSONB gate, default-on).
+- `docs/V2_1_SANDBOX_NOTES.md` — members, studio catalog, credit ledger (WG-006 atomic deduct).
+- `docs/V2_2_SANDBOX_NOTES.md` — scheduling time-model (template vs session, eager materialization,
+  deduct-at-book), check-in, Mindbody/MT importers. **Studio tables are namespaced** (`class_*`,
+  `studio_*`) to avoid the restaurant `reservations`/`tables`/`scheduling` domains.
+- `docs/V2_3_SANDBOX_NOTES.md` — Counter Bridge (add-on order parked at booking → fired to KDS at
+  check-in via order.service public calls; cores untouched).
+- `docs/V2_ACTIVATION_RUNBOOK.md` — **read before activating v2.** The supervised human sequence:
+  migrations 032/033/034 → deploy `activation/v2-prep` → boot/restaurant-regression verify →
+  activate studio on a throwaway org → e2e smoke → rollback. Notes the route-collision fix +
+  payment seam that live ONLY on `activation/v2-prep`.
 
 ### Security & audit
 - `docs/WHITE_GLOVE_AUDIT.md` — 9-layer comprehensive audit (2026-06-19). WG-001–016 P0/P1

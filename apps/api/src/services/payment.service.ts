@@ -8,6 +8,7 @@ import * as LoyaltySvc from './loyalty.service';
 import { deliverWebhook } from './webhook.service';
 import { invalidateOrgCache } from '../lib/cache';
 import { deductOrderIngredients, reverseOrderIngredients, reconcilePendingDeductions } from './ingredientInventory.service';
+import { grantClassPackCreditsForOrder } from './studioCheckout.service';
 import * as Sentry from '@sentry/node';
 
 // ─── Input types ──────────────────────────────────────────────────────────────
@@ -543,6 +544,14 @@ export async function processPayment(
   if (orderCompleted) {
     void deductOrderIngredients(orgId, orderId).catch((err) =>
       console.error('[Inventory] Deduction failed:', err instanceof Error ? err.message : String(err)));
+  }
+
+  // v2 studio: class_pack purchase → grant member credits. Fire-and-forget, NEVER blocks
+  // payment. Studio-gated + table-guarded INSIDE the call, so a restaurant org returns after
+  // one cached capability read and does ZERO else (the restaurant payment path is unchanged).
+  if (orderCompleted) {
+    void grantClassPackCreditsForOrder(orgId, employeeId, orderId).catch((err) =>
+      console.error('[StudioCheckout] class_pack credit grant failed:', err instanceof Error ? err.message : String(err)));
   }
 
   void createAuditLog({

@@ -14,6 +14,125 @@ export interface OnlineOrderConfig { enabled: boolean; url?: string; lead_time_m
 export interface ReceiptConfig { header?: string; footer?: string; show_tax_breakdown?: boolean; show_logo?: boolean; }
 export interface DeviceConfig { [key: string]: unknown; }
 
+// ─── Capabilities (v2.0 — per-org feature spine) ───────────────────────────────
+// Generalizes products.recipe_mode to the org level. An ABSENT or EMPTY value is
+// treated as food_service:true everywhere (default-on), so existing restaurants
+// behave exactly as before. See apps/api/src/services/capability.service.ts.
+export interface BillingModels {
+  drop_in: boolean;
+  class_packs: boolean;
+  free_trial: boolean;
+  memberships: boolean;
+  classpass: boolean;
+}
+export interface Capabilities {
+  food_service: boolean;
+  studio: boolean;
+  retail: boolean;
+  billing_models: BillingModels;
+}
+
+// ─── Member + studio catalog (v2.1 — gated behind capabilities.studio) ─────────
+// Members EXTEND customers (optional customer_id link). Credits are integer COUNTS
+// (not money). Subscriptions are MANUAL-mode only in v2.1 (Taproot tracks, doesn't
+// charge — native recurring billing is v2.5). Studio catalog items are normal
+// products carrying item_type + studio_meta, sold via the existing checkout.
+export type MemberStatus = 'prospect' | 'active' | 'frozen' | 'cancelled' | 'lead';
+export interface Member {
+  id: UUID; organization_id: UUID; customer_id: UUID | null;
+  display_name: string | null; email: string | null; phone: string | null;
+  status: MemberStatus;
+  waiver_signed_at: Timestamptz | null; waiver_doc_id: UUID | null;
+  home_location_id: UUID | null; tags: string[] | null;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
+}
+export interface MemberCredit {
+  id: UUID; organization_id: UUID; member_id: UUID;
+  credit_type: string; source_catalog_item_id: UUID | null; source_ref: string | null;
+  credits_total: number; credits_remaining: number;
+  expires_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
+}
+export type MemberSubscriptionState = 'active' | 'frozen' | 'cancelled';
+export interface MemberSubscription {
+  id: UUID; organization_id: UUID; member_id: UUID; catalog_item_id: UUID | null;
+  state: MemberSubscriptionState; managed_externally: boolean;
+  notes: string | null; current_period_end: Timestamptz | null;
+  deleted_at: Timestamptz | null; created_at: Timestamptz; updated_at: Timestamptz;
+}
+export type StudioItemType = 'membership' | 'class_pack' | 'drop_in' | 'add_on' | 'gift_card';
+export type CatalogItemType = 'food' | 'retail' | StudioItemType;
+/** Per-item_type config; loosely typed (shape documented in migration 033). */
+export type StudioMeta = Record<string, unknown>;
+export interface StudioCatalogItem {
+  id: UUID; organization_id: UUID; name: string; description: string | null;
+  item_type: CatalogItemType; studio_meta: StudioMeta;
+  price_cents: number | null; is_active: boolean;
+  created_at: Timestamptz; updated_at: Timestamptz;
+}
+
+// ─── Scheduling (v2.2 — gated behind capabilities.studio) ──────────────────────
+// template = recurring definition; session = concrete dated (UTC) instance,
+// eagerly materialized. See migration 034 + docs/V2_2_SANDBOX_NOTES.md.
+// Namespaced (StudioRoom / ClassReservation / ClassWaitlistEntry) so the studio
+// domain never collides with the existing restaurant `reservations`/`tables` tables.
+export interface StudioRoom {
+  id: UUID; organization_id: UUID; location_id: UUID | null;
+  name: string; capacity: number;
+  created_at: Timestamptz; updated_at: Timestamptz; deleted_at: Timestamptz | null;
+}
+/** Weekly recurrence rule. days: 0=Sun..6=Sat; time: local "HH:MM" in location tz. */
+export interface Recurrence {
+  freq: 'weekly';
+  days: number[];
+  time: string;
+  until?: string | null;
+}
+export interface ClassTemplate {
+  id: UUID; organization_id: UUID; location_id: UUID | null;
+  name: string; discipline: string | null; instructor_default_id: UUID | null;
+  duration_min: number; capacity: number; room_id: UUID | null;
+  price_drop_in: number; credits_required: number;
+  recurrence: Recurrence | Record<string, never>;
+  booking_window_hours: number; cancel_cutoff_min: number; noshow_window_min: number;
+  created_at: Timestamptz; updated_at: Timestamptz; deleted_at: Timestamptz | null;
+}
+export type ClassSessionStatus = 'scheduled' | 'live' | 'closed' | 'cancelled';
+export interface ClassSession {
+  id: UUID; organization_id: UUID; location_id: UUID | null; template_id: UUID | null;
+  name: string; discipline: string | null;
+  starts_at: Timestamptz; ends_at: Timestamptz;
+  instructor_id: UUID | null; room_id: UUID | null;
+  capacity: number; credits_required: number; price_drop_in: number;
+  status: ClassSessionStatus;
+  booking_opens_at: Timestamptz | null; booking_closes_at: Timestamptz | null;
+  cancel_cutoff_min: number; noshow_window_min: number;
+  created_at: Timestamptz; updated_at: Timestamptz;
+}
+/** A session plus its live availability (capacity − active reservations). */
+export interface ClassSessionWithAvailability extends ClassSession {
+  booked_count: number;
+  available: number;
+  waitlist_count: number;
+}
+export type ClassReservationSource = 'member_app' | 'widget' | 'staff' | 'kiosk' | 'api';
+export type ClassReservationState = 'booked' | 'waitlisted' | 'checked_in' | 'late_cancel' | 'no_show' | 'completed';
+export interface ClassReservation {
+  id: UUID; organization_id: UUID; session_id: UUID; member_id: UUID;
+  source: ClassReservationSource; state: ClassReservationState;
+  credit_txn_id: UUID | null; add_on_order_id: UUID | null;
+  booked_at: Timestamptz; checked_in_at: Timestamptz | null;
+  created_at: Timestamptz; updated_at: Timestamptz; deleted_at: Timestamptz | null;
+}
+/** A roster row: reservation + the member's display fields (bulk-joined). */
+export interface ClassRosterEntry extends ClassReservation {
+  member_name: string | null; member_email: string | null;
+}
+export interface ClassWaitlistEntry {
+  id: UUID; organization_id: UUID; session_id: UUID; member_id: UUID;
+  position: number; auto_promote: boolean; notified_at: Timestamptz | null;
+  created_at: Timestamptz; deleted_at: Timestamptz | null;
+}
+
 // ─── Core tables ──────────────────────────────────────────────────────────────
 
 export interface Organization {

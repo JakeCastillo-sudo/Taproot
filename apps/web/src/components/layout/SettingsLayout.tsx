@@ -12,7 +12,7 @@ import { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Package, FolderTree, SlidersHorizontal, Users, Building2,
-  CreditCard, LayoutGrid, ChevronLeft, LayoutDashboard, QrCode, Globe, Star, Gift, Tag, MapPin, Printer, Plug, Network, KeyRound, Truck, Calculator, Timer, Carrot, Boxes,
+  CreditCard, LayoutGrid, ChevronLeft, LayoutDashboard, QrCode, Globe, Star, Gift, Tag, MapPin, Printer, Plug, Network, KeyRound, Truck, Calculator, Timer, Carrot, Boxes, Layers,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { canAccessSettings } from '../../lib/session';
@@ -25,6 +25,7 @@ interface SettingsNavItem {
 }
 
 const NAV: SettingsNavItem[] = [
+  { to: '/settings/capabilities', label: 'Capabilities', icon: <Layers size={17} /> },
   { to: '/settings/products',   label: 'Products',   icon: <Package size={17} /> },
   { to: '/settings/categories', label: 'Categories', icon: <FolderTree size={17} /> },
   { to: '/settings/modifiers',  label: 'Modifiers',  icon: <SlidersHorizontal size={17} /> },

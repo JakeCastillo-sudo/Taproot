@@ -11,6 +11,9 @@ import type {
   Product, ProductVariant, Category,
   Order, OrderStatus,
   Customer,
+  Capabilities,
+  Member, MemberCredit, MemberSubscription, StudioCatalogItem,
+  StudioRoom, ClassTemplate, ClassSessionWithAvailability, ClassReservation, ClassRosterEntry, ClassWaitlistEntry,
 } from '@taproot/shared';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -436,6 +439,137 @@ export interface CorporateMenuItem {
 export interface MenuPushResult {
   franchisees: number; created: number; updated: number; errors: string[];
 }
+
+// ─── Capabilities (v2.0 capability spine) ──────────────────────────────────────
+// Mirrors the franchise client. Fails through apiFetch like everything else; the
+// useCapabilities hook treats any error as the food_service default (fail-open).
+export type CapabilitiesUpdate =
+  | { preset: string }
+  | {
+      food_service?: boolean;
+      studio?: boolean;
+      retail?: boolean;
+      billing_models?: Partial<Capabilities['billing_models']>;
+    };
+
+export const capabilities = {
+  get: () => apiFetch<{ capabilities: Capabilities }>('/capabilities').then((r) => r.capabilities),
+  presets: () =>
+    apiFetch<{ presets: Array<{ name: string; capabilities: Capabilities }> }>('/capabilities/presets')
+      .then((r) => r.presets),
+  update: (body: CapabilitiesUpdate) =>
+    apiFetch<{ capabilities: Capabilities }>('/capabilities', {
+      method: 'PUT', body: JSON.stringify(body),
+    }).then((r) => r.capabilities),
+};
+
+// ─── Members + studio catalog (v2.1) ───────────────────────────────────────────
+// Studio-gated server-side: these endpoints 404 for non-studio orgs and are unwired
+// until reviewed (see docs/V2_1_SANDBOX_NOTES.md). The studio UI only renders behind
+// hasCapability('studio'), so restaurants never call them.
+export const members = {
+  list: (params?: { search?: string; status?: string; page?: number; perPage?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.perPage) q.set('perPage', String(params.perPage));
+    const qs = q.toString();
+    return apiFetch<{ members: Member[]; total: number }>(`/members${qs ? `?${qs}` : ''}`);
+  },
+  get: (id: string) => apiFetch<{ member: Member }>(`/members/${id}`).then((r) => r.member),
+  create: (body: { displayName?: string; email?: string; phone?: string; status?: string; customerId?: string | null; homeLocationId?: string | null; tags?: string[] }) =>
+    apiFetch<{ member: Member }>('/members', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.member),
+  update: (id: string, body: Record<string, unknown>) =>
+    apiFetch<{ member: Member }>(`/members/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).then((r) => r.member),
+  remove: (id: string) => apiFetch<{ success: boolean }>(`/members/${id}`, { method: 'DELETE' }),
+  signWaiver: (id: string, waiverDocId?: string | null) =>
+    apiFetch<{ member: Member }>(`/members/${id}/waiver`, { method: 'POST', body: JSON.stringify({ waiverDocId: waiverDocId ?? null }) }).then((r) => r.member),
+  credits: (id: string) => apiFetch<{ total: number; packs: MemberCredit[] }>(`/members/${id}/credits`),
+  grantCredits: (id: string, body: { count: number; creditType?: string; sourceCatalogItemId?: string | null; expiresAt?: string | null }) =>
+    apiFetch<{ credit: MemberCredit | null }>(`/members/${id}/credits`, { method: 'POST', body: JSON.stringify(body) }),
+  subscriptions: (id: string) => apiFetch<{ subscriptions: MemberSubscription[] }>(`/members/${id}/subscriptions`).then((r) => r.subscriptions),
+  recordSubscription: (id: string, body: { catalogItemId?: string | null; state?: string; notes?: string; currentPeriodEnd?: string | null }) =>
+    apiFetch<{ subscription: MemberSubscription }>(`/members/${id}/subscriptions`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.subscription),
+  cancelSubscription: (subId: string) =>
+    apiFetch<{ subscription: MemberSubscription }>(`/members/subscriptions/${subId}/cancel`, { method: 'POST' }).then((r) => r.subscription),
+};
+
+export const studioCatalog = {
+  list: (itemType?: string) =>
+    apiFetch<{ items: StudioCatalogItem[] }>(`/studio/catalog${itemType ? `?itemType=${encodeURIComponent(itemType)}` : ''}`).then((r) => r.items),
+  create: (body: { name: string; itemType: string; priceCents?: number; description?: string; studioMeta?: Record<string, unknown> }) =>
+    apiFetch<{ item: StudioCatalogItem }>('/studio/catalog', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.item),
+  update: (id: string, body: Record<string, unknown>) =>
+    apiFetch<{ item: StudioCatalogItem }>(`/studio/catalog/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).then((r) => r.item),
+  remove: (id: string) => apiFetch<{ success: boolean }>(`/studio/catalog/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Studio scheduling + class booking (v2.2) ──────────────────────────────────
+// Studio-gated server-side (404 for non-studio orgs); unwired until reviewed. The
+// studio UI only renders behind hasCapability('studio').
+export type BookResult =
+  | { status: 'booked'; reservation: ClassReservation }
+  | { status: 'full'; available: 0 };
+
+// v2.3 Counter Bridge — pre-order café/bar add-ons on a reservation; fire at check-in.
+export interface ReservationAddOns {
+  orderId: string | null; status: string | null; fired: boolean;
+  items: Array<{ name: string; quantity: number; unitPrice: number }>;
+}
+export const counterBridge = {
+  getAddOns: (reservationId: string) => apiFetch<ReservationAddOns>(`/class-reservations/${reservationId}/add-ons`),
+  attach: (reservationId: string, itemIds: string[]) =>
+    apiFetch<ReservationAddOns>(`/class-reservations/${reservationId}/add-ons`, { method: 'POST', body: JSON.stringify({ itemIds }) }),
+  fire: (reservationId: string) =>
+    apiFetch<{ fired: boolean; orderId: string | null }>(`/class-reservations/${reservationId}/fire-add-ons`, { method: 'POST' }),
+};
+
+export const studioSchedule = {
+  rooms: () => apiFetch<{ rooms: StudioRoom[] }>('/studio/rooms').then((r) => r.rooms),
+  createRoom: (body: { name: string; locationId?: string | null; capacity?: number }) =>
+    apiFetch<{ room: StudioRoom }>('/studio/rooms', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.room),
+  templates: () => apiFetch<{ templates: ClassTemplate[] }>('/class-templates').then((r) => r.templates),
+  createTemplate: (body: Record<string, unknown>) =>
+    apiFetch<{ template: ClassTemplate }>('/class-templates', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.template),
+  deleteTemplate: (id: string) => apiFetch<{ success: boolean }>(`/class-templates/${id}`, { method: 'DELETE' }),
+  generate: (id: string, fromDate: string, toDate: string) =>
+    apiFetch<{ created: number }>(`/class-templates/${id}/generate`, { method: 'POST', body: JSON.stringify({ fromDate, toDate }) }),
+  sessions: (params?: { from?: string; to?: string; locationId?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    if (params?.locationId) q.set('location_id', params.locationId);
+    const qs = q.toString();
+    return apiFetch<{ sessions: ClassSessionWithAvailability[] }>(`/classes${qs ? `?${qs}` : ''}`).then((r) => r.sessions);
+  },
+  cancelSession: (id: string) => apiFetch<{ released: number; creditsRestored: number }>(`/class-sessions/${id}/cancel`, { method: 'POST' }),
+};
+
+export const classBooking = {
+  book: (sessionId: string, memberId: string, source = 'staff') =>
+    apiFetch<BookResult>('/class-reservations', { method: 'POST', body: JSON.stringify({ sessionId, memberId, source }) }),
+  cancel: (id: string) => apiFetch<{ state: string; creditRestored: boolean }>(`/class-reservations/${id}`, { method: 'DELETE' }),
+  checkIn: (id: string) => apiFetch<{ reservation: ClassReservation }>(`/class-reservations/${id}/check-in`, { method: 'POST' }).then((r) => r.reservation),
+  noShow: (id: string) => apiFetch<{ reservation: ClassReservation }>(`/class-reservations/${id}/no-show`, { method: 'POST' }).then((r) => r.reservation),
+  roster: (sessionId: string) => apiFetch<{ roster: ClassRosterEntry[] }>(`/class-sessions/${sessionId}/roster`).then((r) => r.roster),
+  waitlist: (sessionId: string) => apiFetch<{ waitlist: ClassWaitlistEntry[] }>(`/class-sessions/${sessionId}/waitlist`).then((r) => r.waitlist),
+  joinWaitlist: (sessionId: string, memberId: string) =>
+    apiFetch<{ entry: ClassWaitlistEntry }>(`/class-sessions/${sessionId}/waitlist`, { method: 'POST', body: JSON.stringify({ memberId }) }).then((r) => r.entry),
+};
+
+// ─── Studio migration importer (v2.2 — Mindbody / Mariana Tek) ─────────────────
+export interface StudioImportDryRun {
+  kind: string; provider: string; total: number; toCreate: number;
+  alreadyPresent: number; invalid: number; sample: Array<Record<string, unknown>>; notes: string[];
+}
+export interface StudioImportCommit { created: number; skipped: number; failed: number; errors: string[] }
+export const studioImport = {
+  dryRun: (provider: string, kind: string, csv: string) =>
+    apiFetch<StudioImportDryRun>('/studio/import/dry-run', { method: 'POST', body: JSON.stringify({ provider, kind, csv }) }),
+  commit: (provider: string, kind: string, csv: string) =>
+    apiFetch<StudioImportCommit>('/studio/import/commit', { method: 'POST', body: JSON.stringify({ provider, kind, csv }) }),
+};
 
 export const franchise = {
   info: () => apiFetch<FranchiseInfo>('/franchise/info'),
