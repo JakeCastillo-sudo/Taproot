@@ -27,7 +27,7 @@ const MODEL = config.CLAUDE_MODEL;
 async function callClaude(
   system: string,
   userContent: string | Anthropic.MessageParam['content'],
-  maxTokens = 4096,
+  maxTokens = 16384,          // was 4096 — menus routinely exceed it
 ): Promise<string> {
   const client = getAnthropic();
   const msg = await client.messages.create({
@@ -40,6 +40,15 @@ async function callClaude(
     }],
   });
 
+  // If Claude hit the token ceiling the output is TRUNCATED and any JSON in it
+  // is invalid. Fail with a message that says so, rather than a cryptic parse error.
+  if (msg.stop_reason === 'max_tokens') {
+    throw new Error(
+      'The document is too large to parse in one pass (the AI response was truncated). ' +
+      'Try splitting the menu into smaller files, or importing it as a CSV.',
+    );
+  }
+
   const block = msg.content[0];
   if (block.type !== 'text') throw new Error('Unexpected response type from Claude');
   return block.text;
@@ -48,7 +57,16 @@ async function callClaude(
 function parseJson<T>(raw: string): T {
   // Strip markdown code fences if Claude wrapped the JSON
   const cleaned = raw.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
-  return JSON.parse(cleaned) as T;
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch (err) {
+    // A truncated or malformed AI response — surface something actionable instead
+    // of "Unterminated string in JSON at position N".
+    throw new Error(
+      `Could not read the document — the AI response was incomplete or malformed. ` +
+      `Try a smaller file, or import as CSV. (${err instanceof Error ? err.message : String(err)})`,
+    );
+  }
 }
 
 // ─── Document types ────────────────────────────────────────────────────────────
@@ -325,7 +343,7 @@ Respond with JSON only matching this schema:
   "confidence": number
 }`;
 
-  const raw = await callClaude(system, content, 8192);
+  const raw = await callClaude(system, content, 16384);
   const parsed = parseJson<Omit<ParsedMenu, 'rawText'>>(raw);
 
   // Normalize prices in case Claude returned dollars instead of cents
@@ -517,7 +535,7 @@ export async function parseImageDocument(
 
   const msg = await client.messages.create({
     model: MODEL,
-    max_tokens: 2048,
+    max_tokens: 8192,
     system: 'Extract all text content from this document image exactly as it appears, preserving structure and layout.',
     messages: [{
       role: 'user',
@@ -530,6 +548,15 @@ export async function parseImageDocument(
       ],
     }],
   });
+
+  // If Claude hit the token ceiling the extracted text is TRUNCATED — surface a
+  // clear message instead of silently returning a partial transcription.
+  if (msg.stop_reason === 'max_tokens') {
+    throw new Error(
+      'The image contains more text than can be read in one pass. ' +
+      'Try a higher-quality photo of a smaller section, or upload a PDF/CSV.',
+    );
+  }
 
   const block = msg.content[0];
   return block.type === 'text' ? block.text : '';
