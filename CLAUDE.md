@@ -9,28 +9,38 @@
 
 ---
 
-## 🌿 Current State (last updated 2026-06-22)
+## 🌿 Current State (last updated 2026-07-12)
 
-**`main` = v1.9.0, frozen, in production.** Restaurant POS, real-money-safe.
-- **Web** https://taproot-pos.com (Vercel) · **API** Railway · tsc 0 errors both apps.
-- Latest tags: `v1.9.0` (WG P0/P1 fixes + WG-024), `psr-2026-06-12` (security certified;
+**`main` = v2, LIVE in production (studio platform deployed + activated).**
+The full studio platform shipped to prod on **2026-06-23** via PR #16
+(merge `6ea5ec5`, `activation/v2-prep` → `main`). `main` is no longer v1.9.0 —
+it carries all four v2 floors. Rollback anchor tag: `pre-v2-activation` (@ `79132d1`,
+the last v1.9.0 prod state).
+- **Web** https://taproot-pos.com (Vercel) · **API** Railway (Online, healthy).
+- Prior tags: `v1.9.0` (WG P0/P1 fixes + WG-024), `psr-2026-06-12` (security certified;
   OWASP Top 10 + PCI DSS 4.0, 0 crit / 0 high — `docs/SECURITY_AUDIT_2026.md`).
 - Apps: web (`apps/web`), api (`apps/api`), mobile (`apps/mobile`, Expo/React Native),
   desktop (`apps/desktop`, Tauri v2 — `desktop-v1.0.0` draft release), print-server
   (`apps/print-server`).
+- ⚠️ The `/api/health` `version` field is a stale hardcoded string (`"1.2.0"`) — NOT a
+  reliable deploy indicator. Use git (`origin/main`) + Railway deploy state instead.
 
-**`v2` branch = the full studio platform — BUILT + REVIEWED, NOT deployed.**
-Four floors, each studio-gated (restaurants byte-identical), `main` untouched:
-v2.0 capability spine · v2.1 member + studio catalog + credits · v2.2 scheduling +
-check-in + Mindbody/MT importers · v2.3 Counter Bridge (add-on fires to café KDS at
-check-in). Per-floor design in `docs/V2_0_…`→`V2_3_SANDBOX_NOTES.md`; sequence in
-`docs/ROADMAP.md`.
+**v2 studio platform — DEPLOYED + activated.** Four floors, each studio-gated
+(restaurants byte-identical): v2.0 capability spine · v2.1 member + studio catalog +
+credits · v2.2 scheduling + check-in + Mindbody/MT importers · v2.3 Counter Bridge
+(add-on fires to café KDS at check-in). Per-floor design in
+`docs/V2_0_…`→`V2_3_SANDBOX_NOTES.md`; sequence in `docs/ROADMAP.md`.
 
-**Activation is PENDING (supervised).** Branch `activation/v2-prep` (off `v2`) holds the
-boot-verified wiring: route registrations + a fixed `/reservations` route collision + the
-payment `grantCredits` seam. **Deploy `activation/v2-prep`, not bare `v2`.** The exact
-human-run sequence (migrations 032/033/034 → deploy → verify → activate → smoke → rollback)
-is in **`docs/V2_ACTIVATION_RUNBOOK.md`**.
+**Activation — COMPLETE (verified live 2026-07-12, read-only):**
+- Migrations `032_org_capabilities`, `033_member_catalog`, `034_scheduling` — **applied.**
+  (Note: `031_inventory_deduction_failures` table exists but is NOT recorded in
+  `pgmigrations` — cosmetic; the record INSERT is optional. See `docs/V2_ACTIVATION_RUNBOOK.md`.)
+- Orgs: **Haven Health Bar** (`studio:false` — restaurant, unaffected) · **"Studio"**
+  (`studio:true` — active, with real data: 3 members, 66 class_sessions, 2 reservations,
+  3 studio catalog items).
+- `docs/V2_ACTIVATION_RUNBOOK.md` = the runbook that was executed (kept for rollback ref).
+- **To activate studio for a new org:** flip its `capabilities.studio = true` (Settings →
+  Capabilities, or SQL). Restaurants default `studio:false` and are byte-identical.
 
 ---
 
