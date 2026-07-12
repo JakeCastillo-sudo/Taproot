@@ -262,7 +262,7 @@ export function ImportPage() {
   // ── Poll job status ───────────────────────────────────────────────────────
 
   async function pollUntilReady(jobId: string, entryId: string) {
-    const MAX_POLLS = 60;
+    const MAX_POLLS = 100;
     for (let i = 0; i < MAX_POLLS; i++) {
       await new Promise((res) => setTimeout(res, 3000));
       try {

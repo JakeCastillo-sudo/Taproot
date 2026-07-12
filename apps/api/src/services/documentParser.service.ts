@@ -27,10 +27,16 @@ const MODEL = config.CLAUDE_MODEL;
 async function callClaude(
   system: string,
   userContent: string | Anthropic.MessageParam['content'],
-  maxTokens = 16384,          // was 4096 — menus routinely exceed it
+  maxTokens = 64000,          // was 16384 — a real menu's JSON exceeded it.
+                              // 64000 is Sonnet 4.6's output ceiling, giving
+                              // headroom for large menus. Beyond this, the
+                              // document must be chunked (see TODO below).
 ): Promise<string> {
   const client = getAnthropic();
-  const msg = await client.messages.create({
+  // Stream (not messages.create): the SDK requires streaming above ~16K output
+  // tokens or the request risks an HTTP timeout. finalMessage() returns the same
+  // Message shape, so the stop_reason guard + content handling below are unchanged.
+  const stream = client.messages.stream({
     model: MODEL,
     max_tokens: maxTokens,
     system,
@@ -39,6 +45,7 @@ async function callClaude(
       content: typeof userContent === 'string' ? userContent : userContent,
     }],
   });
+  const msg = await stream.finalMessage();
 
   // If Claude hit the token ceiling the output is TRUNCATED and any JSON in it
   // is invalid. Fail with a message that says so, rather than a cryptic parse error.
@@ -343,7 +350,7 @@ Respond with JSON only matching this schema:
   "confidence": number
 }`;
 
-  const raw = await callClaude(system, content, 16384);
+  const raw = await callClaude(system, content);
   const parsed = parseJson<Omit<ParsedMenu, 'rawText'>>(raw);
 
   // Normalize prices in case Claude returned dollars instead of cents
