@@ -977,8 +977,8 @@ export async function applyMigration(
                 [variantId],
               );
               await query(
-                `INSERT INTO product_prices (variant_id, price, currency, is_active, price_type)
-                 VALUES ($1, $2, 'USD', true, 'fixed')`,
+                `INSERT INTO product_prices (variant_id, price, currency, is_active)
+                 VALUES ($1, $2, 'USD', true)`,
                 [variantId, variant.priceCents],
               );
             }
