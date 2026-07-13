@@ -1,5 +1,120 @@
 # Taproot POS — Bug Backlog
 
+> **Living work list — updated 2026-07-12.** Forward-looking known work; read this
+> before picking up new work. Each item carries an ID, priority, effort, and context.
+> The dated bug-fix history and the 🚀 Pre-Production Checklist continue below this
+> section. (Some items overlap the checklist by design — e.g. HARD-001 ↔ SECURITY-001
+> Postgres rotation, HARD-005 ↔ CLEANUP-003/CUSTOMER-001 demo cleanup.)
+
+## HIGH — onboarding-critical
+
+### IMPORT-UX-001 — Menu import: expectation-managed progress
+**Problem.** A large menu PDF takes 2-5+ minutes to parse (64k-token streamed AI
+call). ImportPage polls for 5 min then shows "Timed out waiting for processing —
+Error" — even though the job SUCCEEDS in the background. The error is a LIE. A real
+customer assumes it failed, gives up, and never checks History where their finished
+menu is waiting.
+
+This is the FIRST thing a new customer does. It's the on-ramp. A wait that feels
+broken loses them before they see the product.
+
+**Fix (frontend only — `ImportPage.tsx`; the backend job already works):**
+1. Remove the failure-timeout. Never conclude "error" merely because it's slow. Keep
+   the real failure path for jobs the SERVER marks failed — that's different.
+2. Progress + expectation management. Communicate what's actually happening — not
+   "scanning a document" but "building your POS": reading your menu → identifying
+   items and prices → creating categories → configuring buttons and workflows →
+   setting up your register. Prefer REAL progress: `import_jobs` already has
+   `processed_rows` / `total_rows`. A fake bar that stalls at 80% is worse than none;
+   a coarse real one builds trust.
+3. Humane copy — rotating notes in Taproot's voice (honest, warm, a little funny):
+   - "This feels long, we know. We're not just scanning a document — we're building
+     your buttons, categories, and workflows so you don't have to."
+   - "Go grab a snack. Doomscroll a little. We'll be here."
+   - "Big menu = big setup. Worth the wait, promise."
+4. Always recoverable: "You can close this — it'll be waiting in your History tab."
+
+**Priority:** High (onboarding, first impression)
+**Effort:** Small-medium (frontend only)
+
+## HIGH — security
+
+### SEC-DEPS-001 — Stale dependabot PRs, all failing CI
+7 open dependabot PRs (#1-#19), oldest from June 2, ALL showing red ✗ (failing
+checks):
+- production-deps group (15 updates)
+- dev-deps group (3 updates)
+- actions/github-script 7→9
+- actions/setup-node 4→6
+- actions/download-artifact 4→8
+- aws-actions/configure-aws-credentials 4→6
+- aws-actions/amazon-ecs-deploy-task-definition 1→2
+
+**Two problems:** (a) security/dependency updates are piling up unapplied, (b) CI is
+FAILING on all of them — the red X's need diagnosing before any can merge. Fix CI
+first, then triage the updates.
+
+**Priority:** High before public launch
+**Effort:** Medium (CI diagnosis + dependency triage)
+
+## VERIFICATION DEBT — quick, unclosed
+
+### VERIFY-001 — haven_menu.csv import unverified
+The price_type fix (commit `196a932`, removed a phantom column from 3 `product_prices`
+INSERTs) has been deployed across three deploys and NEVER re-tested. Re-run
+haven_menu.csv: EXPECT 23 added / 0 failed (was 11 added / 12 failed). Two-minute
+test. **Effort:** trivial.
+
+### VERIFY-002 — Cafe Menu.png stuck at awaiting_confirmation
+An import job (6 rows) is sitting unconfirmed. Confirm it and verify the products
+land. **Effort:** trivial.
+
+## BETA 2.x HARDENING — before any real customer
+
+### HARD-001 — Rotate Postgres password
+Exposed in terminal + chat during a pg_dump on 2026-06-23 (vUGXfRTm...). Rotate in
+Railway + update `DATABASE_URL`. Deferred deliberately (stealth mode, no users). MUST
+do before public access. (See also SECURITY-001 in the checklist below.)
+
+### HARD-002 — Health endpoint reports a fake version
+`/api/health` hardcodes version "1.2.0" while main is at v2. Cosmetic but it makes the
+health check lie. Fix the string.
+
+### HARD-003 — 44 lint warnings
+0 errors, 44 warnings (unused imports/vars, a few `any`, some fs security warnings).
+Clean them: prefix unused with `_` or delete. Non-blocking but it's noise on every
+commit.
+
+### HARD-004 — Migration 031 tracker gap (cosmetic)
+`inventory_deduction_failures` table EXISTS on prod but 031 is not recorded in
+`pgmigrations` (table/tracker drift — CASE B). Harmless with the raw-SQL migration
+approach. To close:
+```sql
+INSERT INTO pgmigrations (name, run_on)
+VALUES ('031_inventory_deduction_failures', now());
+```
+
+### HARD-005 — Demo data cleanup + disable demo login
+Re-run `REMOVE_DEMO_DATA.sql` and disable `demo@taproot.pos` (CUSTOMER-001) before
+real customers.
+
+### HARD-006 — Full re-audit before public access
+The White Glove audit's P2/P3 items remain open (`docs/WHITE_GLOVE_AUDIT.md`).
+Re-audit before launch.
+
+### HARD-007 — Throwaway "Studio" org cleanup
+Org `5a4f6500-1563-4b56-b4c2-de9a583c6b6f` (slug: studio, `capabilities.studio=true`)
+was created for v2 smoke-testing. Keep for studio QA, or delete before launch.
+
+### HARD-008 — Consider branch protection on main
+`main` currently accepts direct pushes. A PR requirement is a seatbelt against
+accidental deploys (wrong branch, misread instruction). Optional — Jake merges
+deliberately via tclaude.
+
+---
+
+<!-- ─── Historical bug-fix log (pre-existing) continues below ─── -->
+
 > ## Hour 4 re-verification (2026-06-10) — BUG-IMP-001/002/003 confirmed already fixed
 > A scheduled "fix import bugs" pass re-verified these against the live code + a real
 > end-to-end CSV import. **All three were already RESOLVED** (see entries below) and the
